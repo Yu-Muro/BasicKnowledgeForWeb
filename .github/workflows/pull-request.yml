@@ -122,7 +122,7 @@ jobs:
   # Renovate が作成した PR のみを自動承認・自動マージします。
   # 以下をすべて満たす場合に限り実行する fail-closed 設計です（1 つでも欠ければスキップ）。
   #   1. ブランチ名が renovate/ プレフィックスであること
-  #   2. PR 作成者が変数 RENOVATE_ACTOR（RENOVATE_TOKEN の実行主体のログイン名）と一致すること。
+  #   2. PR 作成者が変数 RENOVATE_ACTOR（Renovate GitHub App の slug + [bot]）と一致すること。
   #      ブランチ名だけを条件にすると、書き込み権限を持つ利用者が renovate/* ブランチから PR を作るだけで
   #      通常のレビュー要件を迂回できてしまうため、実行主体の検証を必須にしています。
   #   3. ベースブランチが develop であること。main へリターゲットされた PR が

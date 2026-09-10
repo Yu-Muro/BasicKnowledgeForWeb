@@ -477,7 +477,7 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
 **Renovate 自動マージ**: `renovate-auto-merge` ジョブは、以下を **すべて** 満たす PR に限り、上記 3 ジョブの通過後に自動承認・自動マージします。1 つでも欠ければスキップする fail-closed 設計です。
 
 1. ブランチ名が `renovate/` で始まる
-2. PR 作成者が変数 `RENOVATE_ACTOR`（`RENOVATE_TOKEN` の実行主体のログイン名）と一致する
+2. PR 作成者が変数 `RENOVATE_ACTOR`（Renovate GitHub App の `<app-slug>[bot]`）と一致する
 3. ベースブランチが `develop`
 4. fork からの PR ではない
 5. `major-update` ラベルが付いていない（ジョブ実行時に API で再確認）
@@ -498,7 +498,9 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
 - **GitHub Actions のメジャー更新のみ例外的に PR を作成します**（旧 `dependabot.yml` でも `github-actions` は major を除外していなかったため）。互換性破壊の可能性があるため別 PR に分離し、`major-update` ラベルを付けて自動マージ対象から外しています
 - ワークフローは毎日起動しますが、通常更新は `schedule: ["before 9am on monday"]` により週次のままです。Renovate の `schedule` は「bot の起動時刻」ではなく「ブランチを作成してよい時間帯」を制限する設定のため、週次起動にすると `lockFileMaintenance` の「毎月1日」の時間帯と交差しない月が生じてしまいます
 - **PR 数の制限は `prConcurrentLimit: 10` のみで、`prHourlyLimit` は `0`（無制限）です。** 通常更新のブランチ作成が許されるのは `schedule` により週 1 回（毎週月曜 07:00 JST の起動）だけなので、1 回の実行で作れる PR 数がそのまま週あたりの上限になります。移行前 90 日間の Dependabot マージ実績は 100 件（約 7.7 件/週）で、グルーピング後も週 5 件前後は見込まれるため、時間あたりの上限を残すと恒常的なバックログになります
-- **Renovate 本体のバージョンは `renovate.yml` の `renovate-version` で固定します。** `uses` の SHA 固定で止まるのは Action のラッパーだけで、本体は `action.yml` の既定値（メジャータグ `'44'`）が指す Docker イメージのため、固定しないと実行のたびに未検証のビルドを取得します。`workflow` スコープを持つトークンを扱う以上、本体も明示的に固定します。更新は `renovate.json` の `customManagers` が `ghcr.io/renovatebot/renovate` の Docker タグとして PR で提案します（メジャー更新は `major-update` ラベル付きで自動マージ対象外）
+- **Renovate 本体のバージョンは `renovate.yml` の `renovate-version` で固定します。** `uses` の SHA 固定で止まるのは Action のラッパーだけで、本体は `action.yml` の既定値（メジャータグ `'44'`）が指す Docker イメージのため、固定しないと実行のたびに未検証のビルドを取得します。GitHub App は Workflows の書き込み権限を持つため、本体も明示的に固定します。更新は `renovate.json` の `customManagers` が `ghcr.io/renovatebot/renovate` の Docker タグとして PR で提案します（メジャー更新は `major-update` ラベル付きで自動マージ対象外）
+- Renovate は専用 GitHub App のインストールトークンで実行します。トークンはワークフローごとに発行され、PR 作成者は `<app-slug>[bot]` になります
+- `RENOVATE_PLATFORM_COMMIT: "enabled"` により GitHub API 経由でコミットし、GitHub App の署名を付けます
 
 ### 必須シークレット
 
@@ -507,16 +509,17 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
 | `CLOUDFLARE_API_TOKEN` | デプロイワークフロー |
 | `CLOUDFLARE_ACCOUNT_ID` | デプロイワークフロー |
 | `DATABASE_URL` | デプロイワークフロー（db:migrate） |
-| `RENOVATE_TOKEN` | Renovate ワークフロー。**PAT 専用**（`repo` + **`workflow`** スコープが必要）。**Renovate 専用のマシンユーザーで発行すること**（理由は下記）。GitHub App のインストールアクセストークンは発行から 1 時間で失効するため、静的シークレットとしては登録できません。App を使う場合は実行のたびにトークンを発行するステップが別途必要です |
+| `RENOVATE_APP_PRIVATE_KEY` | Renovate 専用 GitHub App の秘密鍵（PEM）。リポジトリへコミットせず、Actions Secret に登録します |
 
 ### 必須変数（Variables）
 
 | 変数 | 用途 |
 |---|---|
-| `RENOVATE_ACTOR` | `RENOVATE_TOKEN` を発行したマシンユーザーのログイン名。`pull-request.yml` の `renovate-auto-merge` が PR 作成者の検証に使用します。**未設定の場合、Renovate PR の自動マージは行われません**（fail-closed） |
+| `RENOVATE_APP_CLIENT_ID` | Renovate 専用 GitHub App の Client ID。実行時のインストールトークン生成に使用します |
+| `RENOVATE_ACTOR` | Renovate GitHub App の `<app-slug>[bot]`。`pull-request.yml` の `renovate-auto-merge` が PR 作成者の検証に使用します。**未設定の場合、Renovate PR の自動マージは行われません**（fail-closed） |
 
-**⚠️ `RENOVATE_TOKEN` は必ず Renovate 専用のマシンユーザーで発行してください。**
-`develop` は ruleset（`Protect develop branch`）で承認 1 件・必須ステータスチェック・レビュースレッド解決が要求されるため、通常の PR は人手のレビューなしにはマージできません。一方 `renovate-auto-merge` は条件を満たす PR へ `github-actions[bot]` の承認を自動付与します。したがって `RENOVATE_ACTOR` が保守担当者本人のアカウントだと、その担当者は `renovate/*` ブランチから PR を作るだけでレビュー要件を迂回できてしまいます。専用アカウントに限定することで、この経路を Renovate の実行だけに閉じます。
+**⚠️ Renovate GitHub App は `BasicKnowledgeForWeb` のみにインストールしてください。**
+Repository permissions は Administration: Read-only、Checks / Commit statuses / Contents / Issues / Pull requests / Workflows: Read and write、Dependabot alerts: Read-only とします。`RENOVATE_ACTOR` を App の bot アカウントに限定することで、書き込み権限を持つ利用者が `renovate/*` ブランチから PR を作ってレビュー要件を迂回する経路を閉じます。
 
 ## 環境変数
 

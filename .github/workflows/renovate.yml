@@ -40,19 +40,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      - name: Generate Renovate GitHub App token
+        id: renovate-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          # GitHub App は BasicKnowledgeForWeb のみにインストールし、トークンも現在のリポジトリだけに限定します。
+          client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+
       - name: Run Renovate
         uses: renovatebot/github-action@e09d604f8f803bb527bd8321ed5be06c460b8682 # v46.2.2
         with:
           # GITHUB_TOKEN で作成した PR は後続ワークフローを発火させられないため、
-          # 必ず PAT を RENOVATE_TOKEN として設定します。
-          # PAT は Renovate 専用のマシンユーザーで発行してください。保守担当者本人の PAT を使うと、
-          # その担当者が renovate/* ブランチから手動で PR を作るだけで pull-request.yml の
-          # renovate-auto-merge を通過し、develop の ruleset が要求するレビューを迂回できます。
-          # GitHub App のインストールアクセストークンは発行から 1 時間で失効するため、
-          # 静的シークレットとしては登録できません（後日の cron 実行が認証エラーになります）。
-          # App を使う場合は実行のたびにトークンを発行するステップが別途必要ですが、
-          # 本ワークフローは PAT 専用の構成です。
-          token: ${{ secrets.RENOVATE_TOKEN }}
+          # 専用 GitHub App の短期インストールトークンを実行のたびに生成して使用します。
+          # PR 作成者は App の bot アカウントになり、個人アカウントへ権限を紐付けません。
+          token: ${{ steps.renovate-app-token.outputs.token }}
           # uses の SHA 固定で止まるのは Action のラッパーだけです。
           # Renovate 本体は action.yml の既定値（メジャータグ '44'）が指す Docker イメージのため、
           # 固定しないと実行のたびに未検証のビルドを取得します。
@@ -63,6 +65,8 @@ jobs:
           LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
           RENOVATE_DRY_RUN: ${{ inputs.dryRun == 'full' && 'full' || '' }}
           RENOVATE_PLATFORM: github
+          # GitHub API 経由でコミットし、GitHub App の署名を付けます。
+          RENOVATE_PLATFORM_COMMIT: "enabled"
           RENOVATE_AUTODISCOVER: "false"
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           # デフォルトブランチ（main）に renovate.json が存在しない場合は何もせずスキップします。
