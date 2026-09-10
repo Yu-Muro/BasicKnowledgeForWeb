@@ -1,11 +1,9 @@
 ---
 name: auth-hardening-tests
-description: docs/tasks/phase1-auth-hardening-for-claude.md の Task1/2/3 を再現するためのチェックリスト。
+description: Frontend middlewareとBackend認証ルートの回帰テスト、JWT secret運用を点検・強化するときに使う。
 ---
 
 # Auth Hardening & Tests ガイド
-
-参照: `docs/tasks/phase1-auth-hardening-for-claude.md`
 
 ## スコープ
 1. Frontend middleware (`apps/frontend/middleware.ts`) のテスト追加

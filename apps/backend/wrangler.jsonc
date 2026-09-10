@@ -6,6 +6,12 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	"services": [
+		{
+			"binding": "EMAIL_WORKER",
+			"service": "basic-knowledge-for-web-email-worker"
+		}
+	],
 	"vars": {
 		"SHOP_ITEM_ASSET_BASE_URL": "http://localhost:8080/assets"
 	},
@@ -39,6 +45,12 @@
 			"vars": {
 				"SHOP_ITEM_ASSET_BASE_URL": "https://assets.dev.reitaisai.info"
 			},
+			"services": [
+				{
+					"binding": "EMAIL_WORKER",
+					"service": "basic-knowledge-for-web-email-worker-dev"
+				}
+			],
 			"hyperdrive": [
 				{
 					"binding": "HYPERDRIVE",
@@ -77,6 +89,12 @@
 			"vars": {
 				"SHOP_ITEM_ASSET_BASE_URL": "https://assets.reitaisai.info"
 			},
+			"services": [
+				{
+					"binding": "EMAIL_WORKER",
+					"service": "basic-knowledge-for-web-email-worker"
+				}
+			],
 			"hyperdrive": [
 				{
 					"binding": "HYPERDRIVE",
