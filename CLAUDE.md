@@ -519,7 +519,7 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
 | `RENOVATE_ACTOR` | Renovate GitHub App の `<app-slug>[bot]`。`pull-request.yml` の `renovate-auto-merge` が PR 作成者の検証に使用します。**未設定の場合、Renovate PR の自動マージは行われません**（fail-closed） |
 
 **⚠️ Renovate GitHub App は `BasicKnowledgeForWeb` のみにインストールしてください。**
-Repository permissions は Administration: Read-only、Checks / Commit statuses / Contents / Issues / Pull requests / Workflows: Read and write、Dependabot alerts: Read-only とします。`RENOVATE_ACTOR` を App の bot アカウントに限定することで、書き込み権限を持つ利用者が `renovate/*` ブランチから PR を作ってレビュー要件を迂回する経路を閉じます。
+Repository permissions は Administration: Read-only、Checks / Commit statuses / Contents / Issues / Pull requests / Workflows: Read and write、Dependabot alerts: Read-only とします。インストールトークン生成時にも同じ権限を明示し、App に付与された権限を丸ごと継承しません。`RENOVATE_ACTOR` を App の bot アカウントに限定することで、書き込み権限を持つ利用者が `renovate/*` ブランチから PR を作ってレビュー要件を迂回する経路を閉じます。
 
 ## 環境変数
 

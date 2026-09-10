@@ -47,6 +47,15 @@ jobs:
           # GitHub App は BasicKnowledgeForWeb のみにインストールし、トークンも現在のリポジトリだけに限定します。
           client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+          # インストールに付与された権限を丸ごと継承せず、Renovate の実行に必要な権限だけを要求します。
+          permission-administration: read
+          permission-checks: write
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+          permission-statuses: write
+          permission-vulnerability-alerts: read
+          permission-workflows: write
 
       - name: Run Renovate
         uses: renovatebot/github-action@e09d604f8f803bb527bd8321ed5be06c460b8682 # v46.2.2

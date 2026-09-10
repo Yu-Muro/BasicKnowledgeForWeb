@@ -139,7 +139,7 @@
    - Webhook は使用しないため無効化する。
    - GitHub App の秘密鍵を生成し、リポジトリの Actions Secret `RENOVATE_APP_PRIVATE_KEY` に PEM 全文を登録する。秘密鍵をリポジトリへコミットしないこと。
    - GitHub App の Client ID を Actions Variable `RENOVATE_APP_CLIENT_ID` に登録する。
-   - ワークフローは `actions/create-github-app-token` で実行ごとに短期インストールトークンを生成する。静的な PAT は使用しない。
+   - ワークフローは `actions/create-github-app-token` で実行ごとに短期インストールトークンを生成する。トークンへ必要な権限を明示し、App のインストール権限を丸ごと継承しない。静的な PAT は使用しない。
    - `RENOVATE_PLATFORM_COMMIT: "enabled"` により GitHub API 経由でコミットし、GitHub App の署名を付ける。
 2. **`RENOVATE_ACTOR` 変数を登録する**（`Settings → Secrets and variables → Actions → Variables`）
    - 値は GitHub App の `<app-slug>[bot]`（例: `rts-souhon-renovate[bot]`）。
