@@ -5,7 +5,6 @@ import {
     buildBackendUrl,
     fetchFromBackend,
 } from '@frontend/app/lib/backendFetch';
-import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 
 type AccessCode = {
@@ -23,10 +22,6 @@ type ActionResult =
 async function getAuthToken(): Promise<string | null> {
     const store = await cookies();
     return store.get('auth_token')?.value ?? null;
-}
-
-function revalidateAccessCodesPage() {
-    revalidatePath('/admin/access-codes');
 }
 
 export async function createAccessCodeAction(data: {
@@ -65,7 +60,6 @@ export async function createAccessCodeAction(data: {
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateAccessCodesPage();
         return snapshot;
     } catch (err) {
         logActionError(
@@ -107,7 +101,6 @@ export async function deleteAccessCodeAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateAccessCodesPage();
         return snapshot;
     } catch (err) {
         logActionError(

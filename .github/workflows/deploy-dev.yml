@@ -17,7 +17,7 @@ jobs:
     environment: dev
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -60,7 +60,7 @@ jobs:
     environment: dev
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -94,8 +94,6 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          # Wrangler の OpenNext 自動検出を無効化し、`opennextjs-cloudflare deploy` 経由の
-          # populate-cache（R2 疎通の一時失敗で deploy が落ちる）を回避する。
           OPEN_NEXT_DEPLOY: "true"
 
       - name: Notify deployment

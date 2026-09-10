@@ -5,7 +5,6 @@ import {
     buildBackendUrl,
     fetchFromBackend,
 } from '@frontend/app/lib/backendFetch';
-import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 
 type UploadImageResult =
@@ -23,10 +22,6 @@ type ShopItemData = {
 type ShopItemsResult =
     | { success: true; data: ShopItemData[] }
     | { success: false; error: string };
-
-function revalidateShopPage(_eventId: string) {
-    revalidatePath('/shop', 'layout');
-}
 
 async function getAuthToken(): Promise<string | null> {
     const store = await cookies();
@@ -116,7 +111,6 @@ export async function createShopItemAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateShopPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(
@@ -170,7 +164,6 @@ export async function updateShopItemAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateShopPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(
@@ -216,7 +209,6 @@ export async function deleteShopItemAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateShopPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(

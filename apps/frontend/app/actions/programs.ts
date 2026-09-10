@@ -5,7 +5,6 @@ import {
     buildBackendUrl,
     fetchFromBackend,
 } from '@frontend/app/lib/backendFetch';
-import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 
 type UploadImageResult =
@@ -29,10 +28,6 @@ type ProgramsResult =
 async function getAuthToken(): Promise<string | null> {
     const store = await cookies();
     return store.get('auth_token')?.value ?? null;
-}
-
-function revalidateEventsPage(_eventId: string) {
-    revalidatePath('/events', 'layout');
 }
 
 export async function uploadProgramImageAction(
@@ -120,7 +115,6 @@ export async function createProgramAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateEventsPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(
@@ -176,7 +170,6 @@ export async function updateProgramAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateEventsPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(
@@ -222,7 +215,6 @@ export async function deleteProgramAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateEventsPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(

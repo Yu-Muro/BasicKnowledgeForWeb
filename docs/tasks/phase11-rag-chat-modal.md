@@ -1,4 +1,6 @@
-# Phase 6: Workers AI (AI Search) RAG チャット（FAB + モーダル）
+# Phase 11: Workers AI (AI Search) RAG チャット（FAB + モーダル）
+
+> 旧 Phase 6。セキュリティの総当たり対策（[Phase 6](./phase6-rate-limit-turnstile.md)）に番号を譲り、Phase 11 へ移動。
 
 ## 対象
 
@@ -87,4 +89,4 @@ backend と frontend をまたぐため、以下の順序を厳守する。
 - 回答は 5 ドメインを根拠として返り、会期越境が発生しない
 - `apps/backend` の `type-check`, `test`, `lint` が通る
 - `apps/frontend` の `type-check`, `test`, `lint` が通る
-- `docs/implementation-plan.md` と `docs/pages` が Phase 6 仕様に追従している
+- `docs/implementation-plan.md` と `docs/pages` が Phase 11 仕様に追従している

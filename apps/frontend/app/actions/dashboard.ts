@@ -5,7 +5,6 @@ import {
     buildBackendUrl,
     fetchFromBackend,
 } from '@frontend/app/lib/backendFetch';
-import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 
 type ActionResult = { success: true } | { success: false; error: string };
@@ -22,10 +21,6 @@ type UserRoleResult =
 async function getAuthToken(): Promise<string | null> {
     const store = await cookies();
     return store.get('auth_token')?.value ?? null;
-}
-
-function revalidateDashboard() {
-    revalidatePath('/dashboard');
 }
 
 export async function changePasswordAction(data: {
@@ -104,7 +99,6 @@ export async function updateUserRoleAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateDashboard();
         return snapshot;
     } catch (err) {
         logActionError(

@@ -42,13 +42,6 @@
                     "bucket_name": "basic-knowledge-for-web-next-cache-dev"
                 }
             ],
-            "d1_databases": [
-                {
-                    "binding": "NEXT_TAG_CACHE_D1",
-                    "database_name": "next-tag-cache-dev",
-                    "database_id": "31476af3-75d7-4f2e-a32f-f0a3e44605ef"
-                }
-            ],
             "secrets": {
                 "required": [
                     "JWT_SECRET"
@@ -82,13 +75,6 @@
                 {
                     "binding": "NEXT_INC_CACHE_R2_BUCKET",
                     "bucket_name": "basic-knowledge-for-web-next-cache"
-                }
-            ],
-            "d1_databases": [
-                {
-                    "binding": "NEXT_TAG_CACHE_D1",
-                    "database_name": "next-tag-cache",
-                    "database_id": "00c67191-d7bc-4e18-82b8-27605f6f3208"
                 }
             ],
             "secrets": {

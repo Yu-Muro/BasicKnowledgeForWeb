@@ -5,7 +5,6 @@ import {
     buildBackendUrl,
     fetchFromBackend,
 } from '@frontend/app/lib/backendFetch';
-import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 
 type RoomData = {
@@ -29,10 +28,6 @@ type RoomsResult =
 async function getAuthToken(): Promise<string | null> {
     const store = await cookies();
     return store.get('auth_token')?.value ?? null;
-}
-
-function revalidateRoomsPage(_eventId: string) {
-    revalidatePath('/rooms', 'layout');
 }
 
 export async function createRoomAction(
@@ -79,7 +74,6 @@ export async function createRoomAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateRoomsPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(
@@ -137,7 +131,6 @@ export async function updateRoomAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateRoomsPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(
@@ -183,7 +176,6 @@ export async function deleteRoomAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateRoomsPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(
