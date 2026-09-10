@@ -77,7 +77,7 @@
 
 1. **`bun.lock` 回避策（`dependabot-bun-lock.yml`）を丸ごと廃止できる。**
    Renovate は PR を作る同一実行内で `bun install` を回し、ルート `bun.lock` を同じコミットに含める。「Dependabot の PR に別ワークフローが後追いで `bun.lock` を push する」という二段構えが不要になり、運用負債が 1 つ消える。
-   なお PAT 自体は引き続き必要（`RENOVATE_TOKEN`）。`GITHUB_TOKEN` で作成した PR は後続ワークフローを発火させられないという GitHub の仕様は Renovate でも同じであるため。ただしトークンを使う箇所が 2 ワークフローから 1 ワークフローへ集約される。
+   認証には専用 GitHub App の短期インストールトークンを使うため、個人アカウントに紐付く PAT は不要。App トークンで作成した PR は後続 CI を発火でき、`platformCommit` により GitHub App の署名も付与できる。
 2. **PR / CI 爆発をグルーピングで抑制。**
    例: 「全 devDependencies を 1 PR」「Cloudflare 系（wrangler / @cloudflare/*  / @opennextjs/*）を 1 PR」「React エコシステムを 1 PR」等。約 295 件規模の PR とフル CI 実行を大幅に削減。Dependency Dashboard で保留状況も一望できる。
 3. **beta 固定パッケージの制御が明快。**
@@ -134,14 +134,15 @@
 
 ### 6.3 マージ前に必要な手動セットアップ ⚠️
 
-1. **`RENOVATE_TOKEN` シークレットを登録する**（リポジトリ or Organization レベル。フォールバックは無いため未設定だと Renovate は動作しません）
-   - **必ず Renovate 専用のマシンユーザーで発行してください。** `develop` は ruleset（`Protect develop branch`）で承認 1 件・必須ステータスチェック・レビュースレッド解決を要求しており、通常の PR は人手のレビューなしにマージできません。一方 `renovate-auto-merge` は条件を満たす PR へ `github-actions[bot]` の承認を自動付与します。`RENOVATE_ACTOR` が保守担当者本人のアカウントだと、その担当者は `renovate/*` ブランチから PR を作るだけでこのレビュー要件を迂回できてしまいます。
-   - **PAT 専用**です。GitHub App のインストールアクセストークンは[発行から 1 時間で失効する](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)ため、静的シークレットとして登録すると後日の cron 実行が認証エラーになります。App 運用へ切り替える場合は、App ID と秘密鍵から実行のたびにトークンを発行するステップ（例: `actions/create-github-app-token`）を `renovate.yml` に追加してください。
-   - **`repo` スコープに加えて `workflow` スコープが必須**。これが無いと Renovate は `.github/workflows/*` を更新できず、GitHub Actions の更新 PR が作成できません。
-   - `GITHUB_TOKEN` は使用不可。GitHub の仕様上、`GITHUB_TOKEN` で作成した PR では後続の CI が発火しません（旧 `dependabot-bun-lock.yml` が PAT を必要としていたのと同じ理由）。
-   - Environment（`Dev` / `Prod`）シークレットは `renovate` ジョブから参照できないため、登録先を間違えないこと。
+1. **Renovate 専用 GitHub App を作成して `BasicKnowledgeForWeb` のみにインストールする**
+   - Repository permissions は Administration: Read-only、Checks / Commit statuses / Contents / Issues / Pull requests / Workflows: Read and write、Dependabot alerts: Read-only とする。
+   - Webhook は使用しないため無効化する。
+   - GitHub App の秘密鍵を生成し、リポジトリの Actions Secret `RENOVATE_APP_PRIVATE_KEY` に PEM 全文を登録する。秘密鍵をリポジトリへコミットしないこと。
+   - GitHub App の Client ID を Actions Variable `RENOVATE_APP_CLIENT_ID` に登録する。
+   - ワークフローは `actions/create-github-app-token` で実行ごとに短期インストールトークンを生成する。トークンへ必要な権限を明示し、App のインストール権限を丸ごと継承しない。静的な PAT は使用しない。
+   - `RENOVATE_PLATFORM_COMMIT: "enabled"` により GitHub API 経由でコミットし、GitHub App の署名を付ける。
 2. **`RENOVATE_ACTOR` 変数を登録する**（`Settings → Secrets and variables → Actions → Variables`）
-   - 値は `RENOVATE_TOKEN` を発行したマシンユーザーのログイン名。
+   - 値は GitHub App の `<app-slug>[bot]`（例: `rts-souhon-renovate[bot]`）。
    - `renovate-auto-merge` が PR 作成者の検証に使用します。**未設定の場合は自動マージが行われません**（fail-closed）。ブランチ名だけを条件にすると、書き込み権限を持つ利用者が `renovate/*` ブランチから PR を作るだけでレビュー要件を迂回できてしまうため、この検証を必須にしています。
 3. **設定が `main`（デフォルトブランチ）へ到達するまで Renovate は起動しません。**
    - ワークフローに `RENOVATE_REQUIRE_CONFIG: "required"` / `RENOVATE_ONBOARDING: "false"` を設定済み。デフォルトブランチに `renovate.json` が無い間は**何もせずスキップ**します（オンボーディング PR の暴発や `main` 宛て PR の誤作成を防止）。
@@ -156,7 +157,7 @@
 - `customManagers` の正規表現が `renovate.yml` の `renovate-version` 行から `depName=ghcr.io/renovatebot/renovate` / `datasource=docker` / `currentValue` を抽出できることを、同じ正規表現をローカルで実行して確認済み。
 - `renovatebot/github-action` の `renovate-version` 既定値がメジャータグ `'44'`（`action.yml:28`）であり、固定しなければ実行ごとにイメージ実体が変わることを確認済み。
 - Renovate が PR 作成（`createPr`）とラベル付与（`addLabels`）を別 API 呼び出しで行うことを、`lib/modules/platform/github/index.ts`（v44.0.0）でソース確認済み。`renovate-auto-merge` がラベルを実行時に再取得する根拠。
-- `develop` の保護は従来のブランチ保護ではなく **ruleset**（`Protect develop branch`、enforcement: active）で実装されていることを API で確認済み。承認 1 件・必須ステータスチェック 4 件・レビュースレッド解決・署名必須が有効。`CODEOWNERS` は未設置のため `require_code_owner_review` は実質無効で、`github-actions[bot]` の承認 1 件で必要条件を満たす。専用マシンユーザーを要求する根拠。
+- `develop` の保護は従来のブランチ保護ではなく **ruleset**（`Protect develop branch`、enforcement: active）で実装されていることを API で確認済み。承認 1 件・必須ステータスチェック 4 件・レビュースレッド解決・署名必須が有効。`CODEOWNERS` は未設置のため `require_code_owner_review` は実質無効で、`github-actions[bot]` の承認 1 件で必要条件を満たす。`RENOVATE_ACTOR` を専用 GitHub App の bot アカウントに限定する根拠。
 - 移行前 90 日間（2026-05-18 以降）の Dependabot マージ実績が 100 件であることを Search API で確認済み。PR 数制限の設定根拠。
 - スケジュール実行時に `RENOVATE_DRY_RUN` が空文字になる件は、Renovate の env パーサが `if (!envVal) continue`（`lib/workers/global/config/parse/env.ts`）で空値をスキップする実装であることをソースで確認済み。定期実行に影響しません。
 - 上記はいずれも静的検証です。**実際の PR 生成挙動（特に Bun ワークスペースでの `bun.lock` 更新）は、6.3 のドライラン → 初回実行で必ず確認してください。**
