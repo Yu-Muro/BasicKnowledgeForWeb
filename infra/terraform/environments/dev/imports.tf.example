@@ -1,0 +1,37 @@
+# Copy this file to imports.tf, replace placeholders discovered during the
+# read-only inventory, and remove imports.tf after the first no-op plan.
+
+import {
+  to = module.project.cloudflare_worker.backend
+  id = "<ACCOUNT_ID>/basic-knowledge-for-web-backend-dev"
+}
+
+import {
+  to = module.project.cloudflare_worker.frontend
+  id = "<ACCOUNT_ID>/basic-knowledge-for-web-frontend-dev"
+}
+
+import {
+  to = module.project.cloudflare_r2_bucket.assets
+  id = "<ACCOUNT_ID>/dev-basicknowledgeforweb/default"
+}
+
+import {
+  to = module.project.cloudflare_r2_bucket.next_cache
+  id = "<ACCOUNT_ID>/basic-knowledge-for-web-next-cache-dev/default"
+}
+
+import {
+  to = module.project.cloudflare_hyperdrive_config.database
+  id = "<ACCOUNT_ID>/f7f0ede9c7464673ab6f5bdcf0753218"
+}
+
+import {
+  to = module.project.cloudflare_workers_route.backend_api
+  id = "<ZONE_ID>/<BACKEND_ROUTE_ID>"
+}
+
+import {
+  to = module.project.cloudflare_workers_custom_domain.frontend
+  id = "<ACCOUNT_ID>/<FRONTEND_CUSTOM_DOMAIN_ID>"
+}

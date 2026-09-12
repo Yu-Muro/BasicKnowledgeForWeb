@@ -18,6 +18,100 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  terraform-static:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive infra/terraform
+
+      - name: Check Wrangler ownership and bindings
+        run: node infra/terraform/scripts/check-wrangler-ownership.mjs
+
+      - name: Validate and test dev Terraform
+        run: |
+          terraform -chdir=infra/terraform/environments/dev init -backend=false -input=false
+          terraform -chdir=infra/terraform/environments/dev validate
+          terraform -chdir=infra/terraform/environments/dev test
+
+      - name: Validate and test production Terraform
+        run: |
+          terraform -chdir=infra/terraform/environments/prod init -backend=false -input=false
+          terraform -chdir=infra/terraform/environments/prod validate
+          terraform -chdir=infra/terraform/environments/prod test
+
+  terraform-plan:
+    runs-on: ubuntu-latest
+    if: github.repository == github.event.pull_request.head.repo.full_name
+    environment: ${{ github.base_ref == 'main' && 'prod' || 'dev' }}
+    env:
+      TF_ENABLED: ${{ vars.TERRAFORM_IAC_ENABLED }}
+      TF_ENVIRONMENT: ${{ github.base_ref == 'main' && 'prod' || 'dev' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.TF_PLAN_STATE_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_PLAN_STATE_SECRET_ACCESS_KEY }}
+      AWS_ENDPOINT_URL_S3: https://${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      CLOUDFLARE_API_TOKEN: ${{ secrets.TF_PLAN_CLOUDFLARE_API_TOKEN }}
+      TF_VAR_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_hyperdrive_name: ${{ vars.CLOUDFLARE_HYPERDRIVE_NAME }}
+      TF_VAR_hyperdrive_origin: ${{ secrets.TF_HYPERDRIVE_ORIGIN }}
+    steps:
+      - name: Explain disabled Terraform plan
+        if: env.TF_ENABLED != 'true'
+        run: echo "Terraform import and no-op verification are not complete; remote plan is skipped."
+
+      - name: Checkout code
+        if: env.TF_ENABLED == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Terraform
+        if: env.TF_ENABLED == 'true'
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false
+
+      - name: Create sanitized Terraform plan summary
+        if: env.TF_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          terraform -chdir="infra/terraform/environments/${TF_ENVIRONMENT}" init -input=false
+          if ! terraform -chdir="infra/terraform/environments/${TF_ENVIRONMENT}" plan \
+            -input=false -lock=false -out=/tmp/terraform-plan >/dev/null; then
+            echo "::error::Terraform plan failed. Inspect it locally without publishing sensitive plan data."
+            exit 1
+          fi
+          terraform -chdir="infra/terraform/environments/${TF_ENVIRONMENT}" show \
+            -json /tmp/terraform-plan \
+            | jq -r '
+              [.resource_changes[]? | select(.change.actions != ["no-op"]) |
+               {address, actions: (.change.actions | join("/"))}] as $changes |
+              ($changes[] | "\(.actions) \(.address)"),
+              "create=" + (($changes | map(select(.actions == "create")) | length) | tostring) +
+              " update=" + (($changes | map(select(.actions == "update")) | length) | tostring) +
+              " delete=" + (($changes | map(select(.actions | contains("delete"))) | length) | tostring)' \
+            | tee /tmp/terraform-change-summary.txt
+          {
+            echo "## Terraform plan (${TF_ENVIRONMENT})"
+            echo '```text'
+            if [[ -s /tmp/terraform-change-summary.txt ]]; then
+              cat /tmp/terraform-change-summary.txt
+            else
+              echo "No resource changes."
+            fi
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
   lint-and-test-backend:
     runs-on: ubuntu-latest
     steps:
@@ -33,6 +127,11 @@ jobs:
         run: |
           cd apps/backend
           bun run build
+
+      - name: Dry-run backend deployments
+        run: |
+          ./node_modules/.bin/wrangler deploy --config apps/backend/wrangler.jsonc --env dev --dry-run --outdir /tmp/backend-dev --minify
+          ./node_modules/.bin/wrangler deploy --config apps/backend/wrangler.jsonc --env prod --dry-run --outdir /tmp/backend-prod --minify
 
       - name: Lint backend code
         run: |
@@ -104,6 +203,11 @@ jobs:
           cd apps/frontend
           bun run build:cloudflare
 
+      - name: Dry-run frontend deployments
+        run: |
+          ./node_modules/.bin/wrangler deploy --config apps/frontend/wrangler.jsonc --env dev --dry-run --outdir /tmp/frontend-dev
+          ./node_modules/.bin/wrangler deploy --config apps/frontend/wrangler.jsonc --env prod --dry-run --outdir /tmp/frontend-prod
+
       - name: Lint frontend code
         run: |
           cd apps/frontend
@@ -147,7 +251,7 @@ jobs:
       contents: write
       pull-requests: write
     timeout-minutes: 5
-    needs: ["lint-and-test-backend", "verify-migration-backend", "lint-and-test-frontend"]
+    needs: ["terraform-static", "lint-and-test-backend", "verify-migration-backend", "lint-and-test-frontend"]
     steps:
       # イベント payload ではなく現在のラベルを API から取得して再判定します。
       # gh の呼び出しが失敗した場合は変数代入が set -e で落ち、ジョブ自体が失敗して

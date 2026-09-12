@@ -2,6 +2,7 @@
 	"$schema": "https://unpkg.com/wrangler/config-schema.json",
 	"name": "basic-knowledge-for-web-backend",
 	"main": "src/index.ts",
+	"workers_dev": false,
 	"compatibility_date": "2025-02-24",
 	"compatibility_flags": [
 		"nodejs_compat"
@@ -30,12 +31,7 @@
 	"env": {
 		"dev": {
 			"name": "basic-knowledge-for-web-backend-dev",
-			"routes": [
-				{
-					"pattern": "dev.reitaisai.info/api/*",
-					"zone_name": "reitaisai.info"
-				}
-			],
+			"workers_dev": false,
 			"vars": {
 				"SHOP_ITEM_ASSET_BASE_URL": "https://assets.dev.reitaisai.info"
 			},
@@ -68,12 +64,7 @@
 		},
 		"prod": {
 			"name": "basic-knowledge-for-web-backend",
-			"routes": [
-				{
-					"pattern": "reitaisai.info/api/*",
-					"zone_name": "reitaisai.info"
-				}
-			],
+			"workers_dev": false,
 			"vars": {
 				"SHOP_ITEM_ASSET_BASE_URL": "https://assets.reitaisai.info"
 			},

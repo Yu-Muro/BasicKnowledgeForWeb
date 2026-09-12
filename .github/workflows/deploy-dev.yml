@@ -10,9 +10,91 @@ permissions:
 
 concurrency:
   group: deploy-dev
+  cancel-in-progress: false
 
 jobs:
-  deploy-backend:
+  terraform-apply:
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_ACCESS_KEY }}
+      AWS_ENDPOINT_URL_S3: https://${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_hyperdrive_name: ${{ vars.CLOUDFLARE_HYPERDRIVE_NAME }}
+      TF_VAR_hyperdrive_origin: ${{ secrets.TF_HYPERDRIVE_ORIGIN }}
+    steps:
+      - name: Confirm Terraform migration is enabled
+        env:
+          TERRAFORM_IAC_ENABLED: ${{ vars.TERRAFORM_IAC_ENABLED }}
+        run: |
+          if [ "${TERRAFORM_IAC_ENABLED}" != "true" ]; then
+            echo "::error::Set TERRAFORM_IAC_ENABLED=true after the dev import plan is No changes."
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false
+
+      - name: Initialize Terraform
+        working-directory: infra/terraform/environments/dev
+        run: terraform init -input=false
+
+      - name: Back up current state
+        env:
+          STATE_BUCKET: basic-knowledge-for-web-terraform-state
+          STATE_KEY: basic-knowledge-for-web/dev/terraform.tfstate
+        run: |
+          current_key="$(aws s3api list-objects-v2 \
+            --bucket "${STATE_BUCKET}" \
+            --prefix "${STATE_KEY}" \
+            --max-keys 1 \
+            --query 'Contents[0].Key' \
+            --output text \
+            --endpoint-url "${AWS_ENDPOINT_URL_S3}")"
+          if [ "${current_key}" = "${STATE_KEY}" ]; then
+            timestamp="$(date -u +'%Y%m%dT%H%M%SZ')"
+            aws s3api copy-object \
+              --copy-source "${STATE_BUCKET}/${STATE_KEY}" \
+              --bucket "${STATE_BUCKET}" \
+              --key "backups/dev/${timestamp}.tfstate" \
+              --endpoint-url "${AWS_ENDPOINT_URL_S3}" >/dev/null
+          fi
+
+      - name: Plan Terraform changes
+        working-directory: infra/terraform/environments/dev
+        run: |
+          if ! terraform plan -input=false -out=/tmp/terraform-plan >/dev/null; then
+            echo "::error::Terraform plan failed. Inspect it locally without publishing sensitive plan data."
+            exit 1
+          fi
+          terraform show -json /tmp/terraform-plan | jq -r '
+            [.resource_changes[]? | select(.change.actions != ["no-op"]) |
+             {address, actions: (.change.actions | join("/"))}] as $changes |
+            ($changes[] | "\(.actions) \(.address)"),
+            "create=" + (($changes | map(select(.actions == "create")) | length) | tostring) +
+            " update=" + (($changes | map(select(.actions == "update")) | length) | tostring) +
+            " delete=" + (($changes | map(select(.actions | contains("delete"))) | length) | tostring)'
+
+      - name: Apply Terraform changes
+        working-directory: infra/terraform/environments/dev
+        run: |
+          if ! terraform apply -input=false -auto-approve /tmp/terraform-plan >/dev/null; then
+            echo "::error::Terraform apply failed. Inspect the protected run and state before retrying."
+            exit 1
+          fi
+
+  migrate-database:
+    needs: terraform-apply
     runs-on: ubuntu-latest
     environment: dev
     steps:
@@ -25,37 +107,46 @@ jobs:
         uses: ./.github/actions/setup-bun-project
 
       - name: Run database migrations
-        run: |
-          cd apps/backend
-          bun run db:migrate
+        working-directory: apps/backend
+        run: bun run db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      - name: Deploy to Cloudflare Workers (Dev)
-        id: deploy-backend
+  deploy-backend:
+    needs: migrate-database
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun workspace
+        uses: ./.github/actions/setup-bun-project
+
+      - name: Deploy backend to Cloudflare Workers
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --env dev
           workingDirectory: apps/backend
           secrets: |
-            DATABASE_URL
             JWT_SECRET
           environment: dev
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
-      - name: Notify deployment
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy-backend.outputs.deployment-url }}
-        run: |
-          echo "✅ Backend deployed to dev environment successfully!"
-          echo "Worker: basic-knowledge-for-web-backend-dev"
-          echo "Deployment URL: ${DEPLOYMENT_URL}"
+  verify-backend:
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check backend health
+        run: curl --fail --silent --show-error --retry 5 --retry-all-errors https://dev.reitaisai.info/api/health >/dev/null
 
   deploy-frontend:
+    needs: verify-backend
     runs-on: ubuntu-latest
     environment: dev
     steps:
@@ -68,8 +159,8 @@ jobs:
         uses: ./.github/actions/setup-bun-project
 
       - name: Build frontend
+        working-directory: apps/frontend
         run: |
-          cd apps/frontend
           rm -f .env .env.local .env.production .env.development
           {
             echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}"
@@ -80,12 +171,11 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
-      - name: Build and deploy to Cloudflare Workers (Dev)
-        id: deploy-frontend
+      - name: Deploy frontend to Cloudflare Workers
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --env dev
           workingDirectory: apps/frontend
           secrets: |
@@ -96,10 +186,9 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           OPEN_NEXT_DEPLOY: "true"
 
-      - name: Notify deployment
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy-frontend.outputs.deployment-url }}
-        run: |
-          echo "✅ Frontend deployed to dev environment successfully!"
-          echo "Worker: basic-knowledge-for-web-frontend-dev"
-          echo "Deployment URL: ${DEPLOYMENT_URL}"
+  verify-frontend:
+    needs: deploy-frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check frontend response
+        run: curl --fail --silent --show-error --retry 5 --retry-all-errors https://dev.reitaisai.info/ >/dev/null
