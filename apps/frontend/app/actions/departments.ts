@@ -5,7 +5,6 @@ import {
     buildBackendUrl,
     fetchFromBackend,
 } from '@frontend/app/lib/backendFetch';
-import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 
 type Department = { id: string; name: string };
@@ -54,7 +53,6 @@ export async function createDepartmentAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidatePath('/departments');
         return snapshot;
     } catch (err) {
         logActionError(
@@ -103,7 +101,6 @@ export async function updateDepartmentAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidatePath('/departments');
         return snapshot;
     } catch (err) {
         logActionError(
@@ -149,7 +146,6 @@ export async function deleteDepartmentAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidatePath('/departments');
         return snapshot;
     } catch (err) {
         logActionError(
@@ -197,7 +193,6 @@ export async function copyDepartmentsFromEventAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidatePath('/departments');
         return snapshot;
     } catch (err) {
         logActionError(

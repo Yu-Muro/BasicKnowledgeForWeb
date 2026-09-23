@@ -20,10 +20,12 @@
             ".open-next/**",
             "mcp.json",
             ".gitignore",
-            "settings.local.json"
+            "settings.local.json",
+            ".serena"
         ],
         "cSpell.ignoreWords": [
-            "reitaisai"
+            "reitaisai",
+            "opennextjs"
         ],
         "cSpell.languageSettings": [
             {

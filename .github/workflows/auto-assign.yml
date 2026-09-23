@@ -15,7 +15,7 @@ concurrency:
 jobs:
   add-reviewers:
     runs-on: ubuntu-slim
-    if: github.event.pull_request.user.login != 'dependabot[bot]' && github.repository == github.event.pull_request.head.repo.full_name
+    if: github.event.pull_request.user.login != 'dependabot[bot]' && !startsWith(github.head_ref, 'renovate/') && github.repository == github.event.pull_request.head.repo.full_name
     steps:
       - name: Add reviewers and assignees
         uses: kentaro-m/auto-assign-action@0a2c53d3721e4c5cfcce6afd4014aecc337979f6 # v2.0.2

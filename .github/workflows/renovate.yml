@@ -1,0 +1,84 @@
+name: Renovate
+
+# 依存関係の更新は Renovate（セルフホスト）で行います。
+# Renovate 自身が bun install を実行し、同一コミット内で bun.lock を更新するため、
+# Dependabot 運用時に必要だった bun.lock 更新用の回避ワークフローは不要です。
+on:
+  schedule:
+    # 毎日 07:00 JST（= 22:00 UTC）に起動します。
+    # Renovate の schedule は「bot の起動時刻」ではなく「ブランチを作成してよい時間帯」を制限する設定のため、
+    # 起動は毎日行い、実際に更新 PR を作るかどうかは renovate.json 側の schedule に委ねます。
+    # 週次起動にすると lockFileMaintenance の「毎月1日」の時間帯と交差しない月が生じ、
+    # 月次の bun.lock 再生成が実行されません。
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: "ドライラン（PR を作成せずログのみ出力）"
+        type: choice
+        default: "disabled"
+        options:
+          - "disabled"
+          - "full"
+      logLevel:
+        description: "ログレベル"
+        type: choice
+        default: "info"
+        options:
+          - "info"
+          - "debug"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Generate Renovate GitHub App token
+        id: renovate-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          # GitHub App は BasicKnowledgeForWeb のみにインストールし、トークンも現在のリポジトリだけに限定します。
+          client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+          # インストールに付与された権限を丸ごと継承せず、Renovate の実行に必要な権限だけを要求します。
+          permission-administration: read
+          permission-checks: write
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+          permission-statuses: write
+          permission-vulnerability-alerts: read
+          permission-workflows: write
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@e09d604f8f803bb527bd8321ed5be06c460b8682 # v46.2.2
+        with:
+          # GITHUB_TOKEN で作成した PR は後続ワークフローを発火させられないため、
+          # 専用 GitHub App の短期インストールトークンを実行のたびに生成して使用します。
+          # PR 作成者は App の bot アカウントになり、個人アカウントへ権限を紐付けません。
+          token: ${{ steps.renovate-app-token.outputs.token }}
+          # uses の SHA 固定で止まるのは Action のラッパーだけです。
+          # Renovate 本体は action.yml の既定値（メジャータグ '44'）が指す Docker イメージのため、
+          # 固定しないと実行のたびに未検証のビルドを取得します。
+          # このトークンは repo に加えて workflow スコープを持ち、ワークフロー自体を書き換えられるので、
+          # 本体バージョンも明示的に固定します。更新は renovate.json の customManagers が PR で提案します。
+          renovate-version: 44.14.12 # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
+        env:
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+          RENOVATE_DRY_RUN: ${{ inputs.dryRun == 'full' && 'full' || '' }}
+          RENOVATE_PLATFORM: github
+          # GitHub API 経由でコミットし、GitHub App の署名を付けます。
+          RENOVATE_PLATFORM_COMMIT: "enabled"
+          RENOVATE_AUTODISCOVER: "false"
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          # デフォルトブランチ（main）に renovate.json が存在しない場合は何もせずスキップします。
+          # オンボーディング PR の自動作成を防ぎ、設定が main へ到達するまで安全に待機させる目的です。
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REQUIRE_CONFIG: "required"

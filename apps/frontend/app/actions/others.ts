@@ -5,7 +5,6 @@ import {
     buildBackendUrl,
     fetchFromBackend,
 } from '@frontend/app/lib/backendFetch';
-import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 
 type UploadImageResult =
@@ -27,10 +26,6 @@ type OtherItemsResult =
 async function getAuthToken(): Promise<string | null> {
     const store = await cookies();
     return store.get('auth_token')?.value ?? null;
-}
-
-function revalidateOthersPage(_eventId: string) {
-    revalidatePath('/others', 'layout');
 }
 
 export async function uploadOtherItemImageAction(
@@ -116,7 +111,6 @@ export async function createOtherItemAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateOthersPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(
@@ -170,7 +164,6 @@ export async function updateOtherItemAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateOthersPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(
@@ -216,7 +209,6 @@ export async function deleteOtherItemAction(
         if (!snapshot.success) {
             return snapshot;
         }
-        revalidateOthersPage(eventId);
         return snapshot;
     } catch (err) {
         logActionError(

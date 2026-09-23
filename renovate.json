@@ -1,0 +1,111 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": ["config:recommended", ":dependencyDashboard"],
+    "timezone": "Asia/Tokyo",
+    "baseBranchPatterns": ["develop"],
+    "schedule": ["before 9am on monday"],
+    "labels": ["dependencies"],
+    "prConcurrentLimit": 10,
+    "prHourlyLimit": 0,
+    "minimumReleaseAge": "7 days",
+    "osvVulnerabilityAlerts": true,
+    "ignoreDeps": ["backend"],
+    "semanticCommits": "enabled",
+    "semanticCommitType": "chore",
+    "semanticCommitScope": "deps",
+    "commitMessageAction": "",
+    "commitMessageTopic": "{{depName}}",
+    "commitMessageExtra": "を {{#if isSingleVersion}}{{prettyNewVersion}}{{else}}{{newValue}}{{/if}} に更新",
+    "group": {
+        "commitMessageTopic": "{{{groupName}}}",
+        "commitMessageExtra": "を更新"
+    },
+    "lockFileMaintenance": {
+        "enabled": true,
+        "schedule": ["before 9am on the first day of the month"],
+        "commitMessageAction": "",
+        "commitMessageTopic": "bun.lock",
+        "commitMessageExtra": "を再生成"
+    },
+    "prHeader": "# Pull Request\n\n## What's changed\n\n依存パッケージを更新します。この Pull Request は Renovate により自動生成されました。\n",
+    "prFooter": "## Todo List\n\n- [ ] CI（backend / migration / frontend）がすべて通過することを確認\n\n## Remark\n\nこの Pull Request は Renovate により自動生成されています。`renovate.json` の設定により、依存パッケージのメジャーバージョン更新は作成されません。\nGitHub Actions のメジャー更新のみ PR が作成されますが、`major-update` ラベルが付き自動マージの対象外となるため、手動でレビュー・マージしてください。\n更新の保留状況は Dependency Dashboard Issue から確認できます。\n",
+    "customManagers": [
+        {
+            "customType": "regex",
+            "description": "renovate.yml で固定している Renovate 本体のバージョンを更新対象にする",
+            "managerFilePatterns": ["/^\\.github/workflows/renovate\\.yml$/"],
+            "matchStrings": [
+                "renovate-version: (?<currentValue>\\S+) # renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)"
+            ]
+        }
+    ],
+    "packageRules": [
+        {
+            "description": "パッチ更新は 3 日の安定化待機（旧 dependabot cooldown.semver-patch-days 相当）",
+            "matchUpdateTypes": ["patch"],
+            "minimumReleaseAge": "3 days"
+        },
+        {
+            "description": "メジャー更新は原則作成しない（旧 dependabot の ignore: version-update:semver-major 相当）",
+            "matchUpdateTypes": ["major"],
+            "enabled": false
+        },
+        {
+            "description": "drizzle-orm / drizzle-kit は beta 固定運用のため更新しない",
+            "matchPackageNames": ["drizzle-orm", "drizzle-kit"],
+            "enabled": false
+        },
+        {
+            "description": "React エコシステムはまとめて更新",
+            "matchPackageNames": [
+                "react",
+                "react-dom",
+                "@types/react",
+                "@types/react-dom"
+            ],
+            "groupName": "react"
+        },
+        {
+            "description": "Cloudflare / OpenNext 関連はまとめて更新",
+            "matchPackageNames": [
+                "wrangler",
+                "@cloudflare/**",
+                "@opennextjs/**"
+            ],
+            "groupName": "cloudflare"
+        },
+        {
+            "description": "テスト関連はまとめて更新",
+            "matchPackageNames": [
+                "jest",
+                "@types/jest",
+                "ts-jest",
+                "jest-environment-jsdom",
+                "@testing-library/**",
+                "msw"
+            ],
+            "groupName": "test tooling"
+        },
+        {
+            "description": "GitHub Actions はまとめて更新（SHA ピン留めを維持）",
+            "matchManagers": ["github-actions"],
+            "groupName": "github-actions",
+            "pinDigests": true
+        },
+        {
+            "description": "GitHub Actions のメジャー更新は許可する（旧 dependabot でも github-actions は major を除外していなかったため）。ただし互換性破壊の可能性があるため別 PR に分離し、major-update ラベルで自動マージ対象から外す",
+            "matchManagers": ["github-actions"],
+            "matchUpdateTypes": ["major"],
+            "enabled": true,
+            "groupName": "github-actions major",
+            "addLabels": ["major-update"]
+        },
+        {
+            "description": "Renovate 本体（renovate.yml の renovate-version）はメジャー更新も PR を作成する。固定を放置すると陳腐化するため。ただし互換性破壊の可能性があるため major-update ラベルで自動マージ対象から外す",
+            "matchPackageNames": ["ghcr.io/renovatebot/renovate"],
+            "matchUpdateTypes": ["major"],
+            "enabled": true,
+            "addLabels": ["major-update"]
+        }
+    ]
+}
