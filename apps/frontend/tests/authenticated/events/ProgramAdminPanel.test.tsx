@@ -16,7 +16,10 @@ jest.mock('@frontend/app/actions/programs', () => ({
     createProgramAction: jest.fn(),
     updateProgramAction: jest.fn(),
     deleteProgramAction: jest.fn(),
-    uploadProgramImageAction: jest.fn(),
+}));
+
+jest.mock('@frontend/app/lib/imageUpload', () => ({
+    uploadImage: jest.fn(),
 }));
 
 jest.mock('next/image', () => ({
@@ -29,6 +32,8 @@ jest.mock('next/image', () => ({
 
 const actions =
     require('@frontend/app/actions/programs') as typeof import('@frontend/app/actions/programs');
+const imageUpload =
+    require('@frontend/app/lib/imageUpload') as typeof import('@frontend/app/lib/imageUpload');
 const ProgramAdminPanel =
     require('@frontend/app/(authenticated)/events/ProgramAdminPanel')
         .default as typeof import('@frontend/app/(authenticated)/events/ProgramAdminPanel').default;
@@ -36,7 +41,7 @@ const ProgramAdminPanel =
 const mockCreate = jest.mocked(actions.createProgramAction);
 const mockUpdate = jest.mocked(actions.updateProgramAction);
 const mockDelete = jest.mocked(actions.deleteProgramAction);
-const mockUploadImage = jest.mocked(actions.uploadProgramImageAction);
+const mockUploadImage = jest.mocked(imageUpload.uploadImage);
 const MOCK_ITEMS = [
     {
         id: '1',
@@ -201,7 +206,7 @@ describe('ProgramAdminPanel', () => {
         expect(description).toHaveClass('whitespace-pre-wrap');
     });
 
-    it('画像を選択して保存すると uploadProgramImageAction を呼ぶ', async () => {
+    it('画像を選択して保存すると画像アップロードAPIを呼ぶ', async () => {
         const user = userEvent.setup();
         render(<ProgramAdminPanel items={[]} eventId='event-1' />);
 
@@ -225,7 +230,11 @@ describe('ProgramAdminPanel', () => {
         });
 
         await waitFor(() => {
-            expect(mockUploadImage).toHaveBeenCalledTimes(1);
+            expect(mockUploadImage).toHaveBeenCalledWith(
+                '/api/programs/upload',
+                'event-1',
+                file,
+            );
         });
     });
 
