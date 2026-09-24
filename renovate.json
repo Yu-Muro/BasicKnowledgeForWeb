@@ -1,6 +1,10 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "extends": ["config:recommended", ":dependencyDashboard"],
+    "extends": [
+        "config:recommended",
+        ":dependencyDashboard",
+        "helpers:pinGitHubActionDigestsToSemver"
+    ],
     "timezone": "Asia/Tokyo",
     "baseBranchPatterns": ["develop"],
     "schedule": ["before 9am on monday"],
@@ -87,10 +91,9 @@
             "groupName": "test tooling"
         },
         {
-            "description": "GitHub Actions はまとめて更新（SHA ピン留めを維持）",
+            "description": "GitHub Actions は完全なSemVerコメント付きSHAを維持してまとめて更新",
             "matchManagers": ["github-actions"],
-            "groupName": "github-actions",
-            "pinDigests": true
+            "groupName": "github-actions"
         },
         {
             "description": "GitHub Actions のメジャー更新は許可する（旧 dependabot でも github-actions は major を除外していなかったため）。ただし互換性破壊の可能性があるため別 PR に分離し、major-update ラベルで自動マージ対象から外す",
