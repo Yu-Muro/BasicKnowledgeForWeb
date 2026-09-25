@@ -4,9 +4,9 @@ import {
     createOtherItemAction,
     deleteOtherItemAction,
     updateOtherItemAction,
-    uploadOtherItemImageAction,
 } from '@frontend/app/actions/others';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
+import { uploadImage } from '@frontend/app/lib/imageUpload';
 import TapToZoomImage from '@frontend/components/TapToZoomImage';
 import { Button } from '@frontend/components/ui/button';
 import { Input } from '@frontend/components/ui/input';
@@ -104,10 +104,7 @@ export default function OtherItemAdminPanel({
         const file = fileInputRef.current?.files?.[0];
         if (!file) return null;
 
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const result = await uploadOtherItemImageAction(eventId, formData);
+        const result = await uploadImage('/api/others/upload', eventId, file);
         if (!result.success) {
             throw new Error(result.error);
         }

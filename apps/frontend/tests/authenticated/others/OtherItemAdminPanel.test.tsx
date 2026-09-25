@@ -17,7 +17,10 @@ jest.mock('@frontend/app/actions/others', () => ({
     createOtherItemAction: jest.fn(),
     updateOtherItemAction: jest.fn(),
     deleteOtherItemAction: jest.fn(),
-    uploadOtherItemImageAction: jest.fn(),
+}));
+
+jest.mock('@frontend/app/lib/imageUpload', () => ({
+    uploadImage: jest.fn(),
 }));
 
 jest.mock('next/image', () => ({
@@ -30,6 +33,8 @@ jest.mock('next/image', () => ({
 
 const actions =
     require('@frontend/app/actions/others') as typeof import('@frontend/app/actions/others');
+const imageUpload =
+    require('@frontend/app/lib/imageUpload') as typeof import('@frontend/app/lib/imageUpload');
 const OtherItemAdminPanel =
     require('@frontend/app/(authenticated)/others/OtherItemAdminPanel')
         .default as typeof import('@frontend/app/(authenticated)/others/OtherItemAdminPanel').default;
@@ -37,7 +42,7 @@ const OtherItemAdminPanel =
 const mockCreate = jest.mocked(actions.createOtherItemAction);
 const mockUpdate = jest.mocked(actions.updateOtherItemAction);
 const mockDelete = jest.mocked(actions.deleteOtherItemAction);
-const mockUploadImage = jest.mocked(actions.uploadOtherItemImageAction);
+const mockUploadImage = jest.mocked(imageUpload.uploadImage);
 
 const MOCK_ITEMS = [
     {
@@ -250,7 +255,7 @@ describe('OtherItemAdminPanel', () => {
         expect(mockCreate).not.toHaveBeenCalled();
     });
 
-    it('画像を選択して保存すると uploadOtherItemImageAction を呼ぶ', async () => {
+    it('画像を選択して保存すると画像アップロードAPIを呼ぶ', async () => {
         const user = userEvent.setup();
         render(<OtherItemAdminPanel items={[]} eventId='event-1' />);
 
@@ -266,7 +271,11 @@ describe('OtherItemAdminPanel', () => {
         });
 
         await waitFor(() => {
-            expect(mockUploadImage).toHaveBeenCalledTimes(1);
+            expect(mockUploadImage).toHaveBeenCalledWith(
+                '/api/others/upload',
+                'event-1',
+                file,
+            );
         });
     });
 });
