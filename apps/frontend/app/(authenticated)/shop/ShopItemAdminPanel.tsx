@@ -4,9 +4,9 @@ import {
     createShopItemAction,
     deleteShopItemAction,
     updateShopItemAction,
-    uploadShopItemImageAction,
 } from '@frontend/app/actions/shop-items';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
+import { uploadImage } from '@frontend/app/lib/imageUpload';
 import { AdminFormContainer } from '@frontend/components/AdminFormContainer';
 import TapToZoomImage from '@frontend/components/TapToZoomImage';
 import { Button } from '@frontend/components/ui/button';
@@ -152,10 +152,11 @@ export default function ShopItemAdminPanel({
         const file = fileInputRef.current?.files?.[0];
         if (!file) return null;
 
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const result = await uploadShopItemImageAction(eventId, formData);
+        const result = await uploadImage(
+            '/api/shop-items/upload',
+            eventId,
+            file,
+        );
         if (!result.success) {
             throw new Error(result.error);
         }

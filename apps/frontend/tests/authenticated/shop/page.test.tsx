@@ -10,7 +10,6 @@ jest.mock('@frontend/app/actions/shop-items', () => ({
     createShopItemAction: jest.fn(),
     updateShopItemAction: jest.fn(),
     deleteShopItemAction: jest.fn(),
-    uploadShopItemImageAction: jest.fn(),
 }));
 
 jest.mock('next/navigation', () => ({

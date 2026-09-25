@@ -17,7 +17,10 @@ jest.mock('@frontend/app/actions/shop-items', () => ({
     createShopItemAction: jest.fn(),
     updateShopItemAction: jest.fn(),
     deleteShopItemAction: jest.fn(),
-    uploadShopItemImageAction: jest.fn(),
+}));
+
+jest.mock('@frontend/app/lib/imageUpload', () => ({
+    uploadImage: jest.fn(),
 }));
 
 // next/image はテスト環境では通常の img タグにフォールバック
@@ -31,6 +34,8 @@ jest.mock('next/image', () => ({
 
 const actions =
     require('@frontend/app/actions/shop-items') as typeof import('@frontend/app/actions/shop-items');
+const imageUpload =
+    require('@frontend/app/lib/imageUpload') as typeof import('@frontend/app/lib/imageUpload');
 const ShopItemAdminPanel =
     require('@frontend/app/(authenticated)/shop/ShopItemAdminPanel')
         .default as typeof import('@frontend/app/(authenticated)/shop/ShopItemAdminPanel').default;
@@ -38,7 +43,7 @@ const ShopItemAdminPanel =
 const mockCreate = jest.mocked(actions.createShopItemAction);
 const mockUpdate = jest.mocked(actions.updateShopItemAction);
 const mockDelete = jest.mocked(actions.deleteShopItemAction);
-const mockUploadImage = jest.mocked(actions.uploadShopItemImageAction);
+const mockUploadImage = jest.mocked(imageUpload.uploadImage);
 
 const MOCK_ITEMS = [
     {
@@ -100,6 +105,11 @@ describe('ShopItemAdminPanel', () => {
         await user.click(screen.getByRole('button', { name: '保存' }));
 
         await waitFor(() => {
+            expect(mockUploadImage).toHaveBeenCalledWith(
+                '/api/shop-items/upload',
+                'event-1',
+                file,
+            );
             expect(mockCreate).toHaveBeenCalledWith('event-1', {
                 name: '新商品',
                 price: 0,
