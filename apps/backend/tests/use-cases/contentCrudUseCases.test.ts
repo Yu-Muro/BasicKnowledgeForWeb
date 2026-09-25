@@ -1,11 +1,16 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { Department, IDepartmentRepository } from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
-import type { TimetableItem } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
+import {
+    InvalidTimetableDepartmentIdsError,
+    InvalidTimetableLaneSelectionError,
+    InvalidTimetableTimeRangeError,
+    type ITimetableRepository,
+    type TimetableItem,
+} from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
 import type { RoomWithDepartments } from '@backend/src/infrastructure/repositories/room/IRoomRepository';
 import type { Program } from '@backend/src/infrastructure/repositories/program/IProgramRepository';
 import type { ShopItem } from '@backend/src/infrastructure/repositories/shop-item/IShopItemRepository';
 import type { OtherItem } from '@backend/src/infrastructure/repositories/other-item/IOtherItemRepository';
-import type { ITimetableRepository } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
 import type { IRoomRepository } from '@backend/src/infrastructure/repositories/room/IRoomRepository';
 import type { IProgramRepository } from '@backend/src/infrastructure/repositories/program/IProgramRepository';
 import type { IShopItemRepository } from '@backend/src/infrastructure/repositories/shop-item/IShopItemRepository';
@@ -49,6 +54,8 @@ const baseTimetable: TimetableItem = {
     endTime: new Date('2025-08-01T11:00:00.000Z'),
     location: '会場A',
     description: null,
+    isPublic: true,
+    departments: [],
     createdAt: new Date('2025-01-01T00:00:00.000Z'),
     updatedAt: new Date('2025-01-01T00:00:00.000Z'),
 };
@@ -244,6 +251,8 @@ describe('Timetable use cases', () => {
             endTime: new Date('2025-08-01T10:00:00.000Z'),
             location: 'A',
             description: null,
+            isPublic: true,
+            departmentIds: [],
         });
     });
 
@@ -261,20 +270,155 @@ describe('Timetable use cases', () => {
         );
     });
 
-    it('UpdateTimetableItemUseCase sets endTime to startTime when start is updated', async () => {
+    it('CreateTimetableItemUseCase rejects item without target lane', async () => {
+        const repo = mockTimetableRepository();
+        const useCase = new CreateTimetableItemUseCase(repo);
+        const result = await useCase.execute({
+            eventId: EVENT_ID,
+            title: '対象なし',
+            startTime: '2025-08-01T10:00:00.000Z',
+            isPublic: false,
+            departmentIds: [],
+        });
+        expectFailure(result);
+        expect(result.status).toBe(400);
+        expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('CreateTimetableItemUseCase rejects an end time before the start time', async () => {
+        const repo = mockTimetableRepository();
+        const useCase = new CreateTimetableItemUseCase(repo);
+        const result = await useCase.execute({
+            eventId: EVENT_ID,
+            title: '時刻逆転',
+            startTime: '2025-08-01T11:00:00.000Z',
+            endTime: '2025-08-01T10:00:00.000Z',
+        });
+        expectFailure(result);
+        expect(result.status).toBe(400);
+        expect(result.error).toBe('終了時刻は開始時刻以降にしてください');
+        expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('CreateTimetableItemUseCase returns 400 for invalid department ids', async () => {
+        const repo = mockTimetableRepository({
+            create: jest
+                .fn<ITimetableRepository['create']>()
+                .mockImplementation(() =>
+                    Promise.reject(new InvalidTimetableDepartmentIdsError()),
+                ),
+        });
+        const useCase = new CreateTimetableItemUseCase(repo);
+        const result = await useCase.execute({
+            eventId: EVENT_ID,
+            title: '不正部署',
+            startTime: '2025-08-01T10:00:00.000Z',
+            isPublic: false,
+            departmentIds: [baseDepartment.id],
+        });
+        expectFailure(result);
+        expect(result.status).toBe(400);
+    });
+
+    it('UpdateTimetableItemUseCase updates valid startTime only when endTime is omitted', async () => {
         const repo = mockTimetableRepository();
         const useCase = new UpdateTimetableItemUseCase(repo);
         await useCase.execute({
             id: baseTimetable.id,
             eventId: EVENT_ID,
             payload: {
-                startTime: '2025-08-01T12:00:00.000Z',
+                startTime: '2025-08-01T10:30:00.000Z',
             },
         });
         expect(repo.update).toHaveBeenCalledWith(baseTimetable.id, EVENT_ID, {
-            startTime: new Date('2025-08-01T12:00:00.000Z'),
-            endTime: new Date('2025-08-01T12:00:00.000Z'),
+            startTime: new Date('2025-08-01T10:30:00.000Z'),
         });
+    });
+
+    it('UpdateTimetableItemUseCase rejects start-only update after existing endTime', async () => {
+        const repo = mockTimetableRepository();
+        const useCase = new UpdateTimetableItemUseCase(repo);
+        const result = await useCase.execute({
+            id: baseTimetable.id,
+            eventId: EVENT_ID,
+            payload: {
+                startTime: '2025-08-01T12:00:00.000Z',
+            },
+        });
+        expectFailure(result);
+        expect(result.status).toBe(400);
+        expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('UpdateTimetableItemUseCase rejects item without target lane', async () => {
+        const repo = mockTimetableRepository();
+        const useCase = new UpdateTimetableItemUseCase(repo);
+        const result = await useCase.execute({
+            id: baseTimetable.id,
+            eventId: EVENT_ID,
+            payload: { isPublic: false },
+        });
+        expectFailure(result);
+        expect(result.status).toBe(400);
+        expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('UpdateTimetableItemUseCase returns 400 for invalid department ids', async () => {
+        const repo = mockTimetableRepository({
+            update: jest
+                .fn<ITimetableRepository['update']>()
+                .mockImplementation(() =>
+                    Promise.reject(new InvalidTimetableDepartmentIdsError()),
+                ),
+        });
+        const useCase = new UpdateTimetableItemUseCase(repo);
+        const result = await useCase.execute({
+            id: baseTimetable.id,
+            eventId: EVENT_ID,
+            payload: { departmentIds: [baseDepartment.id] },
+        });
+        expectFailure(result);
+        expect(result.status).toBe(400);
+    });
+
+    it('UpdateTimetableItemUseCase returns 400 when repository rejects an empty lane selection', async () => {
+        const repo = mockTimetableRepository({
+            update: jest
+                .fn<ITimetableRepository['update']>()
+                .mockImplementation(() =>
+                    Promise.reject(new InvalidTimetableLaneSelectionError()),
+                ),
+        });
+        const useCase = new UpdateTimetableItemUseCase(repo);
+        const result = await useCase.execute({
+            id: baseTimetable.id,
+            eventId: EVENT_ID,
+            payload: { departmentIds: [baseDepartment.id] },
+        });
+        expectFailure(result);
+        expect(result.status).toBe(400);
+        expect(result.error).toBe(
+            '全体向けまたは部署タグを1つ以上指定してください',
+        );
+    });
+
+    it('UpdateTimetableItemUseCase returns 400 when repository rejects the time range', async () => {
+        const repo = mockTimetableRepository({
+            update: jest
+                .fn<ITimetableRepository['update']>()
+                .mockImplementation(() =>
+                    Promise.reject(new InvalidTimetableTimeRangeError()),
+                ),
+        });
+        const useCase = new UpdateTimetableItemUseCase(repo);
+        const result = await useCase.execute({
+            id: baseTimetable.id,
+            eventId: EVENT_ID,
+            payload: { title: '更新後タイトル' },
+        });
+        expectFailure(result);
+        expect(result.status).toBe(400);
+        expect(result.error).toBe('終了時刻は開始時刻以降にしてください');
     });
 
     it('UpdateTimetableItemUseCase rejects empty payload', async () => {

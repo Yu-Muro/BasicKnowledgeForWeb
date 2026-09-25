@@ -101,6 +101,7 @@ type Department = {
 - 備考
   - 対象なしは `404`
   - 部屋割りに参照されている部署は `409`（外部キー制約）
+  - タイムテーブルの部署タグだけに参照されている場合は、タグを自動解除して削除する
 
 ## 実装メモ
 - ページ: `apps/frontend/app/(authenticated)/departments/page.tsx`

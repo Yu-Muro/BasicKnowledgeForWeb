@@ -53,7 +53,7 @@ jobs:
         run: bun safe-chain-verify
 
       - name: Scan dependencies with safe-chain
-        run: bun install --ignore-scripts
+        run: bun install --frozen-lockfile --ignore-scripts
 
       # Betterleaksをセットアップ
       - name: Install Betterleaks

@@ -4,8 +4,11 @@ export type CreateTimetableItemInput = {
     eventId: string;
     title: string;
     startTime: string;
+    endTime?: string;
     location?: string;
     description?: string | null;
+    isPublic?: boolean;
+    departmentIds?: string[];
 };
 
 export type CreateTimetableItemResult =

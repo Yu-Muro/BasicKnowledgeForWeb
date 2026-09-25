@@ -66,8 +66,11 @@ export async function createTimetableItem(
         eventId,
         title: parsed.data.title,
         startTime: parsed.data.start_time,
+        endTime: parsed.data.end_time,
         location: parsed.data.location,
         description: parsed.data.description ?? null,
+        isPublic: parsed.data.is_public,
+        departmentIds: parsed.data.department_ids,
     });
     if (!result.success) {
         return c.json({ error: result.error }, toStatus(result.status));
@@ -102,8 +105,11 @@ export async function updateTimetableItem(
         payload: {
             title: parsed.data.title,
             startTime: parsed.data.start_time,
+            endTime: parsed.data.end_time,
             location: parsed.data.location,
             description: parsed.data.description,
+            isPublic: parsed.data.is_public,
+            departmentIds: parsed.data.department_ids,
         },
     });
     if (!result.success) {

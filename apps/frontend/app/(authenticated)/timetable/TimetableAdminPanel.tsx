@@ -5,51 +5,34 @@ import {
     deleteTimetableItemAction,
     updateTimetableItemAction,
 } from '@frontend/app/actions/timetable';
-import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import { Button } from '@frontend/components/ui/button';
 import { Input } from '@frontend/components/ui/input';
 import { Label } from '@frontend/components/ui/label';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
-
-const DISPLAY_TIMEZONE = 'Asia/Tokyo';
-
-type TimetableItem = {
-    id: string;
-    title: string;
-    startTime: string;
-    location: string;
-    description: string | null;
-};
-
-async function fetchTimetableItemsFromApi(
-    eventId: string,
-): Promise<TimetableItem[] | null> {
-    try {
-        const res = await fetchFromBackend('/api/timetable', {
-            credentials: 'include',
-            headers: { 'x-event-id': eventId },
-        });
-        if (!res.ok) return null;
-        const body = (await res.json()) as { items?: TimetableItem[] };
-        return Array.isArray(body.items) ? body.items : null;
-    } catch {
-        return null;
-    }
-}
+import TimetableLaneView, {
+    type TimetableDepartment,
+    type TimetableItem,
+} from './TimetableLaneView';
 
 type FormData = {
     title: string;
     start_time: string;
+    end_time: string;
     location: string;
     description: string;
+    is_public: boolean;
+    department_ids: string[];
 };
 
 const EMPTY_FORM: FormData = {
     title: '',
     start_time: '',
+    end_time: '',
     location: '',
     description: '',
+    is_public: true,
+    department_ids: [],
 };
 
 function isoToDatetimeLocal(iso: string): string {
@@ -65,54 +48,23 @@ function itemToForm(item: TimetableItem): FormData {
     return {
         title: item.title,
         start_time: isoToDatetimeLocal(item.startTime),
+        end_time: isoToDatetimeLocal(item.endTime ?? item.startTime),
         location: item.location,
         description: item.description ?? '',
+        is_public: item.isPublic,
+        department_ids: item.departments.map((department) => department.id),
     };
 }
 
-const dateFormatter = new Intl.DateTimeFormat('ja-JP', {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-    timeZone: DISPLAY_TIMEZONE,
-});
-const timeFormatter = new Intl.DateTimeFormat('ja-JP', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: DISPLAY_TIMEZONE,
-});
-
-type TimetableGroup = {
-    date: string;
-    entries: (TimetableItem & { dateLabel: string; timeLabel: string })[];
+type Props = {
+    items: TimetableItem[];
+    departments: TimetableDepartment[];
+    eventId: string;
 };
-
-function buildGroups(items: TimetableItem[]): TimetableGroup[] {
-    const sorted = [...items].sort(
-        (a, b) =>
-            new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
-    );
-    const map = new Map<string, TimetableGroup['entries']>();
-    for (const item of sorted) {
-        const start = new Date(item.startTime);
-        const dateLabel = dateFormatter.format(start);
-        const timeLabel = timeFormatter.format(start);
-        const entry = { ...item, dateLabel, timeLabel };
-        const list = map.get(dateLabel) ?? [];
-        list.push(entry);
-        map.set(dateLabel, list);
-    }
-    return Array.from(map.entries()).map(([date, entries]) => ({
-        date,
-        entries,
-    }));
-}
-
-type Props = { items: TimetableItem[]; eventId: string };
 
 export default function TimetableAdminPanel({
     items: initialItems,
+    departments,
     eventId,
 }: Props) {
     const router = useRouter();
@@ -151,33 +103,53 @@ export default function TimetableAdminPanel({
         setError(null);
     };
 
+    const toggleDepartment = (departmentId: string) => {
+        setFormData((current) => ({
+            ...current,
+            department_ids: current.department_ids.includes(departmentId)
+                ? current.department_ids.filter((id) => id !== departmentId)
+                : [...current.department_ids, departmentId],
+        }));
+    };
+
     const handleSubmit = () => {
         const title = formData.title.trim();
         const location = formData.location.trim();
-        if (!title || !formData.start_time) {
-            setError('タイトル・開始は必須です');
+        if (!title || !formData.start_time || !formData.end_time) {
+            setError('タイトル・開始・終了は必須です');
             return;
         }
 
-        const start_time = new Date(formData.start_time).toISOString();
+        const start = new Date(formData.start_time);
+        const end = new Date(formData.end_time);
+        if (start > end) {
+            setError('終了時刻は開始時刻以降にしてください');
+            return;
+        }
+        if (!formData.is_public && formData.department_ids.length === 0) {
+            setError('全体向けまたは部署タグを1つ以上選択してください');
+            return;
+        }
 
-        const description = formData.description.trim() || null;
+        const payload = {
+            title,
+            start_time: start.toISOString(),
+            end_time: end.toISOString(),
+            location,
+            description: formData.description.trim() || null,
+            is_public: formData.is_public,
+            department_ids: formData.department_ids,
+        };
 
         startTransition(async () => {
             const result =
                 formMode === 'editing' && editingItem
-                    ? await updateTimetableItemAction(eventId, editingItem.id, {
-                          title,
-                          start_time,
-                          location,
-                          description,
-                      })
-                    : await createTimetableItemAction(eventId, {
-                          title,
-                          start_time,
-                          location,
-                          description,
-                      });
+                    ? await updateTimetableItemAction(
+                          eventId,
+                          editingItem.id,
+                          payload,
+                      )
+                    : await createTimetableItemAction(eventId, payload);
 
             if (!result.success) {
                 setError(result.error);
@@ -189,8 +161,7 @@ export default function TimetableAdminPanel({
                     ? 'タイムテーブルを追加しました'
                     : 'タイムテーブルを更新しました',
             );
-            const refreshed = await fetchTimetableItemsFromApi(eventId);
-            setItems(refreshed ?? result.data);
+            setItems(result.data);
             router.refresh();
             closeForm();
         });
@@ -204,14 +175,11 @@ export default function TimetableAdminPanel({
                 setError(result.error);
                 return;
             }
-            const refreshed = await fetchTimetableItemsFromApi(eventId);
-            setItems(refreshed ?? result.data);
+            setItems(result.data);
             setInfoMessage('タイムテーブルを削除しました');
             router.refresh();
         });
     };
-
-    const groups = buildGroups(items);
 
     return (
         <div>
@@ -245,7 +213,7 @@ export default function TimetableAdminPanel({
             )}
 
             {formMode !== 'idle' && (
-                <div className='mb-6 rounded-xl border border-border bg-card p-4 shadow-sm'>
+                <div className='mb-6 rounded-lg border border-border bg-card p-4 shadow-sm'>
                     <h2 className='mb-4 font-medium text-foreground text-sm'>
                         {formMode === 'adding'
                             ? '新しいアイテムを追加'
@@ -270,23 +238,43 @@ export default function TimetableAdminPanel({
                                 className='mt-1'
                             />
                         </div>
-                        <div>
-                            <Label htmlFor='tt-start'>
-                                開始時刻
-                                <span className='ml-1 text-red-500'>*</span>
-                            </Label>
-                            <Input
-                                id='tt-start'
-                                type='datetime-local'
-                                value={formData.start_time}
-                                onChange={(e) =>
-                                    setFormData((f) => ({
-                                        ...f,
-                                        start_time: e.target.value,
-                                    }))
-                                }
-                                className='mt-1'
-                            />
+                        <div className='grid gap-3 sm:grid-cols-2'>
+                            <div>
+                                <Label htmlFor='tt-start'>
+                                    開始時刻
+                                    <span className='ml-1 text-red-500'>*</span>
+                                </Label>
+                                <Input
+                                    id='tt-start'
+                                    type='datetime-local'
+                                    value={formData.start_time}
+                                    onChange={(e) =>
+                                        setFormData((f) => ({
+                                            ...f,
+                                            start_time: e.target.value,
+                                        }))
+                                    }
+                                    className='mt-1'
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor='tt-end'>
+                                    終了時刻
+                                    <span className='ml-1 text-red-500'>*</span>
+                                </Label>
+                                <Input
+                                    id='tt-end'
+                                    type='datetime-local'
+                                    value={formData.end_time}
+                                    onChange={(e) =>
+                                        setFormData((f) => ({
+                                            ...f,
+                                            end_time: e.target.value,
+                                        }))
+                                    }
+                                    className='mt-1'
+                                />
+                            </div>
                         </div>
                         <div>
                             <Label htmlFor='tt-location'>場所</Label>
@@ -318,6 +306,53 @@ export default function TimetableAdminPanel({
                                 className='mt-1'
                             />
                         </div>
+                        <div className='space-y-2'>
+                            <label className='inline-flex min-h-8 items-center gap-2 text-sm'>
+                                <input
+                                    type='checkbox'
+                                    checked={formData.is_public}
+                                    onChange={(e) =>
+                                        setFormData((f) => ({
+                                            ...f,
+                                            is_public: e.target.checked,
+                                        }))
+                                    }
+                                />
+                                <span>全体向けに表示</span>
+                            </label>
+                            <div>
+                                <p className='mb-2 font-medium text-sm'>
+                                    部署タグ
+                                </p>
+                                {departments.length === 0 ? (
+                                    <p className='text-muted-foreground text-sm'>
+                                        登録済み部署はありません
+                                    </p>
+                                ) : (
+                                    <div className='flex flex-wrap gap-2'>
+                                        {departments.map((department) => (
+                                            <label
+                                                key={department.id}
+                                                className='inline-flex min-h-8 items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm'
+                                            >
+                                                <input
+                                                    type='checkbox'
+                                                    checked={formData.department_ids.includes(
+                                                        department.id,
+                                                    )}
+                                                    onChange={() =>
+                                                        toggleDepartment(
+                                                            department.id,
+                                                        )
+                                                    }
+                                                />
+                                                <span>{department.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                     <div className='mt-4 flex gap-2'>
                         <Button
@@ -339,77 +374,37 @@ export default function TimetableAdminPanel({
                 </div>
             )}
 
-            {groups.length === 0 ? (
+            {items.length === 0 ? (
                 <p className='text-muted-foreground text-sm'>
                     登録されているタイムテーブルはありません
                 </p>
             ) : (
-                <div className='space-y-6'>
-                    {groups.map(({ date, entries }) => (
-                        <section key={date}>
-                            <p className='mb-2 font-medium text-muted-foreground text-xs'>
-                                {date}
-                            </p>
-                            <div className='space-y-2'>
-                                {entries.map((item) => (
-                                    <article
-                                        key={item.id}
-                                        className='rounded-lg border border-border bg-card p-4'
-                                    >
-                                        <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4'>
-                                            <p className='font-medium text-muted-foreground text-xs tabular-nums sm:w-36 sm:flex-none sm:text-sm'>
-                                                {item.timeLabel}
-                                            </p>
-                                            <div className='flex-1 space-y-1'>
-                                                <p className='font-semibold text-base text-foreground leading-tight sm:font-medium sm:text-sm'>
-                                                    {item.title}
-                                                </p>
-                                                {item.location && (
-                                                    <p className='flex items-center gap-1 text-muted-foreground text-xs'>
-                                                        <span aria-hidden='true'>
-                                                            {'📍'}
-                                                        </span>
-                                                        <span>
-                                                            {item.location}
-                                                        </span>
-                                                    </p>
-                                                )}
-                                                {item.description && (
-                                                    <p className='text-muted-foreground text-xs'>
-                                                        {item.description}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <div className='flex shrink-0 gap-1'>
-                                                <Button
-                                                    size='sm'
-                                                    variant='outline'
-                                                    onClick={() =>
-                                                        openEdit(item)
-                                                    }
-                                                    disabled={isPending}
-                                                >
-                                                    編集
-                                                </Button>
-                                                <Button
-                                                    size='sm'
-                                                    variant='outline'
-                                                    onClick={() =>
-                                                        handleDelete(item)
-                                                    }
-                                                    disabled={isPending}
-                                                    className='text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40'
-                                                >
-                                                    削除
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </article>
-                                ))}
-                            </div>
-                        </section>
-                    ))}
-                </div>
+                <TimetableLaneView
+                    items={items}
+                    departments={departments}
+                    eventId={eventId}
+                    renderActions={(item) => (
+                        <>
+                            <Button
+                                size='sm'
+                                variant='outline'
+                                onClick={() => openEdit(item)}
+                                disabled={isPending}
+                            >
+                                編集
+                            </Button>
+                            <Button
+                                size='sm'
+                                variant='outline'
+                                onClick={() => handleDelete(item)}
+                                disabled={isPending}
+                                className='text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40'
+                            >
+                                削除
+                            </Button>
+                        </>
+                    )}
+                />
             )}
         </div>
     );

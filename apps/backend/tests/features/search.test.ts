@@ -175,6 +175,8 @@ describe('GET /api/search', () => {
                 endTime: new Date(),
                 location: '会場A',
                 description: null,
+                isPublic: true,
+                departments: [],
                 createdAt: new Date(),
                 updatedAt: new Date(),
             },
