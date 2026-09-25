@@ -4,9 +4,10 @@
 
 ## 概要
 
-Bun モノレポで、Cloudflare Workers 上の 2 アプリで構成されます。
+Bun モノレポで、Cloudflare Workers 上の 3 アプリで構成されます。
 - `apps/backend` — Hono.js REST API（CockroachDB + Drizzle ORM）
 - `apps/frontend` — Next.js 15（App Router）+ React 19 + Tailwind CSS v4（OpenNext 経由でデプロイ）
+- `apps/email-worker` — Email Service / SendEmail 用 Worker
 
 ## コマンド
 
@@ -49,6 +50,20 @@ bun run lint         # Biome lint
 bun run lint:fix     # 自動修正
 bun run test         # Jest (--forceExit)
 bun run test:watch   # Jest watch
+bun run deploy       # Cloudflare Workers へデプロイ（prod）
+bun run deploy:dev   # Cloudflare Workers へデプロイ（dev）
+```
+
+### Email Worker（`apps/email-worker`）
+
+```bash
+bun run dev          # 開発サーバー起動（8789）
+bun run build        # wrangler dry-run build
+bun run cf-typegen   # wrangler設定からbinding/runtime型を再生成
+bun run type-check   # TypeScript 検証（src + tests）
+bun run lint         # Biome lint
+bun run lint:fix     # 自動修正
+bun run test         # Jest テスト
 bun run deploy       # Cloudflare Workers へデプロイ（prod）
 bun run deploy:dev   # Cloudflare Workers へデプロイ（dev）
 ```
@@ -96,6 +111,12 @@ bun run test         # テストすべて成功
 
 # frontend 変更時
 cd apps/frontend
+bun run type-check   # TypeScript エラーなし
+bun run lint         # Biome lint エラーなし
+bun run test         # テストすべて成功
+
+# email-worker 変更時
+cd apps/email-worker
 bun run type-check   # TypeScript エラーなし
 bun run lint         # Biome lint エラーなし
 bun run test         # テストすべて成功
