@@ -119,29 +119,63 @@ jobs:
           cd apps/frontend
           bun run test
 
-  dependabot-auto-merge:
+  # Renovate が作成した PR のみを自動承認・自動マージします。
+  # 以下をすべて満たす場合に限り実行する fail-closed 設計です（1 つでも欠ければスキップ）。
+  #   1. ブランチ名が renovate/ プレフィックスであること
+  #   2. PR 作成者が変数 RENOVATE_ACTOR（Renovate GitHub App の slug + [bot]）と一致すること。
+  #      ブランチ名だけを条件にすると、書き込み権限を持つ利用者が renovate/* ブランチから PR を作るだけで
+  #      通常のレビュー要件を迂回できてしまうため、実行主体の検証を必須にしています。
+  #   3. ベースブランチが develop であること。main へリターゲットされた PR が
+  #      develop での検証と dev デプロイを飛ばして本番へ入ることを防ぎます。
+  #   4. fork からの PR ではないこと
+  #   5. major-update ラベルが付いていないこと。依存パッケージのメジャー更新は renovate.json で
+  #      そもそも作成されませんが、GitHub Actions のメジャー更新のみ PR が作られるため手動レビュー必須とします。
+  #      Renovate は PR 作成と addLabels を別々の API 呼び出しで行うため（createPr が PR を作った直後に
+  #      ラベルを付与する）、opened イベントの payload にはまだ major-update が載っていない場合があります。
+  #      本ワークフローは labeled では再実行されず if: の判定も payload のスナップショットのままなので、
+  #      承認・マージの直前に API で現在のラベルを取得して再確認します。
+  renovate-auto-merge:
     runs-on: ubuntu-slim
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == github.event.pull_request.head.repo.full_name
+    if: >-
+      startsWith(github.head_ref, 'renovate/')
+      && vars.RENOVATE_ACTOR != ''
+      && github.event.pull_request.user.login == vars.RENOVATE_ACTOR
+      && github.base_ref == 'develop'
+      && github.repository == github.event.pull_request.head.repo.full_name
+      && !contains(github.event.pull_request.labels.*.name, 'major-update')
     permissions:
       contents: write
       pull-requests: write
     timeout-minutes: 5
     needs: ["lint-and-test-backend", "verify-migration-backend", "lint-and-test-frontend"]
     steps:
-      - name: Dependabot metadata
-        id: metadata
-        uses: Dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      # イベント payload ではなく現在のラベルを API から取得して再判定します。
+      # gh の呼び出しが失敗した場合は変数代入が set -e で落ち、ジョブ自体が失敗して
+      # 後続の承認・マージが実行されません（fail-closed）。
+      - name: Re-check labels
+        id: labels
+        run: |
+          set -euo pipefail
+          labels="$(gh pr view "$PR_URL" --json labels --jq '.labels[].name')"
+          if grep -Fxq 'major-update' <<<"$labels"; then
+            echo "major-update ラベルが付いているため自動マージをスキップします。"
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >>"$GITHUB_OUTPUT"
+          fi
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Approve Pull Request
-        if: ${{ steps.metadata.outputs.update-type != 'version-update:semver-major'}}
+        if: steps.labels.outputs.skip == 'false'
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Merge Pull Request
+        if: steps.labels.outputs.skip == 'false'
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
