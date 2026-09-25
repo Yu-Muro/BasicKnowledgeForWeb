@@ -7,6 +7,7 @@ import {
 } from '@frontend/app/actions/shop-items';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import { uploadImage } from '@frontend/app/lib/imageUpload';
+import { AdminFormContainer } from '@frontend/components/AdminFormContainer';
 import TapToZoomImage from '@frontend/components/TapToZoomImage';
 import { Button } from '@frontend/components/ui/button';
 import { Input } from '@frontend/components/ui/input';
@@ -281,7 +282,7 @@ export default function ShopItemAdminPanel({
                 </p>
             )}
 
-            {error && (
+            {error && formMode !== 'editing' && (
                 <p
                     role='alert'
                     className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
@@ -291,12 +292,17 @@ export default function ShopItemAdminPanel({
             )}
 
             {formMode !== 'idle' && (
-                <div className='mb-6 rounded-xl border border-border bg-card p-4 shadow-sm'>
-                    <h2 className='mb-4 font-medium text-foreground text-sm'>
-                        {formMode === 'adding'
+                <AdminFormContainer
+                    editing={formMode === 'editing'}
+                    error={error}
+                    isPending={isPending}
+                    onClose={closeForm}
+                    title={
+                        formMode === 'adding'
                             ? '新しい販売物を追加'
-                            : '販売物を編集'}
-                    </h2>
+                            : '販売物を編集'
+                    }
+                >
                     <div className='space-y-3'>
                         <div>
                             <Label htmlFor='shop-name'>
@@ -391,7 +397,7 @@ export default function ShopItemAdminPanel({
                             キャンセル
                         </Button>
                     </div>
-                </div>
+                </AdminFormContainer>
             )}
 
             {sorted.length === 0 ? (

@@ -142,6 +142,9 @@ describe('OtherItemAdminPanel', () => {
         const editButtons = screen.getAllByRole('button', { name: '編集' });
         await user.click(editButtons[0]);
 
+        expect(
+            screen.getByRole('dialog', { name: '情報を編集' }),
+        ).toBeInTheDocument();
         expect(screen.getByText('情報を編集')).toBeInTheDocument();
         expect(screen.getByLabelText(/タイトル/)).toHaveValue('緊急連絡先');
         expect(screen.getByLabelText(/内容/)).toHaveValue('内線123');
