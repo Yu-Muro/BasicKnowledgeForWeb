@@ -91,7 +91,7 @@ export const timetableItemDepartments = cockroachTable(
         foreignKey({
             columns: [table.eventId, table.departmentId],
             foreignColumns: [departments.eventId, departments.id],
-        }).onDelete('restrict'),
+        }).onDelete('cascade'),
     ],
 );
 

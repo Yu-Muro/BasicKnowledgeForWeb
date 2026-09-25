@@ -32,6 +32,20 @@ export class InvalidTimetableDepartmentIdsError extends Error {
     }
 }
 
+export class InvalidTimetableLaneSelectionError extends Error {
+    constructor() {
+        super('Timetable item must belong to at least one lane');
+        this.name = 'InvalidTimetableLaneSelectionError';
+    }
+}
+
+export class InvalidTimetableTimeRangeError extends Error {
+    constructor() {
+        super('Timetable item end time must not precede start time');
+        this.name = 'InvalidTimetableTimeRangeError';
+    }
+}
+
 export interface ITimetableRepository {
     findByEventId(eventId: string): Promise<TimetableItem[]>;
     findById(id: string, eventId: string): Promise<TimetableItem | null>;

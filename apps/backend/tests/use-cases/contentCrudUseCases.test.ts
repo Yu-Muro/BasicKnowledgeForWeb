@@ -2,6 +2,8 @@ import { describe, expect, it, jest } from '@jest/globals';
 import type { Department, IDepartmentRepository } from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
 import {
     InvalidTimetableDepartmentIdsError,
+    InvalidTimetableLaneSelectionError,
+    InvalidTimetableTimeRangeError,
     type ITimetableRepository,
     type TimetableItem,
 } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
@@ -283,6 +285,21 @@ describe('Timetable use cases', () => {
         expect(repo.create).not.toHaveBeenCalled();
     });
 
+    it('CreateTimetableItemUseCase rejects an end time before the start time', async () => {
+        const repo = mockTimetableRepository();
+        const useCase = new CreateTimetableItemUseCase(repo);
+        const result = await useCase.execute({
+            eventId: EVENT_ID,
+            title: '時刻逆転',
+            startTime: '2025-08-01T11:00:00.000Z',
+            endTime: '2025-08-01T10:00:00.000Z',
+        });
+        expectFailure(result);
+        expect(result.status).toBe(400);
+        expect(result.error).toBe('終了時刻は開始時刻以降にしてください');
+        expect(repo.create).not.toHaveBeenCalled();
+    });
+
     it('CreateTimetableItemUseCase returns 400 for invalid department ids', async () => {
         const repo = mockTimetableRepository({
             create: jest
@@ -362,6 +379,46 @@ describe('Timetable use cases', () => {
         });
         expectFailure(result);
         expect(result.status).toBe(400);
+    });
+
+    it('UpdateTimetableItemUseCase returns 400 when repository rejects an empty lane selection', async () => {
+        const repo = mockTimetableRepository({
+            update: jest
+                .fn<ITimetableRepository['update']>()
+                .mockImplementation(() =>
+                    Promise.reject(new InvalidTimetableLaneSelectionError()),
+                ),
+        });
+        const useCase = new UpdateTimetableItemUseCase(repo);
+        const result = await useCase.execute({
+            id: baseTimetable.id,
+            eventId: EVENT_ID,
+            payload: { departmentIds: [baseDepartment.id] },
+        });
+        expectFailure(result);
+        expect(result.status).toBe(400);
+        expect(result.error).toBe(
+            '全体向けまたは部署タグを1つ以上指定してください',
+        );
+    });
+
+    it('UpdateTimetableItemUseCase returns 400 when repository rejects the time range', async () => {
+        const repo = mockTimetableRepository({
+            update: jest
+                .fn<ITimetableRepository['update']>()
+                .mockImplementation(() =>
+                    Promise.reject(new InvalidTimetableTimeRangeError()),
+                ),
+        });
+        const useCase = new UpdateTimetableItemUseCase(repo);
+        const result = await useCase.execute({
+            id: baseTimetable.id,
+            eventId: EVENT_ID,
+            payload: { title: '更新後タイトル' },
+        });
+        expectFailure(result);
+        expect(result.status).toBe(400);
+        expect(result.error).toBe('終了時刻は開始時刻以降にしてください');
     });
 
     it('UpdateTimetableItemUseCase rejects empty payload', async () => {

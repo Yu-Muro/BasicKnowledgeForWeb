@@ -1251,7 +1251,7 @@
         "id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
+      "onDelete": "CASCADE",
       "name": "timetable_item_departments_eqgsdtU8sHK8_fkey",
       "entityType": "fks",
       "schema": "public",

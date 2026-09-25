@@ -322,6 +322,101 @@ describe('TimetableAdminPanel', () => {
         });
     });
 
+    it('保存済みレーンが削除済みの場合は初期表示列に戻る', async () => {
+        window.localStorage.setItem(
+            'timetable:lanes:event-stale-lane',
+            JSON.stringify(['deleted-department']),
+        );
+
+        render(
+            <TimetableAdminPanel
+                items={MOCK_ITEMS}
+                departments={MOCK_DEPARTMENTS}
+                eventId='event-stale-lane'
+            />,
+        );
+
+        await waitFor(() => {
+            expect(
+                screen.getByLabelText('全体向け') as HTMLInputElement,
+            ).toBeChecked();
+        });
+    });
+
+    it('全体向け予定がない場合は予定を持つ最初の部署を初期選択する', async () => {
+        const departmentOnlyItem = {
+            ...MOCK_ITEMS[0],
+            isPublic: false,
+            departments: [MOCK_DEPARTMENTS[1]],
+        };
+
+        render(
+            <TimetableAdminPanel
+                items={[departmentOnlyItem]}
+                departments={MOCK_DEPARTMENTS}
+                eventId='event-department-only'
+            />,
+        );
+
+        await waitFor(() => {
+            expect(
+                screen.getByLabelText('会場管理部') as HTMLInputElement,
+            ).toBeChecked();
+        });
+        expect(
+            screen.getByLabelText('広報部') as HTMLInputElement,
+        ).not.toBeChecked();
+        expect(screen.getByText('開会式')).toBeInTheDocument();
+    });
+
+    it('localStorage が利用できなくても初期レーンを表示する', async () => {
+        const getItem = jest
+            .spyOn(Storage.prototype, 'getItem')
+            .mockImplementation(() => {
+                throw new DOMException('Storage disabled', 'SecurityError');
+            });
+        const setItem = jest
+            .spyOn(Storage.prototype, 'setItem')
+            .mockImplementation(() => {
+                throw new DOMException('Storage disabled', 'SecurityError');
+            });
+
+        try {
+            render(
+                <TimetableAdminPanel
+                    items={MOCK_ITEMS}
+                    departments={MOCK_DEPARTMENTS}
+                    eventId='event-storage-disabled'
+                />,
+            );
+
+            await waitFor(() => {
+                expect(screen.getByText('開会式')).toBeInTheDocument();
+            });
+        } finally {
+            getItem.mockRestore();
+            setItem.mockRestore();
+        }
+    });
+
+    it('日をまたぐ予定の終了日時を表示する', () => {
+        const overnightItem = {
+            ...MOCK_ITEMS[0],
+            startTime: '2025-08-01T14:00:00.000Z',
+            endTime: '2025-08-01T16:00:00.000Z',
+        };
+
+        render(
+            <TimetableAdminPanel
+                items={[overnightItem]}
+                departments={MOCK_DEPARTMENTS}
+                eventId='event-overnight'
+            />,
+        );
+
+        expect(screen.getByText(/8月2日.*01:00/)).toBeInTheDocument();
+    });
+
     it('confirm キャンセル時は deleteTimetableItemAction を呼ばない', async () => {
         const user = userEvent.setup();
         global.confirm = jest.fn<typeof confirm>().mockReturnValue(false);

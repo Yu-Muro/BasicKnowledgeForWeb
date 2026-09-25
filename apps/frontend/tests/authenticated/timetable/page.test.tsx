@@ -195,6 +195,35 @@ describe('TimetablePage', () => {
         ).toBeInTheDocument();
     });
 
+    it('部署一覧の取得に失敗しても項目内の部署レーンを表示する', async () => {
+        mockResolveAuth.mockResolvedValue(WITH_AUTH);
+        const department = { id: 'dept-1', name: '広報部' };
+        const departmentItem = {
+            ...MOCK_ITEMS[0],
+            isPublic: false,
+            departments: [department],
+        };
+        global.fetch = jest.fn<typeof fetch>().mockImplementation((input) => {
+            const url = String(input);
+            if (url.endsWith('/api/timetable')) {
+                return Promise.resolve(
+                    new Response(JSON.stringify({ items: [departmentItem] }), {
+                        status: 200,
+                    }),
+                );
+            }
+            return Promise.resolve(new Response(null, { status: 503 }));
+        });
+
+        const element = await TimetablePage({
+            searchParams: Promise.resolve({}),
+        });
+        render(element);
+
+        expect(screen.getByLabelText('広報部')).toBeChecked();
+        expect(screen.getByText('開会式')).toBeInTheDocument();
+    });
+
     it('admin ロールの場合、管理パネルを表示する', async () => {
         const adminAuth: serverAuth.ResolvedAuth = {
             eventId: 'event-1',

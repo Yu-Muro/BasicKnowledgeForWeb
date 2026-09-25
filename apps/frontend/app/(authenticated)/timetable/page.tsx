@@ -59,6 +59,23 @@ async function fetchDepartments(
     }
 }
 
+function mergeDepartments(
+    items: TimetableItem[],
+    departments: TimetableDepartment[],
+): TimetableDepartment[] {
+    const departmentMap = new Map(
+        departments.map((department) => [department.id, department]),
+    );
+    for (const item of items) {
+        for (const department of item.departments) {
+            if (!departmentMap.has(department.id)) {
+                departmentMap.set(department.id, department);
+            }
+        }
+    }
+    return Array.from(departmentMap.values());
+}
+
 export default async function TimetablePage({
     searchParams,
 }: {
@@ -85,12 +102,13 @@ export default async function TimetablePage({
         fetchTimetable(eventId, authToken, accessToken, role),
         fetchDepartments(eventId, authToken, accessToken, role),
     ]);
+    const availableDepartments = mergeDepartments(items, departments);
 
     if (role === 'admin') {
         return (
             <TimetableAdminPanel
                 items={items}
-                departments={departments}
+                departments={availableDepartments}
                 eventId={eventId}
             />
         );
@@ -108,7 +126,7 @@ export default async function TimetablePage({
             ) : (
                 <TimetableLaneView
                     items={items}
-                    departments={departments}
+                    departments={availableDepartments}
                     eventId={eventId}
                 />
             )}

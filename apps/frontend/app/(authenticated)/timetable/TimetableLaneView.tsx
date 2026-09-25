@@ -77,14 +77,18 @@ function formatItem(item: TimetableItem): TimetableViewItem {
     const end = new Date(item.endTime ?? item.startTime);
     const startLabel = timeFormatter.format(start);
     const endLabel = timeFormatter.format(end);
+    const startDateLabel = dateFormatter.format(start);
+    const endDateLabel = dateFormatter.format(end);
     return {
         ...item,
-        dateLabel: dateFormatter.format(start),
+        dateLabel: startDateLabel,
         timeLabel: startLabel,
         rangeLabel:
-            startLabel === endLabel
-                ? startLabel
-                : `${startLabel} - ${endLabel}`,
+            startDateLabel !== endDateLabel
+                ? `${startLabel} - ${endDateLabel} ${endLabel}`
+                : startLabel === endLabel
+                  ? startLabel
+                  : `${startLabel} - ${endLabel}`,
     };
 }
 
@@ -109,10 +113,48 @@ function buildGroups(items: TimetableItem[]): TimetableGroup[] {
 
 function getInitialLaneIds(items: TimetableItem[], lanes: Lane[]): string[] {
     if (items.some((item) => item.isPublic)) return [PUBLIC_LANE_ID];
-    const firstDepartmentLane = lanes.find(
-        (lane) => lane.type === 'department',
-    );
-    return firstDepartmentLane ? [firstDepartmentLane.id] : [];
+    const firstUsedDepartment = items
+        .flatMap((item) => item.departments)
+        .find((department) =>
+            lanes.some(
+                (lane) =>
+                    lane.type === 'department' && lane.id === department.id,
+            ),
+        );
+    return firstUsedDepartment ? [firstUsedDepartment.id] : [];
+}
+
+function getStoredLaneIds(
+    storageKey: string,
+    items: TimetableItem[],
+    lanes: Lane[],
+): string[] {
+    try {
+        const stored = window.localStorage.getItem(storageKey);
+        if (!stored) return getInitialLaneIds(items, lanes);
+
+        const parsed = JSON.parse(stored) as unknown;
+        if (!Array.isArray(parsed)) return getInitialLaneIds(items, lanes);
+
+        const laneIds = parsed.filter(
+            (value): value is string =>
+                typeof value === 'string' &&
+                lanes.some((lane) => lane.id === value),
+        );
+        return parsed.length > 0 && laneIds.length === 0
+            ? getInitialLaneIds(items, lanes)
+            : laneIds;
+    } catch {
+        return getInitialLaneIds(items, lanes);
+    }
+}
+
+function storeLaneIds(storageKey: string, laneIds: string[]): void {
+    try {
+        window.localStorage.setItem(storageKey, JSON.stringify(laneIds));
+    } catch {
+        // Storage is optional; the in-memory selection remains usable.
+    }
 }
 
 function itemBelongsToLane(item: TimetableItem, lane: Lane): boolean {
@@ -133,39 +175,20 @@ export default function TimetableLaneView({
     const storageKey = `timetable:lanes:${eventId}`;
 
     useEffect(() => {
-        const stored = window.localStorage.getItem(storageKey);
-        if (!stored) {
-            setSelectedLaneIds(getInitialLaneIds(items, lanes));
-            return;
-        }
-        try {
-            const parsed = JSON.parse(stored) as unknown;
-            if (!Array.isArray(parsed)) {
-                setSelectedLaneIds(getInitialLaneIds(items, lanes));
-                return;
-            }
-            const laneIds = parsed.filter(
-                (value): value is string =>
-                    typeof value === 'string' &&
-                    lanes.some((lane) => lane.id === value),
-            );
-            setSelectedLaneIds(laneIds);
-        } catch {
-            setSelectedLaneIds(getInitialLaneIds(items, lanes));
-        }
+        setSelectedLaneIds(getStoredLaneIds(storageKey, items, lanes));
     }, [items, lanes, storageKey]);
 
     useEffect(() => {
-        window.localStorage.setItem(
-            storageKey,
-            JSON.stringify(selectedLaneIds),
-        );
+        storeLaneIds(storageKey, selectedLaneIds);
     }, [selectedLaneIds, storageKey]);
 
     const selectedLanes = lanes.filter((lane) =>
         selectedLaneIds.includes(lane.id),
     );
-    const groups = buildGroups(items);
+    const visibleItems = items.filter((item) =>
+        selectedLanes.some((lane) => itemBelongsToLane(item, lane)),
+    );
+    const groups = buildGroups(visibleItems);
 
     const toggleLane = (laneId: string) => {
         setSelectedLaneIds((current) =>
@@ -201,6 +224,10 @@ export default function TimetableLaneView({
             {selectedLanes.length === 0 ? (
                 <p className='text-muted-foreground text-sm'>
                     表示する列を選択してください
+                </p>
+            ) : groups.length === 0 ? (
+                <p className='text-muted-foreground text-sm'>
+                    選択した列に予定はありません
                 </p>
             ) : (
                 <div className='space-y-6'>

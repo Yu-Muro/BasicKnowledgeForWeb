@@ -1,6 +1,8 @@
 import type { UpdateTimetableItemInput as RepositoryUpdateTimetableItemInput } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
 import {
     InvalidTimetableDepartmentIdsError,
+    InvalidTimetableLaneSelectionError,
+    InvalidTimetableTimeRangeError,
     type ITimetableRepository,
 } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
 import type {
@@ -108,6 +110,20 @@ export class UpdateTimetableItemUseCase implements IUpdateTimetableItemUseCase {
                 return {
                     success: false,
                     error: '指定された部署タグが見つかりません',
+                    status: 400,
+                };
+            }
+            if (error instanceof InvalidTimetableLaneSelectionError) {
+                return {
+                    success: false,
+                    error: '全体向けまたは部署タグを1つ以上指定してください',
+                    status: 400,
+                };
+            }
+            if (error instanceof InvalidTimetableTimeRangeError) {
+                return {
+                    success: false,
+                    error: '終了時刻は開始時刻以降にしてください',
                     status: 400,
                 };
             }

@@ -12,10 +12,15 @@ import type {
     TimetableItem,
     UpdateTimetableItemInput,
 } from './ITimetableRepository';
-import { InvalidTimetableDepartmentIdsError as InvalidDepartmentIdsError } from './ITimetableRepository';
+import {
+    InvalidTimetableDepartmentIdsError as InvalidDepartmentIdsError,
+    InvalidTimetableLaneSelectionError,
+    InvalidTimetableTimeRangeError,
+} from './ITimetableRepository';
 
 type DatabaseClient = ReturnType<typeof createDatabaseClient>;
 type DepartmentLinkExecutor = Pick<DatabaseClient, 'delete' | 'insert'>;
+type DepartmentLookupExecutor = Pick<DatabaseClient, 'select'>;
 type TimetableRecord = typeof timetableItems.$inferSelect;
 type TimetableRow = TimetableRecord & {
     departmentId: string | null;
@@ -197,8 +202,18 @@ export class TimetableRepository implements ITimetableRepository {
 
     async create(input: CreateTimetableItemInput): Promise<TimetableItem> {
         const { departmentIds = [], ...itemInput } = input;
-        await this.assertDepartmentsExist(itemInput.eventId, departmentIds);
         const created = await this.db.transaction(async (tx) => {
+            if (itemInput.endTime < itemInput.startTime) {
+                throw new InvalidTimetableTimeRangeError();
+            }
+            if (!itemInput.isPublic && departmentIds.length === 0) {
+                throw new InvalidTimetableLaneSelectionError();
+            }
+            await this.assertDepartmentsExist(
+                tx,
+                itemInput.eventId,
+                departmentIds,
+            );
             const [createdItem] = await tx
                 .insert(timetableItems)
                 .values(itemInput)
@@ -221,25 +236,69 @@ export class TimetableRepository implements ITimetableRepository {
         input: UpdateTimetableItemInput,
     ): Promise<TimetableItem | null> {
         const { departmentIds, ...itemInput } = input;
-        const existing = await this.findById(id, eventId);
-        if (!existing) return null;
-        if (departmentIds !== undefined) {
-            await this.assertDepartmentsExist(eventId, departmentIds);
-        }
+        const updated = await this.db.transaction(async (tx) => {
+            const [existing] = await tx
+                .select({
+                    startTime: timetableItems.startTime,
+                    endTime: timetableItems.endTime,
+                    isPublic: timetableItems.isPublic,
+                })
+                .from(timetableItems)
+                .where(
+                    and(
+                        eq(timetableItems.id, id),
+                        eq(timetableItems.eventId, eventId),
+                    ),
+                )
+                .for('update');
+            if (!existing) return false;
 
-        await this.db.transaction(async (tx) => {
-            if (Object.keys(itemInput).length > 0) {
-                await tx
-                    .update(timetableItems)
-                    .set({ ...itemInput, updatedAt: new Date() })
-                    .where(
-                        and(
-                            eq(timetableItems.id, id),
-                            eq(timetableItems.eventId, eventId),
-                        ),
-                    )
-                    .returning();
+            const existingDepartmentIds =
+                departmentIds === undefined
+                    ? (
+                          await tx
+                              .select({
+                                  id: timetableItemDepartments.departmentId,
+                              })
+                              .from(timetableItemDepartments)
+                              .where(
+                                  and(
+                                      eq(
+                                          timetableItemDepartments.timetableItemId,
+                                          id,
+                                      ),
+                                      eq(
+                                          timetableItemDepartments.eventId,
+                                          eventId,
+                                      ),
+                                  ),
+                              )
+                      ).map((row) => row.id)
+                    : departmentIds;
+            const effectiveStart = itemInput.startTime ?? existing.startTime;
+            const effectiveEnd = itemInput.endTime ?? existing.endTime;
+            if (effectiveEnd < effectiveStart) {
+                throw new InvalidTimetableTimeRangeError();
             }
+            if (
+                !(itemInput.isPublic ?? existing.isPublic) &&
+                existingDepartmentIds.length === 0
+            ) {
+                throw new InvalidTimetableLaneSelectionError();
+            }
+
+            if (departmentIds !== undefined) {
+                await this.assertDepartmentsExist(tx, eventId, departmentIds);
+            }
+            await tx
+                .update(timetableItems)
+                .set({ ...itemInput, updatedAt: new Date() })
+                .where(
+                    and(
+                        eq(timetableItems.id, id),
+                        eq(timetableItems.eventId, eventId),
+                    ),
+                );
             if (departmentIds !== undefined) {
                 await this.replaceDepartmentLinks(
                     tx,
@@ -248,7 +307,9 @@ export class TimetableRepository implements ITimetableRepository {
                     departmentIds,
                 );
             }
+            return true;
         });
+        if (!updated) return null;
         return this.findById(id, eventId);
     }
 
@@ -296,13 +357,14 @@ export class TimetableRepository implements ITimetableRepository {
     }
 
     private async assertDepartmentsExist(
+        db: DepartmentLookupExecutor,
         eventId: string,
         departmentIds: string[],
     ): Promise<void> {
         const uniqueDepartmentIds = Array.from(new Set(departmentIds));
         if (uniqueDepartmentIds.length === 0) return;
 
-        const rows = await this.db
+        const rows = await db
             .select({ id: departments.id })
             .from(departments)
             .where(
