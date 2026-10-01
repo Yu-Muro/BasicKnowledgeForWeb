@@ -122,6 +122,9 @@ describe('TimetableAdminPanel', () => {
         const editButtons = screen.getAllByRole('button', { name: '編集' });
         await user.click(editButtons[0]);
 
+        expect(
+            screen.getByRole('dialog', { name: 'アイテムを編集' }),
+        ).toBeInTheDocument();
         expect(screen.getByText('アイテムを編集')).toBeInTheDocument();
         expect(screen.getByLabelText(/タイトル/)).toHaveValue('開会式');
         expect(screen.getByLabelText(/場所/)).toHaveValue('大ホール');
