@@ -119,6 +119,37 @@ jobs:
           cd apps/frontend
           bun run test
 
+  lint-and-test-email-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun workspace
+        uses: ./.github/actions/setup-bun-project
+
+      - name: Build email-worker
+        run: |
+          cd apps/email-worker
+          bun run build
+
+      - name: Lint email-worker code
+        run: |
+          cd apps/email-worker
+          bun run lint
+
+      - name: Type check email-worker
+        run: |
+          cd apps/email-worker
+          bun run type-check
+
+      - name: Test email-worker
+        run: |
+          cd apps/email-worker
+          bun run test
+
   # Renovate が作成した PR のみを自動承認・自動マージします。
   # 以下をすべて満たす場合に限り実行する fail-closed 設計です（1 つでも欠ければスキップ）。
   #   1. ブランチ名が renovate/ プレフィックスであること
@@ -147,7 +178,7 @@ jobs:
       contents: write
       pull-requests: write
     timeout-minutes: 5
-    needs: ["lint-and-test-backend", "verify-migration-backend", "lint-and-test-frontend"]
+    needs: ["lint-and-test-backend", "verify-migration-backend", "lint-and-test-frontend", "lint-and-test-email-worker"]
     steps:
       # イベント payload ではなく現在のラベルを API から取得して再判定します。
       # gh の呼び出しが失敗した場合は変数代入が set -e で落ち、ジョブ自体が失敗して

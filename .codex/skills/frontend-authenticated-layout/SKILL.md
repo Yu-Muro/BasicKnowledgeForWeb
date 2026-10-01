@@ -1,11 +1,9 @@
 ---
 name: frontend-authenticated-layout
-description: Phase2-2 の `(authenticated)` レイアウトとナビゲーションを実装するときに使う。docs/tasks/phase2-2-frontend-authenticated-layout.md の要件を手順化する。
+description: "`(authenticated)`レイアウト、共通ナビゲーション、会期選択、レスポンシブ表示を実装・改修するときに使う。"
 ---
 
 # `(authenticated)` レイアウト実装ガイド
-
-参照: `docs/tasks/phase2-2-frontend-authenticated-layout.md`
 
 ## ゴール
 - `(authenticated)` route group 配下の `/`, `/timetable`, `/rooms`, `/events`, `/shop`, `/others`, `/search` が共通 layout を共有

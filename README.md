@@ -24,9 +24,10 @@ Next.js 15、Hono.js、Cloudflare Workersを使用したモダンなフルスタ
 │   │   │   ├── presentation/ # コントローラーとルート
 │   │   │   └── infrastructure/ # バリデーターと外部ツール
 │   │   └── drizzle.config.ts
-│   └── frontend/         # Next.js 15 App Router
+│   ├── frontend/         # Next.js 15 App Router
 │       ├── app/          # App Routerページとコンポーネント
 │       └── utils/        # ユーティリティ関数とAPIクライアント
+│   └── email-worker/     # Cloudflare Email Worker (internal send API)
 ├── docs/                 # ドキュメント
 └── .github/              # GitHub Actionsワークフロー
 ```
@@ -46,6 +47,11 @@ Next.js 15、Hono.js、Cloudflare Workersを使用したモダンなフルスタ
 - **スタイリング**: Tailwind CSS v4
 - **APIクライアント**: 型安全なAPI呼び出しのためのHono Client
 - **デプロイ**: Cloudflare Workers (OpenNext)
+
+#### メールワーカー
+- **ランタイム**: Cloudflare Workers
+- **責務**: Backend からの内部リクエストを受けて検証メール/OTPメールを送信
+- **テスト**: Jest
 
 #### 開発ツール
 - **パッケージマネージャー**: Bun
@@ -137,6 +143,18 @@ bun run lint             # Biomeリンター実行
 bun run type-check       # TypeScript型チェック
 ```
 
+#### メールワーカー
+```bash
+cd apps/email-worker
+
+# 開発
+bun run dev              # 開発サーバー起動
+bun run build            # Dry-runビルド
+bun run lint             # Biomeリンター実行
+bun run type-check       # TypeScript型チェック
+bun run test             # Jestテスト実行
+```
+
 ## 🗄️ データベース
 
 ### スキーマ
@@ -219,6 +237,10 @@ bun test
 
 # フロントエンドテスト
 cd apps/frontend
+bun test
+
+# メールワーカーテスト
+cd apps/email-worker
 bun test
 ```
 

@@ -1,0 +1,19 @@
+{
+    "name": "email-worker",
+    "version": "0.0.0",
+    "main": "src/index.ts",
+    "types": "src/index.ts",
+    "private": true,
+    "scripts": {
+        "dev": "wrangler dev --port 8789",
+        "deploy": "wrangler deploy --env prod --minify",
+        "deploy:dev": "wrangler deploy --env dev --minify",
+        "build": "wrangler deploy --dry-run --env dev && wrangler deploy --dry-run --env prod",
+        "cf-typegen": "wrangler types",
+        "cf-typegen:check": "wrangler types --check",
+        "lint": "biome check ./src ./tests",
+        "lint:fix": "biome check --write --unsafe ./src ./tests",
+        "type-check": "bun run cf-typegen:check && tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+        "test": "jest"
+    }
+}
