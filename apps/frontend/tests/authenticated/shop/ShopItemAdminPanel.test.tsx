@@ -174,6 +174,9 @@ describe('ShopItemAdminPanel', () => {
         const editButtons = screen.getAllByRole('button', { name: '編集' });
         await user.click(editButtons[0]);
 
+        expect(
+            screen.getByRole('dialog', { name: '販売物を編集' }),
+        ).toBeInTheDocument();
         expect(screen.getByText('販売物を編集')).toBeInTheDocument();
         expect(screen.getByLabelText(/商品名/)).toHaveValue('オリジナルTシャツ');
         expect(screen.getByLabelText(/価格/)).toHaveValue(2000);

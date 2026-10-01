@@ -5,6 +5,7 @@ import {
     deleteTimetableItemAction,
     updateTimetableItemAction,
 } from '@frontend/app/actions/timetable';
+import { AdminFormContainer } from '@frontend/components/AdminFormContainer';
 import { Button } from '@frontend/components/ui/button';
 import { Input } from '@frontend/components/ui/input';
 import { Label } from '@frontend/components/ui/label';
@@ -203,7 +204,7 @@ export default function TimetableAdminPanel({
                 </p>
             )}
 
-            {error && (
+            {error && formMode !== 'editing' && (
                 <p
                     role='alert'
                     className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
@@ -213,12 +214,17 @@ export default function TimetableAdminPanel({
             )}
 
             {formMode !== 'idle' && (
-                <div className='mb-6 rounded-lg border border-border bg-card p-4 shadow-sm'>
-                    <h2 className='mb-4 font-medium text-foreground text-sm'>
-                        {formMode === 'adding'
+                <AdminFormContainer
+                    editing={formMode === 'editing'}
+                    error={error}
+                    isPending={isPending}
+                    onClose={closeForm}
+                    title={
+                        formMode === 'adding'
                             ? '新しいアイテムを追加'
-                            : 'アイテムを編集'}
-                    </h2>
+                            : 'アイテムを編集'
+                    }
+                >
                     <div className='space-y-3'>
                         <div>
                             <Label htmlFor='tt-title'>
@@ -371,7 +377,7 @@ export default function TimetableAdminPanel({
                             キャンセル
                         </Button>
                     </div>
-                </div>
+                </AdminFormContainer>
             )}
 
             {items.length === 0 ? (

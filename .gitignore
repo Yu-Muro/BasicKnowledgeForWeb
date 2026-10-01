@@ -52,6 +52,7 @@ Temporary Items
 
 # production
 /build
+**/.wrangler/
 
 # misc
 *.pem

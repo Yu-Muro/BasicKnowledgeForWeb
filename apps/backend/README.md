@@ -173,6 +173,11 @@ wrangler secret list --name basic-knowledge-for-web-backend
 > **注意**: frontend Worker にも同じ値で設定が必要です。  
 > 詳細は `apps/frontend/README.md` の「JWT_SECRET のセットアップ」を参照してください。
 
+## 🔗 Email Worker 連携の前提
+
+Backend から Email Worker への送信は Cloudflare Service Binding (`EMAIL_WORKER`) を使います。  
+Email Worker は `workers_dev: false` で公開 URL を無効化し、外部から直接アクセスできない設定にします。
+
 ---
 
 ## 🔐 認証・セキュリティ

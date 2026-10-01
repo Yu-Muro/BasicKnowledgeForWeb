@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "strict": true,
+        "skipLibCheck": true,
+        "lib": ["ESNext"],
+        "types": ["jest", "node", "./worker-configuration.d.ts"],
+        "esModuleInterop": true,
+        "baseUrl": ".",
+        "paths": {
+            "@email-worker/*": ["./*"]
+        }
+    },
+    "include": ["tests/**/*", "src/**/*"]
+}

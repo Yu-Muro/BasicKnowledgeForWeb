@@ -30,9 +30,10 @@
 
 ゾーンレベルの WAF レート制限ルールは [Phase 10-2（境界防御・計測）](./phase10-2-waf-analytics.md) で別途追加し、多層防御とする。
 
-> **Phase 5（メール認証 / PR #167）との関係:** Phase 5 で追加される OTP ログインやメール検証の
-> verify 系エンドポイント（特に数桁 OTP）は総当たりの典型的な標的になる。Phase 5 がマージされたら、
-> 本タスクの Rate Limiting / Turnstile 保護対象に OTP・メール検証エンドポイントを追加すること。
+> **Phase 5（メール認証 / PR #167）との関係:** Phase 5 のメール検証/OTP API は、公開時点から
+> DB による厳密な5回制限と送信元・アカウント/challenge 単位の Rate Limiting を適用する。
+> 本タスクではその保護を維持したまま、既存の access/login/register へ共通化し、Turnstile と
+> ゾーン側防御を含む多層防御へ拡張する。
 
 ## 実装順序
 
@@ -77,7 +78,8 @@ backend と frontend をまたぐため、以下の順序を厳守する。
 
 - 全 API への一律レート制限（必要箇所に限定する）
 - WAF レベルのレート制限ルール（[Phase 10-2](./phase10-2-waf-analytics.md) で実施）
-- ログイン / アクセスコード / 登録**以外**のフォーム（パスワード変更・ロール変更など）への Turnstile 適用（Phase 5 OTP は上記の通りマージ後に追加）
+- ログイン / アクセスコード / 登録**以外**のフォーム（パスワード変更・ロール変更など）への Turnstile 適用
+- Phase 5 のメール検証/OTP API にあるDB試行回数制限と専用 rate limit の置き換えまたは緩和
 
 ## テスト
 
@@ -89,6 +91,7 @@ backend と frontend をまたぐため、以下の順序を厳守する。
 - verify / login / 登録で siteverify 失敗時に `400` を返す
 - レート制限キーに入力値が含まれず、同一 IP から異なるアクセスコードを試しても回数が累積する（列挙が素通ししない）
 - 既存の verify / login / 登録 正常系・異常系が回帰しない（`auth-hardening-tests` 観点を維持）
+- Phase 5 のメール検証/OTP APIで厳密な5回制限と専用 rate limit が回帰しない
 
 ### Frontend
 

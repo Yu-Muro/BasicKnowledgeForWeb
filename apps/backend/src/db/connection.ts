@@ -5,6 +5,10 @@ interface Hyperdrive {
     connectionString: string;
 }
 
+export interface ServiceBinding {
+    fetch(input: Request | URL | string, init?: RequestInit): Promise<Response>;
+}
+
 export interface R2ObjectBody {
     body: ReadableStream;
     httpMetadata?: { contentType?: string };
@@ -31,6 +35,7 @@ export interface Env {
     JWT_SECRET: string;
     SHOP_ITEM_ASSET_BUCKET: R2Bucket;
     SHOP_ITEM_ASSET_BASE_URL: string;
+    EMAIL_WORKER?: ServiceBinding;
 }
 
 export function createDatabaseClient(env: Env) {
