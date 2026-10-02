@@ -33,7 +33,7 @@ export class DeleteDepartmentUseCase implements IDeleteDepartmentUseCase {
             if (isForeignKeyViolation(err)) {
                 return {
                     success: false,
-                    error: 'この部署は部屋に割り当てられているため削除できません',
+                    error: 'この部署は部屋割りまたはタイムテーブルで使用されているため削除できません',
                     status: 409,
                 };
             }

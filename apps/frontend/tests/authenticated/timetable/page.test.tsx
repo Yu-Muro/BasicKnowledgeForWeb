@@ -67,15 +67,21 @@ const MOCK_ITEMS = [
         id: '1',
         title: '開会式',
         startTime: '2025-08-01T09:00:00.000Z',
+        endTime: '2025-08-01T09:30:00.000Z',
         location: '大ホール',
         description: null,
+        isPublic: true,
+        departments: [],
     },
     {
         id: '2',
         title: 'スタッフ集合',
         startTime: '2025-08-01T08:00:00.000Z',
+        endTime: '2025-08-01T08:30:00.000Z',
         location: 'ロビー',
         description: '全員参加',
+        isPublic: true,
+        departments: [],
     },
 ];
 
@@ -84,6 +90,7 @@ const originalFetch = global.fetch;
 beforeEach(() => {
     jest.resetAllMocks();
     mockBuildHeaders.mockReturnValue({});
+    window.localStorage.clear();
 });
 
 afterEach(() => {
@@ -153,6 +160,7 @@ describe('TimetablePage', () => {
         expect(screen.getByText(lateTime)).toBeInTheDocument();
 
         expect(screen.getByText('ロビー')).toBeInTheDocument();
+        expect(screen.getAllByText('全体向け').length).toBeGreaterThan(0);
     });
 
     it('descriptionがある場合に表示する', async () => {
@@ -185,6 +193,35 @@ describe('TimetablePage', () => {
         expect(
             screen.getByText('登録されているタイムテーブルはありません'),
         ).toBeInTheDocument();
+    });
+
+    it('部署一覧の取得に失敗しても項目内の部署レーンを表示する', async () => {
+        mockResolveAuth.mockResolvedValue(WITH_AUTH);
+        const department = { id: 'dept-1', name: '広報部' };
+        const departmentItem = {
+            ...MOCK_ITEMS[0],
+            isPublic: false,
+            departments: [department],
+        };
+        global.fetch = jest.fn<typeof fetch>().mockImplementation((input) => {
+            const url = String(input);
+            if (url.endsWith('/api/timetable')) {
+                return Promise.resolve(
+                    new Response(JSON.stringify({ items: [departmentItem] }), {
+                        status: 200,
+                    }),
+                );
+            }
+            return Promise.resolve(new Response(null, { status: 503 }));
+        });
+
+        const element = await TimetablePage({
+            searchParams: Promise.resolve({}),
+        });
+        render(element);
+
+        expect(screen.getByLabelText('広報部')).toBeChecked();
+        expect(screen.getByText('開会式')).toBeInTheDocument();
     });
 
     it('admin ロールの場合、管理パネルを表示する', async () => {

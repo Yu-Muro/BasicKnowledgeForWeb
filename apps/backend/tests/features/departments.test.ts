@@ -671,7 +671,7 @@ describe('DELETE /api/departments/:id', () => {
         expect(res.status).toBe(404);
     });
 
-    it('FK 制約違反（rooms 参照中）のとき 409 が返ること', async () => {
+    it('FK 制約違反（部屋割りまたはタイムテーブルで使用中）のとき 409 が返ること', async () => {
         const repo = createMockDepartmentRepository({
             delete: jest
                 .fn<IDepartmentRepository['delete']>()
@@ -694,6 +694,9 @@ describe('DELETE /api/departments/:id', () => {
         );
 
         expect(res.status).toBe(409);
+        expect(await res.json()).toEqual({
+            error: 'この部署は部屋割りまたはタイムテーブルで使用されているため削除できません',
+        });
     });
 
     it('不正な UUID のとき 400 が返ること', async () => {

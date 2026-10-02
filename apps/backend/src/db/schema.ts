@@ -1,8 +1,10 @@
 // src/db/schema.ts
 import {
+    boolean,
     cockroachTable,
     foreignKey,
     int4,
+    primaryKey,
     text,
     timestamp,
     uniqueIndex,
@@ -47,19 +49,51 @@ export const departments = cockroachTable(
     ],
 );
 
-export const timetableItems = cockroachTable('timetable_items', {
-    id: uuid('id').primaryKey().defaultRandom(),
-    eventId: uuid('event_id')
-        .notNull()
-        .references(() => accessCodes.id, { onDelete: 'restrict' }),
-    title: varchar('title', { length: 255 }).notNull(),
-    startTime: timestamp('start_time').notNull(),
-    endTime: timestamp('end_time').notNull(),
-    location: varchar('location', { length: 255 }).notNull(),
-    description: text('description'),
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
-});
+export const timetableItems = cockroachTable(
+    'timetable_items',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        eventId: uuid('event_id')
+            .notNull()
+            .references(() => accessCodes.id, { onDelete: 'restrict' }),
+        title: varchar('title', { length: 255 }).notNull(),
+        startTime: timestamp('start_time').notNull(),
+        endTime: timestamp('end_time').notNull(),
+        location: varchar('location', { length: 255 }).notNull(),
+        description: text('description'),
+        isPublic: boolean('is_public').notNull().default(true),
+        createdAt: timestamp('created_at').defaultNow(),
+        updatedAt: timestamp('updated_at').defaultNow(),
+    },
+    (table) => [
+        uniqueIndex('timetable_items_event_id_id_idx').on(
+            table.eventId,
+            table.id,
+        ),
+    ],
+);
+
+export const timetableItemDepartments = cockroachTable(
+    'timetable_item_departments',
+    {
+        eventId: uuid('event_id')
+            .notNull()
+            .references(() => accessCodes.id, { onDelete: 'restrict' }),
+        timetableItemId: uuid('timetable_item_id').notNull(),
+        departmentId: uuid('department_id').notNull(),
+    },
+    (table) => [
+        primaryKey({ columns: [table.timetableItemId, table.departmentId] }),
+        foreignKey({
+            columns: [table.eventId, table.timetableItemId],
+            foreignColumns: [timetableItems.eventId, timetableItems.id],
+        }).onDelete('cascade'),
+        foreignKey({
+            columns: [table.eventId, table.departmentId],
+            foreignColumns: [departments.eventId, departments.id],
+        }).onDelete('restrict'),
+    ],
+);
 
 export const rooms = cockroachTable(
     'rooms',

@@ -4,26 +4,10 @@ import {
     resolveAuth,
 } from '@frontend/app/lib/serverAuth';
 import TimetableAdminPanel from './TimetableAdminPanel';
-
-const DISPLAY_TIMEZONE = 'Asia/Tokyo';
-
-type TimetableItem = {
-    id: string;
-    title: string;
-    startTime: string;
-    location: string;
-    description: string | null;
-};
-
-type TimetableViewItem = TimetableItem & {
-    dateLabel: string;
-    timeLabel: string;
-};
-
-type TimetableGroup = {
-    date: string;
-    entries: TimetableViewItem[];
-};
+import TimetableLaneView, {
+    type TimetableDepartment,
+    type TimetableItem,
+} from './TimetableLaneView';
 
 async function fetchTimetable(
     eventId: string,
@@ -49,47 +33,47 @@ async function fetchTimetable(
     }
 }
 
-function formatDateLabel(date: Date): string {
-    return date.toLocaleDateString('ja-JP', {
-        month: 'long',
-        day: 'numeric',
-        weekday: 'short',
-        timeZone: DISPLAY_TIMEZONE,
-    });
-}
-
-function formatTimeLabel(start: Date): string {
-    const format = new Intl.DateTimeFormat('ja-JP', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: DISPLAY_TIMEZONE,
-    });
-    return format.format(start);
-}
-
-function buildViewItems(items: TimetableItem[]): TimetableViewItem[] {
-    return items.map((item) => {
-        const start = new Date(item.startTime);
-        return {
-            ...item,
-            dateLabel: formatDateLabel(start),
-            timeLabel: formatTimeLabel(start),
+async function fetchDepartments(
+    eventId: string,
+    authToken: string | null,
+    accessToken: string | null,
+    role: string,
+): Promise<TimetableDepartment[]> {
+    try {
+        const res = await fetchFromBackend('/api/departments', {
+            headers: buildContentFetchHeaders(
+                eventId,
+                authToken,
+                accessToken,
+                role,
+            ),
+            cache: 'no-store',
+        });
+        if (!res.ok) return [];
+        const data = (await res.json()) as {
+            departments: TimetableDepartment[];
         };
-    });
+        return data.departments ?? [];
+    } catch {
+        return [];
+    }
 }
 
-function groupByDate(items: TimetableViewItem[]): TimetableGroup[] {
-    const map = new Map<string, TimetableViewItem[]>();
+function mergeDepartments(
+    items: TimetableItem[],
+    departments: TimetableDepartment[],
+): TimetableDepartment[] {
+    const departmentMap = new Map(
+        departments.map((department) => [department.id, department]),
+    );
     for (const item of items) {
-        const next = map.get(item.dateLabel) ?? [];
-        next.push(item);
-        map.set(item.dateLabel, next);
+        for (const department of item.departments) {
+            if (!departmentMap.has(department.id)) {
+                departmentMap.set(department.id, department);
+            }
+        }
     }
-    return Array.from(map.entries()).map(([date, entries]) => ({
-        date,
-        entries,
-    }));
+    return Array.from(departmentMap.values());
 }
 
 export default async function TimetablePage({
@@ -114,72 +98,37 @@ export default async function TimetablePage({
         );
     }
 
-    const items = await fetchTimetable(eventId, authToken, accessToken, role);
+    const [items, departments] = await Promise.all([
+        fetchTimetable(eventId, authToken, accessToken, role),
+        fetchDepartments(eventId, authToken, accessToken, role),
+    ]);
+    const availableDepartments = mergeDepartments(items, departments);
 
     if (role === 'admin') {
-        return <TimetableAdminPanel items={items} eventId={eventId} />;
+        return (
+            <TimetableAdminPanel
+                items={items}
+                departments={availableDepartments}
+                eventId={eventId}
+            />
+        );
     }
-
-    const sorted = [...items].sort(
-        (a, b) =>
-            new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
-    );
-    const viewItems = buildViewItems(sorted);
-    const grouped = groupByDate(viewItems);
 
     return (
         <div>
             <h1 className='mb-6 font-semibold text-foreground text-xl tracking-tight'>
                 タイムテーブル
             </h1>
-            {viewItems.length === 0 ? (
+            {items.length === 0 ? (
                 <p className='text-muted-foreground text-sm'>
                     登録されているタイムテーブルはありません
                 </p>
             ) : (
-                <div className='space-y-6'>
-                    {grouped.map(({ date, entries }) => (
-                        <section key={date}>
-                            <p className='mb-2 font-medium text-muted-foreground text-xs'>
-                                {date}
-                            </p>
-                            <div className='space-y-2'>
-                                {entries.map((item) => (
-                                    <article
-                                        key={item.id}
-                                        className='rounded-lg border border-border bg-card p-4'
-                                    >
-                                        <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4'>
-                                            <p className='font-medium text-muted-foreground text-xs tabular-nums sm:w-36 sm:flex-none sm:text-sm'>
-                                                {item.timeLabel}
-                                            </p>
-                                            <div className='flex-1 space-y-1'>
-                                                <p className='font-semibold text-base text-foreground leading-tight sm:font-medium sm:text-sm'>
-                                                    {item.title}
-                                                </p>
-                                                {item.location && (
-                                                    <p className='flex items-center gap-1 text-muted-foreground text-xs'>
-                                                        <span aria-hidden='true'>
-                                                            {'📍'}
-                                                        </span>
-                                                        <span>
-                                                            {item.location}
-                                                        </span>
-                                                    </p>
-                                                )}
-                                                {item.description && (
-                                                    <p className='text-muted-foreground text-xs'>
-                                                        {item.description}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </article>
-                                ))}
-                            </div>
-                        </section>
-                    ))}
-                </div>
+                <TimetableLaneView
+                    items={items}
+                    departments={availableDepartments}
+                    eventId={eventId}
+                />
             )}
         </div>
     );

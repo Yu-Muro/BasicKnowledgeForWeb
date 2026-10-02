@@ -4,6 +4,7 @@ import type {
     ITimetableRepository,
     TimetableItem,
 } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
+import { InvalidTimetableDepartmentIdsError } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
 import { sign } from 'hono/jwt';
 import { createTestAppWithTimetable } from '../helpers/createTestApp';
 
@@ -12,6 +13,7 @@ const mockEnv = { JWT_SECRET } as unknown as Env;
 
 const EVENT_ID = '00000000-0000-4000-8000-000000000001';
 const OTHER_EVENT_ID = '00000000-0000-4000-8000-000000000002';
+const DEPARTMENT_ID = '20000000-0000-4000-8000-000000000001';
 
 const item1: TimetableItem = {
     id: '10000000-0000-4000-8000-000000000001',
@@ -21,6 +23,8 @@ const item1: TimetableItem = {
     endTime: new Date('2025-08-01T11:00:00Z'),
     location: '会場 A',
     description: null,
+    isPublic: true,
+    departments: [],
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01'),
 };
@@ -345,6 +349,105 @@ describe('POST /api/timetable', () => {
         );
     });
 
+    it('全体向けと部署タグを指定して登録できること', async () => {
+        const created = {
+            ...item1,
+            isPublic: false,
+            departments: [{ id: DEPARTMENT_ID, name: '広報部' }],
+        };
+        const create = jest
+            .fn<ITimetableRepository['create']>()
+            .mockImplementation(() => Promise.resolve(created));
+        const repo = createMockTimetableRepository({ create });
+        const app = createTestAppWithTimetable(repo);
+
+        const res = await app.request(
+            '/api/timetable',
+            {
+                method: 'POST',
+                headers: {
+                    'x-event-id': EVENT_ID,
+                    'Content-Type': 'application/json',
+                    Cookie: `auth_token=${adminToken}`,
+                },
+                body: JSON.stringify({
+                    ...validBody,
+                    end_time: '2025-08-01T11:00:00Z',
+                    is_public: false,
+                    department_ids: [DEPARTMENT_ID],
+                }),
+            },
+            mockEnv,
+        );
+
+        expect(res.status).toBe(201);
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                isPublic: false,
+                departmentIds: [DEPARTMENT_ID],
+            }),
+        );
+        const body = (await res.json()) as { item: TimetableItem };
+        expect(body.item.departments).toHaveLength(1);
+    });
+
+    it('全体向けでも部署タグ付きでもない場合は 400 が返ること', async () => {
+        const create = jest.fn<ITimetableRepository['create']>();
+        const repo = createMockTimetableRepository({ create });
+        const app = createTestAppWithTimetable(repo);
+
+        const res = await app.request(
+            '/api/timetable',
+            {
+                method: 'POST',
+                headers: {
+                    'x-event-id': EVENT_ID,
+                    'Content-Type': 'application/json',
+                    Cookie: `auth_token=${adminToken}`,
+                },
+                body: JSON.stringify({
+                    ...validBody,
+                    is_public: false,
+                    department_ids: [],
+                }),
+            },
+            mockEnv,
+        );
+
+        expect(res.status).toBe(400);
+        expect(create).not.toHaveBeenCalled();
+    });
+
+    it('存在しない部署タグを指定した場合は 400 が返ること', async () => {
+        const create = jest
+            .fn<ITimetableRepository['create']>()
+            .mockImplementation(() =>
+                Promise.reject(new InvalidTimetableDepartmentIdsError()),
+            );
+        const repo = createMockTimetableRepository({ create });
+        const app = createTestAppWithTimetable(repo);
+
+        const res = await app.request(
+            '/api/timetable',
+            {
+                method: 'POST',
+                headers: {
+                    'x-event-id': EVENT_ID,
+                    'Content-Type': 'application/json',
+                    Cookie: `auth_token=${adminToken}`,
+                },
+                body: JSON.stringify({
+                    ...validBody,
+                    is_public: false,
+                    department_ids: [DEPARTMENT_ID],
+                }),
+            },
+            mockEnv,
+        );
+
+        expect(res.status).toBe(400);
+    });
+
     it('必須フィールドが欠けている場合は 400 が返ること', async () => {
         const app = createTestAppWithTimetable(createMockTimetableRepository());
 
@@ -515,6 +618,115 @@ describe('PUT /api/timetable/:id', () => {
                     Cookie: `auth_token=${adminToken}`,
                 },
                 body: JSON.stringify({}),
+            },
+            mockEnv,
+        );
+
+        expect(res.status).toBe(400);
+    });
+
+    it('部署タグだけを更新できること', async () => {
+        const updated = {
+            ...item1,
+            departments: [{ id: DEPARTMENT_ID, name: '広報部' }],
+        };
+        const update = jest
+            .fn<ITimetableRepository['update']>()
+            .mockImplementation(() => Promise.resolve(updated));
+        const app = createTestAppWithTimetable(
+            createMockTimetableRepository({ update }),
+        );
+
+        const res = await app.request(
+            `/api/timetable/${ITEM_ID}`,
+            {
+                method: 'PUT',
+                headers: {
+                    'x-event-id': EVENT_ID,
+                    'Content-Type': 'application/json',
+                    Cookie: `auth_token=${adminToken}`,
+                },
+                body: JSON.stringify({ department_ids: [DEPARTMENT_ID] }),
+            },
+            mockEnv,
+        );
+
+        expect(res.status).toBe(200);
+        expect(update).toHaveBeenCalledWith(ITEM_ID, EVENT_ID, {
+            departmentIds: [DEPARTMENT_ID],
+        });
+    });
+
+    it('開始時刻だけを既存の終了時刻より後へ更新する場合は 400 が返ること', async () => {
+        const update = jest.fn<ITimetableRepository['update']>();
+        const app = createTestAppWithTimetable(
+            createMockTimetableRepository({ update }),
+        );
+
+        const res = await app.request(
+            `/api/timetable/${ITEM_ID}`,
+            {
+                method: 'PUT',
+                headers: {
+                    'x-event-id': EVENT_ID,
+                    'Content-Type': 'application/json',
+                    Cookie: `auth_token=${adminToken}`,
+                },
+                body: JSON.stringify({
+                    start_time: '2025-08-01T12:00:00Z',
+                }),
+            },
+            mockEnv,
+        );
+
+        expect(res.status).toBe(400);
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('全体向けでも部署タグ付きでもない更新は 400 が返ること', async () => {
+        const update = jest.fn<ITimetableRepository['update']>();
+        const app = createTestAppWithTimetable(
+            createMockTimetableRepository({ update }),
+        );
+
+        const res = await app.request(
+            `/api/timetable/${ITEM_ID}`,
+            {
+                method: 'PUT',
+                headers: {
+                    'x-event-id': EVENT_ID,
+                    'Content-Type': 'application/json',
+                    Cookie: `auth_token=${adminToken}`,
+                },
+                body: JSON.stringify({ is_public: false }),
+            },
+            mockEnv,
+        );
+
+        expect(res.status).toBe(400);
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('更新時に存在しない部署タグを指定した場合は 400 が返ること', async () => {
+        const update = jest
+            .fn<ITimetableRepository['update']>()
+            .mockImplementation(() =>
+                Promise.reject(new InvalidTimetableDepartmentIdsError()),
+            );
+        const app = createTestAppWithTimetable(
+            createMockTimetableRepository({ update }),
+        );
+
+        const res = await app.request(
+            `/api/timetable/${ITEM_ID}`,
+            {
+                method: 'PUT',
+                headers: {
+                    'x-event-id': EVENT_ID,
+                    'Content-Type': 'application/json',
+                    Cookie: `auth_token=${adminToken}`,
+                },
+                body: JSON.stringify({ department_ids: [DEPARTMENT_ID] }),
             },
             mockEnv,
         );
