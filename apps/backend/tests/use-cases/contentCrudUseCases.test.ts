@@ -835,5 +835,8 @@ describe('Department use cases', () => {
         const result = await useCase.execute({ id: baseDepartment.id, eventId: OTHER_EVENT_ID });
         expectFailure(result);
         expect(result.status).toBe(409);
+        expect(result.error).toBe(
+            'この部署は部屋割りまたはタイムテーブルで使用されているため削除できません',
+        );
     });
 });

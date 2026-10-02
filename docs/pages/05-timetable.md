@@ -51,7 +51,7 @@ type TimetableItem = {
 
 DB では `timetable_items.is_public` と、
 `timetable_item_departments` 中間テーブルで表現する。
-部署を削除した場合、その部署のタイムテーブルタグは自動解除される。
+タイムテーブルの部署タグとして使用中の部署は、タグを解除するまで削除できない。
 
 ## API
 ### `GET /api/timetable`
