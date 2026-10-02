@@ -125,6 +125,7 @@ export default function ShopItemAdminPanel({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const openAdd = () => {
+        if (isPending) return;
         setFormData(EMPTY_FORM);
         setEditingItem(null);
         setError(null);
@@ -133,6 +134,7 @@ export default function ShopItemAdminPanel({
     };
 
     const openEdit = (item: ShopItem) => {
+        if (isPending) return;
         setFormData(itemToForm(item));
         setEditingItem(item);
         setError(null);
@@ -266,7 +268,7 @@ export default function ShopItemAdminPanel({
                 <h1 className='font-semibold text-foreground text-xl tracking-tight'>
                     販売物一覧
                 </h1>
-                <Button size='sm' onClick={openAdd} disabled={isPending}>
+                <Button size='sm' onClick={openAdd}>
                     + 追加
                 </Button>
             </div>
@@ -452,7 +454,6 @@ export default function ShopItemAdminPanel({
                                                     onClick={() =>
                                                         openEdit(item)
                                                     }
-                                                    disabled={isPending}
                                                 >
                                                     編集
                                                 </Button>
@@ -506,7 +507,6 @@ export default function ShopItemAdminPanel({
                                         size='sm'
                                         variant='outline'
                                         onClick={() => openEdit(item)}
-                                        disabled={isPending}
                                     >
                                         編集
                                     </Button>

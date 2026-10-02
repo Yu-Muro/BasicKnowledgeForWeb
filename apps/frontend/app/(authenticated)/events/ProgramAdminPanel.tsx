@@ -127,6 +127,7 @@ export default function ProgramAdminPanel({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const openAdd = () => {
+        if (isPending) return;
         setFormData(EMPTY_FORM);
         setEditingItem(null);
         setError(null);
@@ -136,6 +137,7 @@ export default function ProgramAdminPanel({
     };
 
     const openEdit = (item: Program) => {
+        if (isPending) return;
         setFormData(itemToForm(item));
         setEditingItem(item);
         setError(null);
@@ -247,7 +249,7 @@ export default function ProgramAdminPanel({
                 <h1 className='font-semibold text-foreground text-xl tracking-tight'>
                     企画一覧
                 </h1>
-                <Button size='sm' onClick={openAdd} disabled={isPending}>
+                <Button size='sm' onClick={openAdd}>
                     + 追加
                 </Button>
             </div>
@@ -445,7 +447,6 @@ export default function ProgramAdminPanel({
                                             size='sm'
                                             variant='outline'
                                             onClick={() => openEdit(program)}
-                                            disabled={isPending}
                                         >
                                             編集
                                         </Button>

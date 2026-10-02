@@ -77,6 +77,7 @@ export default function OtherItemAdminPanel({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const openAdd = () => {
+        if (isPending) return;
         setFormData(EMPTY_FORM);
         setEditingItem(null);
         setError(null);
@@ -86,6 +87,7 @@ export default function OtherItemAdminPanel({
     };
 
     const openEdit = (item: OtherItem) => {
+        if (isPending) return;
         setFormData(itemToForm(item));
         setEditingItem(item);
         setError(null);
@@ -198,7 +200,7 @@ export default function OtherItemAdminPanel({
                         注意事項や連絡先など、自由記述の共有事項を閲覧できます。
                     </p>
                 </div>
-                <Button size='sm' onClick={openAdd} disabled={isPending}>
+                <Button size='sm' onClick={openAdd}>
                     + 追加
                 </Button>
             </div>
@@ -347,7 +349,6 @@ export default function OtherItemAdminPanel({
                                         size='sm'
                                         variant='outline'
                                         onClick={() => openEdit(item)}
-                                        disabled={isPending}
                                     >
                                         編集
                                     </Button>

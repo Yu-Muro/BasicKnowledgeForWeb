@@ -131,6 +131,7 @@ export default function TimetableAdminPanel({
     const [isPending, startTransition] = useTransition();
 
     const openAdd = () => {
+        if (isPending) return;
         setFormData(EMPTY_FORM);
         setEditingItem(null);
         setError(null);
@@ -139,6 +140,7 @@ export default function TimetableAdminPanel({
     };
 
     const openEdit = (item: TimetableItem) => {
+        if (isPending) return;
         setFormData(itemToForm(item));
         setEditingItem(item);
         setError(null);
@@ -220,7 +222,7 @@ export default function TimetableAdminPanel({
                 <h1 className='font-semibold text-foreground text-xl tracking-tight'>
                     タイムテーブル
                 </h1>
-                <Button size='sm' onClick={openAdd} disabled={isPending}>
+                <Button size='sm' onClick={openAdd}>
                     + 追加
                 </Button>
             </div>
@@ -390,7 +392,6 @@ export default function TimetableAdminPanel({
                                                     onClick={() =>
                                                         openEdit(item)
                                                     }
-                                                    disabled={isPending}
                                                 >
                                                     編集
                                                 </Button>

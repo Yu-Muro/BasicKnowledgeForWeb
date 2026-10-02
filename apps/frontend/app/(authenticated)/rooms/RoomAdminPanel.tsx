@@ -108,6 +108,7 @@ export default function RoomAdminPanel({
     const [isPending, startTransition] = useTransition();
 
     const openAdd = () => {
+        if (isPending) return;
         setFormData(EMPTY_FORM);
         setEditingItem(null);
         setError(null);
@@ -116,6 +117,7 @@ export default function RoomAdminPanel({
     };
 
     const openEdit = (item: RoomWithDepartments) => {
+        if (isPending) return;
         setFormData(itemToForm(item));
         setEditingItem(item);
         setError(null);
@@ -230,7 +232,7 @@ export default function RoomAdminPanel({
                 <h1 className='font-semibold text-foreground text-xl tracking-tight'>
                     部屋割り
                 </h1>
-                <Button size='sm' onClick={openAdd} disabled={isPending}>
+                <Button size='sm' onClick={openAdd}>
                     + 追加
                 </Button>
             </div>
@@ -507,7 +509,6 @@ export default function RoomAdminPanel({
                                                         onClick={() =>
                                                             openEdit(room)
                                                         }
-                                                        disabled={isPending}
                                                     >
                                                         編集
                                                     </Button>
@@ -554,7 +555,6 @@ export default function RoomAdminPanel({
                                                 size='sm'
                                                 variant='outline'
                                                 onClick={() => openEdit(room)}
-                                                disabled={isPending}
                                             >
                                                 編集
                                             </Button>

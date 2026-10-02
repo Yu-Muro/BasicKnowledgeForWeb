@@ -83,6 +83,7 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
     }, [eventId]);
 
     const openAdd = () => {
+        if (isPending) return;
         setName('');
         setEditingItem(null);
         setError(null);
@@ -91,6 +92,7 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
     };
 
     const openEdit = (item: Department) => {
+        if (isPending) return;
         setName(item.name);
         setEditingItem(item);
         setError(null);
@@ -191,7 +193,7 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
                         イベントに参加する部署を管理します。
                     </p>
                 </div>
-                <Button size='sm' onClick={openAdd} disabled={isPending}>
+                <Button size='sm' onClick={openAdd}>
                     + 追加
                 </Button>
             </div>
@@ -326,7 +328,6 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
                                     size='sm'
                                     variant='outline'
                                     onClick={() => openEdit(dept)}
-                                    disabled={isPending}
                                 >
                                     編集
                                 </Button>
