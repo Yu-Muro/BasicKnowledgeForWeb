@@ -6,6 +6,7 @@ import {
     updateTimetableItemAction,
 } from '@frontend/app/actions/timetable';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
+import AdminFormModal from '@frontend/components/AdminFormModal';
 import { Button } from '@frontend/components/ui/button';
 import { Input } from '@frontend/components/ui/input';
 import { Label } from '@frontend/components/ui/label';
@@ -219,11 +220,9 @@ export default function TimetableAdminPanel({
                 <h1 className='font-semibold text-foreground text-xl tracking-tight'>
                     タイムテーブル
                 </h1>
-                {formMode === 'idle' && (
-                    <Button size='sm' onClick={openAdd}>
-                        + 追加
-                    </Button>
-                )}
+                <Button size='sm' onClick={openAdd} disabled={isPending}>
+                    + 追加
+                </Button>
             </div>
 
             {infoMessage && (
@@ -235,7 +234,7 @@ export default function TimetableAdminPanel({
                 </p>
             )}
 
-            {error && (
+            {error && formMode === 'idle' && (
                 <p
                     role='alert'
                     className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
@@ -245,12 +244,16 @@ export default function TimetableAdminPanel({
             )}
 
             {formMode !== 'idle' && (
-                <div className='mb-6 rounded-xl border border-border bg-card p-4 shadow-sm'>
-                    <h2 className='mb-4 font-medium text-foreground text-sm'>
-                        {formMode === 'adding'
+                <AdminFormModal
+                    title={
+                        formMode === 'adding'
                             ? '新しいアイテムを追加'
-                            : 'アイテムを編集'}
-                    </h2>
+                            : 'アイテムを編集'
+                    }
+                    onClose={closeForm}
+                    isPending={isPending}
+                    error={error}
+                >
                     <div className='space-y-3'>
                         <div>
                             <Label htmlFor='tt-title'>
@@ -336,7 +339,7 @@ export default function TimetableAdminPanel({
                             キャンセル
                         </Button>
                     </div>
-                </div>
+                </AdminFormModal>
             )}
 
             {groups.length === 0 ? (

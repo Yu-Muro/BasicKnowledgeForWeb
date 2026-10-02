@@ -6,6 +6,7 @@ import {
     updateRoomAction,
 } from '@frontend/app/actions/rooms';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
+import AdminFormModal from '@frontend/components/AdminFormModal';
 import { Button } from '@frontend/components/ui/button';
 import { Input } from '@frontend/components/ui/input';
 import { Label } from '@frontend/components/ui/label';
@@ -229,11 +230,9 @@ export default function RoomAdminPanel({
                 <h1 className='font-semibold text-foreground text-xl tracking-tight'>
                     部屋割り
                 </h1>
-                {formMode === 'idle' && (
-                    <Button size='sm' onClick={openAdd}>
-                        + 追加
-                    </Button>
-                )}
+                <Button size='sm' onClick={openAdd} disabled={isPending}>
+                    + 追加
+                </Button>
             </div>
 
             {infoMessage && (
@@ -245,7 +244,7 @@ export default function RoomAdminPanel({
                 </p>
             )}
 
-            {error && (
+            {error && formMode === 'idle' && (
                 <p
                     role='alert'
                     className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
@@ -255,12 +254,16 @@ export default function RoomAdminPanel({
             )}
 
             {formMode !== 'idle' && (
-                <div className='mb-6 rounded-xl border border-border bg-card p-4 shadow-sm'>
-                    <h2 className='mb-4 font-medium text-foreground text-sm'>
-                        {formMode === 'adding'
+                <AdminFormModal
+                    title={
+                        formMode === 'adding'
                             ? '新しい部屋割りを追加'
-                            : '部屋割りを編集'}
-                    </h2>
+                            : '部屋割りを編集'
+                    }
+                    onClose={closeForm}
+                    isPending={isPending}
+                    error={error}
+                >
                     <div className='space-y-3'>
                         <div className='grid grid-cols-3 gap-3'>
                             <div>
@@ -437,7 +440,7 @@ export default function RoomAdminPanel({
                             キャンセル
                         </Button>
                     </div>
-                </div>
+                </AdminFormModal>
             )}
 
             {sorted.length === 0 ? (
