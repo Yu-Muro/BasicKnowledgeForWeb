@@ -6,7 +6,7 @@ import {
     updateTimetableItemAction,
 } from '@frontend/app/actions/timetable';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
-import AdminFormModal from '@frontend/components/AdminFormModal';
+import { AdminFormContainer } from '@frontend/components/AdminFormContainer';
 import { Button } from '@frontend/components/ui/button';
 import { Input } from '@frontend/components/ui/input';
 import { Label } from '@frontend/components/ui/label';
@@ -244,7 +244,7 @@ export default function TimetableAdminPanel({
             )}
 
             {formMode !== 'idle' && (
-                <AdminFormModal
+                <AdminFormContainer
                     title={
                         formMode === 'adding'
                             ? '新しいアイテムを追加'
@@ -339,7 +339,7 @@ export default function TimetableAdminPanel({
                             キャンセル
                         </Button>
                     </div>
-                </AdminFormModal>
+                </AdminFormContainer>
             )}
 
             {groups.length === 0 ? (

@@ -6,7 +6,7 @@ import {
     updateRoomAction,
 } from '@frontend/app/actions/rooms';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
-import AdminFormModal from '@frontend/components/AdminFormModal';
+import { AdminFormContainer } from '@frontend/components/AdminFormContainer';
 import { Button } from '@frontend/components/ui/button';
 import { Input } from '@frontend/components/ui/input';
 import { Label } from '@frontend/components/ui/label';
@@ -254,7 +254,7 @@ export default function RoomAdminPanel({
             )}
 
             {formMode !== 'idle' && (
-                <AdminFormModal
+                <AdminFormContainer
                     title={
                         formMode === 'adding'
                             ? '新しい部屋割りを追加'
@@ -440,7 +440,7 @@ export default function RoomAdminPanel({
                             キャンセル
                         </Button>
                     </div>
-                </AdminFormModal>
+                </AdminFormContainer>
             )}
 
             {sorted.length === 0 ? (

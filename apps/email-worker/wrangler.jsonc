@@ -1,0 +1,65 @@
+{
+    "$schema": "../../node_modules/wrangler/config-schema.json",
+    "name": "basic-knowledge-for-web-email-worker",
+    "main": "src/index.ts",
+    "compatibility_date": "2026-08-26",
+    "workers_dev": false,
+    "compatibility_flags": ["nodejs_compat"],
+    "send_email": [
+        {
+            "name": "EMAIL",
+            "allowed_sender_addresses": ["noreply@reitaisai.info"]
+        }
+    ],
+    "vars": {
+        "EMAIL_FROM": "noreply@reitaisai.info"
+    },
+    "env": {
+        "dev": {
+            "name": "basic-knowledge-for-web-email-worker-dev",
+            "send_email": [
+                {
+                    "name": "EMAIL",
+                    "allowed_sender_addresses": [
+                        "noreply@dev.reitaisai.info"
+                    ]
+                }
+            ],
+            "vars": {
+                "EMAIL_FROM": "noreply@dev.reitaisai.info"
+            },
+            "observability": {
+                "traces": {
+                    "enabled": true
+                },
+                "logs": {
+                    "enabled": true,
+                    "invocation_logs": true
+                }
+            }
+        },
+        "prod": {
+            "name": "basic-knowledge-for-web-email-worker",
+            "send_email": [
+                {
+                    "name": "EMAIL",
+                    "allowed_sender_addresses": [
+                        "noreply@reitaisai.info"
+                    ]
+                }
+            ],
+            "vars": {
+                "EMAIL_FROM": "noreply@reitaisai.info"
+            },
+            "observability": {
+                "traces": {
+                    "enabled": true
+                },
+                "logs": {
+                    "enabled": true,
+                    "invocation_logs": true
+                }
+            }
+        }
+    }
+}

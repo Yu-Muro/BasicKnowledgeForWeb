@@ -12,8 +12,39 @@ concurrency:
   group: deploy-dev
 
 jobs:
+  deploy-email-worker:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun workspace
+        uses: ./.github/actions/setup-bun-project
+
+      - name: Deploy to Cloudflare Workers (Dev)
+        id: deploy-email-worker
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env dev
+          workingDirectory: apps/email-worker
+          environment: dev
+
+      - name: Notify deployment
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy-email-worker.outputs.deployment-url }}
+        run: |
+          echo "✅ Email worker deployed to dev environment successfully!"
+          echo "Worker: basic-knowledge-for-web-email-worker-dev"
+          echo "Deployment URL: ${DEPLOYMENT_URL}"
+
   deploy-backend:
     runs-on: ubuntu-latest
+    needs: deploy-email-worker
     environment: dev
     steps:
       - name: Checkout code

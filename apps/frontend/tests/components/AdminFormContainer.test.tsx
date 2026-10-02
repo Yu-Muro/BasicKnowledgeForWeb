@@ -1,4 +1,4 @@
-import AdminFormModal from '@frontend/components/AdminFormModal';
+import { AdminFormContainer } from '@frontend/components/AdminFormContainer';
 import { describe, expect, it, jest } from '@jest/globals';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -13,7 +13,7 @@ function Harness({ isPending = false }: { isPending?: boolean }) {
             </button>
             <button type='button'>一覧の操作</button>
             {open && (
-                <AdminFormModal
+                <AdminFormContainer
                     title='部署を追加'
                     onClose={() => setOpen(false)}
                     isPending={isPending}
@@ -21,13 +21,13 @@ function Harness({ isPending = false }: { isPending?: boolean }) {
                 >
                     <input aria-label='部署名' />
                     <button type='button'>保存</button>
-                </AdminFormModal>
+                </AdminFormContainer>
             )}
         </>
     );
 }
 
-describe('AdminFormModal', () => {
+describe('AdminFormContainer', () => {
     it('エラーをモーダル内に表示し、Escapeで閉じて操作元へフォーカスを戻す', async () => {
         const user = userEvent.setup();
         render(<Harness />);
@@ -79,14 +79,14 @@ describe('AdminFormModal', () => {
         const user = userEvent.setup();
         const onClose = jest.fn();
         const { rerender } = render(
-            <AdminFormModal
+            <AdminFormContainer
                 title='部署を編集'
                 onClose={onClose}
                 isPending={false}
                 error={null}
             >
                 <input aria-label='部署名' />
-            </AdminFormModal>,
+            </AdminFormContainer>,
         );
         const backdrop = screen.getByTestId('admin-form-backdrop');
         expect(backdrop).not.toBeNull();
@@ -94,14 +94,14 @@ describe('AdminFormModal', () => {
         expect(onClose).toHaveBeenCalledTimes(1);
         onClose.mockClear();
         rerender(
-            <AdminFormModal
+            <AdminFormContainer
                 title='部署を編集'
                 onClose={onClose}
                 isPending
                 error={null}
             >
                 <input aria-label='部署名' />
-            </AdminFormModal>,
+            </AdminFormContainer>,
         );
         await user.click(backdrop as HTMLElement);
         expect(onClose).not.toHaveBeenCalled();

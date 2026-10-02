@@ -7,7 +7,7 @@ import {
 } from '@frontend/app/actions/others';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import { uploadImage } from '@frontend/app/lib/imageUpload';
-import AdminFormModal from '@frontend/components/AdminFormModal';
+import { AdminFormContainer } from '@frontend/components/AdminFormContainer';
 import TapToZoomImage from '@frontend/components/TapToZoomImage';
 import { Button } from '@frontend/components/ui/button';
 import { Input } from '@frontend/components/ui/input';
@@ -222,7 +222,7 @@ export default function OtherItemAdminPanel({
             )}
 
             {formMode !== 'idle' && (
-                <AdminFormModal
+                <AdminFormContainer
                     title={
                         formMode === 'adding'
                             ? '新しい情報を追加'
@@ -320,7 +320,7 @@ export default function OtherItemAdminPanel({
                             キャンセル
                         </Button>
                     </div>
-                </AdminFormModal>
+                </AdminFormContainer>
             )}
 
             {sorted.length === 0 ? (

@@ -119,6 +119,7 @@ describe('DepartmentAdminPanel', () => {
             />,
         );
 
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
 
         expect(
@@ -161,6 +162,41 @@ describe('DepartmentAdminPanel', () => {
             screen.getByRole('dialog', { name: '部署を編集' }),
         ).toBeInTheDocument();
         expect(screen.getByLabelText(/部署名/)).toHaveValue('企画部');
+    });
+
+    it('Escapeキーで編集モーダルを閉じて編集ボタンへフォーカスを戻す', async () => {
+        const user = userEvent.setup();
+        render(
+            <DepartmentAdminPanel
+                departments={MOCK_DEPARTMENTS}
+                eventId='event-1'
+            />,
+        );
+
+        const editButton = screen.getAllByRole('button', { name: '編集' })[0];
+        await user.click(editButton);
+        await user.keyboard('{Escape}');
+
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(editButton).toHaveFocus();
+    });
+
+    it('編集時の入力エラーをモーダル内に表示する', async () => {
+        const user = userEvent.setup();
+        render(
+            <DepartmentAdminPanel
+                departments={MOCK_DEPARTMENTS}
+                eventId='event-1'
+            />,
+        );
+
+        await user.click(screen.getAllByRole('button', { name: '編集' })[0]);
+        await user.clear(screen.getByLabelText(/部署名/));
+        await user.click(screen.getByRole('button', { name: '保存' }));
+
+        const dialog = screen.getByRole('dialog', { name: '部署を編集' });
+        expect(dialog).toContainElement(screen.getByRole('alert'));
+        expect(screen.getByRole('alert')).toHaveTextContent('部署名は必須です');
     });
 
     it('フォーム送信で createDepartmentAction を呼ぶ', async () => {

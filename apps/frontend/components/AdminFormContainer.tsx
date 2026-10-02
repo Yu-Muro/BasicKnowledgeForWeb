@@ -12,7 +12,7 @@ type Props = {
     children: ReactNode;
 };
 
-export default function AdminFormModal({
+export function AdminFormContainer({
     title,
     onClose,
     isPending,

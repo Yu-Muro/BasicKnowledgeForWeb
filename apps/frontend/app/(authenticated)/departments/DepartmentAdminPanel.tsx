@@ -9,7 +9,7 @@ import {
 } from '@frontend/app/actions/departments';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import { client } from '@frontend/app/utils/client';
-import AdminFormModal from '@frontend/components/AdminFormModal';
+import { AdminFormContainer } from '@frontend/components/AdminFormContainer';
 import { Button } from '@frontend/components/ui/button';
 import { Input } from '@frontend/components/ui/input';
 import { Label } from '@frontend/components/ui/label';
@@ -253,7 +253,7 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
             )}
 
             {formMode !== 'idle' && (
-                <AdminFormModal
+                <AdminFormContainer
                     title={
                         formMode === 'adding'
                             ? '新しい部署を追加'
@@ -304,7 +304,7 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
                             キャンセル
                         </Button>
                     </div>
-                </AdminFormModal>
+                </AdminFormContainer>
             )}
 
             {departmentList.length === 0 ? (

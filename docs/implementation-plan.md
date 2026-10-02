@@ -1,402 +1,166 @@
-# 実装プラン — イベントスタッフ向けサイト
+# 実装プラン: メール検証 + OTP認証 + 信頼デバイス + Email Worker
 
-## 概要
+## ゴール
 
-イベントスタッフ向けの情報共有サイト。アクセスコードによる閲覧制限と、ユーザーアカウントによる管理機能を組み合わせる。
+- ユーザー作成時にメールアドレスを検証し、未検証ユーザーの認証を制限する
+- ログインを二段階化し、6桁OTPで本人確認する
+- 信頼デバイスを 30 日保持し、再ログイン時の OTP を省略できるようにする
+- メール送信責務を Email Worker に分離し、Backend Worker は Service Binding で呼び出す
 
----
+## アーキテクチャ
 
-## ロール定義
+### Worker 構成
 
-| ロール | 説明 |
-|---|---|
-| `user` | アクセスコードを入力してコンテンツを閲覧する一般スタッフ |
-| `admin` | アクセスコード管理・全コンテンツの登録・編集が可能 |
+- Frontend Worker (`apps/frontend`)
+- Backend Worker (`apps/backend`)
+- Email Worker (`apps/email-worker`)
 
-> 初期の admin アカウントは DB に直接作成する。以降は admin が `/dashboard` のユーザー管理からロールを変更できる。
+### Binding 構成
 
----
+- Frontend -> Backend: 既存 `BACKEND` service binding
+- Backend -> Email Worker: 新規 `EMAIL_WORKER` service binding
+- Email Worker -> Cloudflare Email Sending: `send_email` binding
+- Backend: メール認証 API 用の送信元/アカウント単位 `ratelimits` binding
 
-## 認証の2系統
+### Cloudflare 前提条件
 
-### 1. ユーザー認証（JWT Cookie）
+- 任意のユーザー宛メール送信が可能な Workers Paid plan を使用する
+- `reitaisai.info` を Email Sending の送信ドメインとして有効化する
+- dev で `noreply@dev.reitaisai.info` を使う場合は、サブドメインも個別に有効化する
+- Email Routing のみの場合は検証済み Destination Address にしか送信できないため、
+  登録確認・OTP 用には Email Sending を使用する
+- Backend からは Service Binding、Email Worker からは `send_email` binding を使い、
+  Worker 間通信やメール送信のための API Token をアプリへ持たせない
 
-- Cookie 名: `auth_token`
-- ログイン: `POST /api/auth/login` → HttpOnly Cookie 発行
-- 対象ページ: `/login`, `/dashboard`, `/admin/*`
-- admin はユーザー認証のみでコンテンツページも閲覧・編集可
+### 通信方針
 
-### 2. アクセスコード認証（JWT Cookie）
+- Backend から Email Worker へ `fetch()` で内部 API を呼ぶ
+- Email Worker は Service Binding 経由の呼び出し専用とする
+- Email Worker は `workers_dev: false` とし、公開 URL を持たせない
 
-- Cookie 名: `access_token`
-- 入力: `POST /api/access-codes/verify` → HttpOnly Cookie 発行
-- 対象ページ: `/`, `/timetable`, `/rooms`, `/events`, `/shop`, `/search`
-- user は access_token が必要（admin は auth_token で代替可）
-- Cookie payload: `{ event_id, exp }`
+## 認証フロー
 
----
+### 1. ユーザー登録 + メール検証
 
-## Next.js middleware.ts によるルート保護
+1. `POST /api/users` でユーザー作成（`email_verified_at = null`）
+2. Backend が Web Crypto で 6 桁の検証コードを生成し、HMAC のみ保存
+3. Backend が `EMAIL_WORKER` へ送信依頼
+4. Email Worker が検証メール送信
+5. ユーザーが `POST /api/auth/email/verify/confirm` でコード送信
+6. 照合と失敗回数加算を原子的に行い、5 回失敗で challenge を無効化
+7. 成功時に `users.email_verified_at` を更新
 
-```
-公開                 /login, /register, /access
-                      → 認証不要
+### 2. ログイン + OTP
 
-コンテンツ保護        /, /timetable, /rooms, /events, /shop, /search
-                      → access_token が有効                     → 許可
-                      → auth_token が有効 + admin ロール → 許可
-                      → それ以外                                → /access へリダイレクト
-
-ユーザー保護          /dashboard
-                      → auth_token が有効                       → 許可
-                      → それ以外                                → /login へリダイレクト
-
-管理者保護            /admin/*
-                      → auth_token が有効 + admin       → 許可
-                      → それ以外                                → /login へリダイレクト
-```
-
----
+1. `POST /api/auth/login` で email/password を検証
+2. メール未検証なら 401（または 403）で拒否
+3. 信頼デバイスが有効なら OTP をスキップし `auth_token` 発行
+4. 信頼デバイスが無効なら OTP challenge を生成しメール送信
+5. クライアントは `POST /api/auth/login/otp` に challenge と OTP を送信
+6. 成功時に `auth_token` 発行、`trustDevice=true` なら `trusted_device` Cookie 発行
 
 ## データモデル
 
-```sql
--- 既存
-users
-  id uuid PK, name, email, password
-  role: 'user' | 'admin'
-  created_at, updated_at, deleted_at
+### users 追加カラム
 
--- 新規
-access_codes
-  id uuid PK
-  code        varchar(50) UNIQUE   -- ユーザーが入力するコード
-  event_name  varchar(255)         -- 会期名（例: "2025夏イベント"）
-  valid_from  timestamp
-  valid_to    timestamp
-  created_by  uuid FK→users.id
-  created_at  timestamp
+- `email_verified_at timestamp null`
 
-timetable_items
-  id uuid PK
-  event_id    uuid FK→access_codes.id
-  title       varchar(255)
-  start_time  timestamp
-  end_time    timestamp
-  location    varchar(255)
-  description text
-  created_by  uuid FK→users.id
-  created_at, updated_at timestamp
+### email_verification_tokens
 
-rooms
-  id                  uuid PK
-  event_id            uuid FK→access_codes.id
-  building_name       varchar(255)
-  floor               varchar(50)
-  room_name           varchar(255)
-  pre_day_manager_id  uuid composite FK→departments(event_id, id)  nullable
-  pre_day_purpose     varchar(255)  nullable
-  day_manager_id      uuid composite FK→departments(event_id, id)  not null
-  day_purpose         varchar(255)
-  notes               text          nullable
-  created_at, updated_at timestamp
-  ※ GET /api/rooms は departments を JOIN し preDayManagerName / dayManagerName を返す (RoomWithDepartments)
+- `id uuid pk`
+- `user_id uuid fk -> users.id`
+- `code_hash text not null`
+- `expires_at timestamp not null`
+- `attempts int not null default 0`
+- `consumed_at timestamp null`
+- `invalidated_at timestamp null`
+- `created_at timestamp default now`
 
-programs（企画）
-  id uuid PK
-  event_id    uuid FK→access_codes.id
-  name        varchar(255)
-  location    varchar(255)
-  start_time  timestamp
-  end_time    timestamp
-  description text
-  created_by  uuid FK→users.id
-  created_at, updated_at timestamp
+### login_otp_challenges
 
-shop_items（販売物）
-  id uuid PK
-  event_id    uuid FK→access_codes.id
-  name        varchar(255)
-  price       integer
-  description text
-  image_key   varchar(512)
-  image_url   text
-  created_at, updated_at timestamp
+- `id uuid pk`
+- `user_id uuid fk -> users.id`
+- `code_hash text not null`
+- `expires_at timestamp not null`
+- `attempts int not null default 0`
+- `completed_at timestamp null`
+- `invalidated_at timestamp null`
+- `created_at timestamp default now`
 
-other_items（その他の情報）
-  id uuid PK
-  event_id      uuid FK→access_codes.id
-  title         varchar(255)
-  content       text
-  display_order integer
-  created_by    uuid FK→users.id
-  created_at, updated_at timestamp
-```
+### trusted_devices
 
----
+- `id uuid pk`
+- `user_id uuid fk -> users.id`
+- `device_token_hash text not null`
+- `user_agent_hash text null`
+- `ip_hash text null`
+- `expires_at timestamp not null`
+- `last_used_at timestamp default now`
+- `created_at timestamp default now`
 
-## ページ一覧とアクセス制御
+## API 追加/変更
 
-```
-公開
-  /login                    ログイン画面
-  /register                 ユーザー登録画面（実装済み）
-  /access                   アクセスコード入力画面
+### 追加
 
-コンテンツ（access_token or admin）
-  /                         TOPページ・ナビゲーション
-  /timetable                タイムテーブル（admin は編集可）
-  /rooms                    部屋割り（admin は編集可）
-  /events                   企画一覧（admin は編集可）
-  /shop                     販売物一覧（admin は編集可）
-  /others                   その他の情報（admin は編集可）
-  /search                   情報検索（横断検索）
+- `POST /api/auth/email/verify/request`
+- `POST /api/auth/email/verify/confirm`
+- `POST /api/auth/login/otp`
 
-ユーザー（auth_token）
-  /dashboard                プロフィール・パスワード変更・ロール確認
+### 変更
 
-管理者（auth_token + admin）
-  /departments              部署管理
-  /admin/access-codes       アクセスコード管理
-```
+- `POST /api/auth/login`
+  - 変更前: 成功時に即 `auth_token` 発行
+  - 変更後: OTP が必要な場合は challenge 発行レスポンスを返却
 
----
+### Email Worker 内部 API
 
-## API 設計
+- `POST /internal/email/send`
+  - payload: `{ "to": string, "template": string, "code": string }`
+  - template: `email_verification` | `login_otp`
 
-### 認証
+## セキュリティ要件
 
-```
-POST /api/auth/login           → auth_token Cookie 発行
-POST /api/auth/logout          → Cookie 削除
-GET  /api/auth/me              → { id, name, email, role }
-```
+- メール検証コードとログイン OTP は 6 桁、10 分有効、60 秒再送制限、5 回失敗で無効化
+- 6 桁コードの生成には `crypto.getRandomValues()` を使用し、`Math.random()` は使用しない
+- 6 桁コードは平文や単純な SHA-256 で保存せず、Workers Secret
+  `OTP_HASH_SECRET` を鍵とする HMAC-SHA-256 を保存する
+- HMAC の入力には `purpose`, `challengeId`, `userId`, `code` を含め、用途や
+  challenge をまたいだ再利用を防ぐ。照合には Web Crypto の `verify()` を使用する
+- `OTP_HASH_SECRET` は `JWT_SECRET` と分離し、dev/prod で別値にする。ローテーション時は
+  有効期間が最大 10 分の既存 challenge を失効させる
+- コード照合、失敗回数加算、成功/無効化更新は DB 上で原子的に行い、並行リクエストでも
+  5 回の上限を超えて照合できないようにする
+- メール検証/OTP API は公開時点から送信元とアカウント/challenge の二層で制限する。
+  Cloudflare Rate Limiting binding は局所的かつ eventual consistency のため、厳密な
+  5 回制限は DB を正とし、binding は大量送信・大量試行の抑止に使う
+- メールアドレスを rate limit key に使う場合は、正規化した値の HMAC を使用し、
+  ログやメトリクスへ平文を残さない
+- `POST /api/auth/email/verify/request` はメールの存在、検証済み状態、クールダウン状態、
+  配送成否にかかわらず同じ `202` と同じ本文を返し、アカウント列挙を防ぐ。
+  配送失敗は機密情報を含まない構造化ログとメトリクスで監視する
+- `trusted_device` Cookie は `HttpOnly`, `Secure`, `SameSite=Lax`
+- 信頼デバイス有効期限は 30 日
+- 信頼デバイストークンは Web Crypto で 256 bit 以上を生成し、DB には SHA-256 hash のみ保存する
+- 内部 API は service binding を前提にし、email-worker は公開 URL を持たない
+- Email Sending 失敗時は機密情報をログへ出さず `502` を返し、Worker 内で自動再試行しない
 
-### アクセスコード
+## 実装ステップ
 
-```
-POST   /api/access-codes/verify   誰でも  → access_token Cookie 発行
-GET    /api/access-codes          admin
-POST   /api/access-codes          admin
-DELETE /api/access-codes/:id      admin
-```
+1. Cloudflare Email Sending で prod/dev の送信ドメインを有効化
+2. `apps/email-worker` を作成し、内部送信 API を実装
+3. backend wrangler に `EMAIL_WORKER` service binding を追加
+4. backend wrangler にメール認証 API 用 `ratelimits` binding を環境別に追加
+5. DB schema/migration を追加
+6. backend repository/use-case/controller/routes を更新
+7. frontend の register/login UI を更新
+8. backend/frontend/email-worker のテストを追加
+9. dev 環境で e2e 相当の手動検証
 
-### ユーザー管理
+## 完了定義
 
-```
-GET /api/users                admin  → ユーザー一覧
-PUT /api/users/:id/role       admin  → ロール変更
-```
-
-### コンテンツ（各ドメイン共通パターン）
-
-``` 
-GET    /api/timetable               access_token or admin (header: x-event-id)
-POST   /api/timetable                admin
-PUT    /api/timetable/:id            admin
-DELETE /api/timetable/:id            admin
-
--- rooms, programs, shop-items, departments, others も同パターン
-GET/POST/PUT/DELETE /api/rooms
-GET/POST/PUT/DELETE /api/programs
-GET/POST/PUT/DELETE /api/shop-items
-GET/POST/PUT/DELETE /api/departments
-GET/POST/PUT/DELETE /api/others
-```
-
-### 検索
-
-```
-GET /api/search?q=keyword              access_token or admin (header: x-event-id)
-  → timetable_items / rooms / programs / shop_items / other_items を横断
-```
-
----
-
-## バックエンド構成（Clean Architecture）
-
-```
-src/
-├── db/
-│   └── schema.ts                    access_codes, departments, user_departments,
-│                                    timetable_items, rooms, programs, shop_items, other_items
-├── infrastructure/
-│   ├── validators/
-│   │   ├── accessCodeValidator.ts
-│   │   ├── departmentValidator.ts
-│   │   ├── timetableValidator.ts
-│   │   ├── roomValidator.ts
-│   │   ├── programValidator.ts
-│   │   ├── shopItemValidator.ts
-│   │   ├── otherItemValidator.ts
-│   │   └── userRoleValidator.ts
-│   └── repositories/
-│       ├── user/                    IUserRepository (既存), UserRepository (既存) + updateRole 追加
-│       ├── access-code/             IAccessCodeRepository, AccessCodeRepository
-│       ├── departments/             IDepartmentRepository, DepartmentRepository
-│       ├── timetable/               ITimetableRepository, TimetableRepository
-│       ├── room/                    IRoomRepository, RoomRepository
-│       ├── program/                 IProgramRepository, ProgramRepository
-│       ├── shop-item/               IShopItemRepository, ShopItemRepository
-│       └── other-item/              IOtherItemRepository, OtherItemRepository
-├── use-cases/
-│   ├── auth/                        ILoginUseCase, LoginUseCase (JWT 発行)
-│   │                                IChangePasswordUseCase, ChangePasswordUseCase
-│   ├── user/                        IGetUsersUseCase, GetUsersUseCase
-│   │                                IUpdateUserRoleUseCase, UpdateUserRoleUseCase
-│   ├── access-code/                 Create / Verify / GetList / Delete
-│   ├── department/                  Create / GetList / Update / Delete
-│   ├── timetable/                   Create / GetList / Update / Delete
-│   ├── room/                        Create / GetList / Update / Delete
-│   ├── program/                     Create / GetList / Update / Delete
-│   ├── shop-item/                   Create / GetList / Update / Delete
-│   ├── other-item/                  Create / GetList / Update / Delete
-│   └── search/                      ISearchUseCase, SearchUseCase
-└── presentation/
-    ├── middleware/
-    │   ├── authMiddleware.ts         JWT Cookie 検証
-    │   └── roleGuard.ts             admin チェック
-    ├── controllers/
-    │   ├── authController.ts
-    │   ├── userController.ts
-    │   ├── accessCodeController.ts
-    │   ├── departmentController.ts
-    │   ├── timetableController.ts
-    │   ├── roomController.ts
-    │   ├── programController.ts
-    │   ├── shopItemController.ts
-    │   ├── otherItemController.ts
-    │   └── searchController.ts
-    └── routes/
-        ├── authRoutes.ts
-        ├── userRoutes.ts
-        ├── accessCodeRoutes.ts
-        ├── departmentRoutes.ts
-        ├── timetableRoutes.ts
-        ├── roomRoutes.ts
-        ├── programRoutes.ts
-        ├── shopItemRoutes.ts
-        ├── otherItemRoutes.ts
-        └── searchRoutes.ts
-```
-
----
-
-## フロントエンド構成
-
-```
-app/
-├── (public)/                         公開ページ（認証不要）
-│   ├── login/page.tsx
-│   ├── register/page.tsx             実装済み
-│   └── access/page.tsx
-└── (authenticated)/                  認証済みページ
-    ├── layout.tsx                    共通ヘッダー・ナビゲーション + イベントセレクター
-    ├── page.tsx                      TOPページ
-    ├── timetable/page.tsx
-    ├── rooms/page.tsx
-    ├── events/page.tsx
-    ├── shop/page.tsx
-    ├── departments/page.tsx          部署管理（admin 専用）
-    ├── others/page.tsx
-    ├── search/page.tsx
-    ├── dashboard/page.tsx            プロフィール・PW変更・ロール管理
-    └── admin/
-        └── access-codes/page.tsx
-middleware.ts                         ルート保護
-hooks/
-└── useAuth.ts                        auth_token → /api/auth/me
-```
-
-> データ取得は Server Components で直接 fetch。
-> フォーム・インタラクションは Client Components（react-hook-form）で実装。
-> Hono RPC client は Client Components のみで使用。
-
-### コンテンツ編集 API (Phase 4-1)
-
-- すべての POST/PUT/DELETE ルートは `contentEditMiddleware` → `roleGuard(['admin'])` → controller の順で実行し、`contentEditMiddleware` が `auth_token`（admin）と `x-event-id` を検証して `event_id` をコンテキストに渡す。controller では body の `event_id` が異なる場合は 400 を返す。
-- 各ドメインの Create/Update/Delete use-case と controller に単体テストを追加し、Feature テストで JWT / ヘッダーのエラーケースも網羅する。
-- 販売物の `image_url` は `SHOP_ITEM_ASSET_BASE_URL` 環境変数のプレフィックスから server-side で組み立てる。クライアントは `image_key` のみ送信し、`POST /api/shop-items/upload` でアップロードしたファイルのキーを受け取ってから登録する。
-
-### イベント選択（admin）
-
-- User は access_token の Cookie payload（`event_id`）を使用して会期が決まる
-- admin は access_token を持たないため、各コンテンツページで会期をドロップダウンで選択する
-- 選択した `event_id` は URL クエリパラメータ（`?event_id=xxx`）で管理する
-- `(authenticated)/layout.tsx` の共通ヘッダーに会期セレクターを配置し、auth_token + admin の場合のみ表示
-
----
-
-## フェーズ別実装順序
-
-### フェーズ 1: 認証基盤
-
-| # | 対象 | 内容 |
-|---|---|---|
-| 1-1 | Backend | `access_codes` テーブル・API（verify / 一覧 / 作成 / 削除） |
-| 1-2 | Backend | 認証 API（login / logout / me）+ JWT ミドルウェア |
-| 1-3 | Frontend | `/login` ページ |
-| 1-4 | Frontend | `/access` ページ |
-| 1-5 | Frontend | `middleware.ts` ルート保護 |
-
-### フェーズ 2: スタッフ向けコンテンツ（閲覧）
-
-| # | 対象 | 内容 |
-|---|---|---|
-| 2-1 | Backend | 各コンテンツテーブル + GET API（timetable / rooms / programs / shop-items / departments / other-items） |
-| 2-2 | Frontend | `(authenticated)` layout・ナビゲーション |
-| 2-3 | Frontend | `/`・`/timetable`・`/rooms`・`/events`・`/shop`・`/others` |
-
-### フェーズ 3: 検索
-
-| # | 対象 | 内容 |
-|---|---|---|
-| 3-1 | Backend | 横断検索 API（`/api/search`） |
-| 3-2 | Frontend | `/search` ページ |
-
-### フェーズ 4: 管理機能（編集・管理画面）
-
-| # | 対象 | 内容 |
-|---|---|---|
-| 4-1 | Backend | 各コンテンツ POST/PUT/DELETE API |
-| 4-2 | Backend | ユーザー管理 API（GET /api/users・PUT /api/users/:id/role） |
-| 4-3 | Frontend | 各コンテンツページに編集 UI 追加（admin のみ表示） |
-| 4-4 | Frontend | `/dashboard` ページ（プロフィール・PW変更・ロール管理） |
-| 4-5 | Frontend | `/admin/access-codes` ページ |
-| 4-6 | Frontend | `/departments` ページ（admin 専用） |
-
----
-
-## 実装チェックリスト
-
-### フェーズ 1
-- [ ] Backend: `access_codes` スキーマ・マイグレーション
-- [ ] Backend: アクセスコード API（verify / 一覧 / 作成 / 削除）
-- [ ] Backend: 認証 API（login / logout / me）
-- [ ] Backend: JWT ミドルウェア・roleGuard
-- [ ] Frontend: `/login` ページ + テスト
-- [ ] Frontend: `/access` ページ + テスト
-- [ ] Frontend: `middleware.ts`
-
-### フェーズ 2
-- [ ] Backend: timetable_items / rooms / programs / shop_items / departments / other_items スキーマ
-- [ ] Backend: 各コンテンツ GET API
-- [ ] Frontend: `(authenticated)` layout・ナビゲーション
-- [ ] Frontend: `/` TOPページ + テスト
-- [ ] Frontend: `/timetable` + テスト
-- [ ] Frontend: `/rooms` + テスト
-- [x] Frontend: `/events` + テスト
-- [ ] Frontend: `/shop` + テスト
-- [ ] Frontend: `/others` + テスト
-
-### フェーズ 3
-- [ ] Backend: 横断検索 API
-- [ ] Frontend: `/search` + テスト
-
-### フェーズ 4
-- [x] Backend: 各コンテンツ POST/PUT/DELETE API
-- [x] Backend: ユーザー管理 API（GET /api/users・PUT /api/users/:id/role）
-- [ ] Frontend: 各コンテンツページへ編集 UI 追加 + テスト
-- [ ] Frontend: `/dashboard` （プロフィール・PW変更・ロール管理） + テスト
-- [ ] Frontend: `/admin/access-codes` + テスト
-- [ ] Frontend: `/departments` + テスト
+- 仕様どおりメール検証と OTP ログインが機能する
+- メール検証と OTP の両方で、5 回の厳密な失敗上限と rate limit が機能する
+- メール検証再送 API のレスポンスからアカウント状態を判別できない
+- 信頼デバイス 30 日が機能し、期限切れ後に OTP が再要求される
+- backend/frontend/email-worker の `type-check`, `lint`, `test` が成功する
+- CI と Cloudflare dev デプロイで動作確認が取れる
