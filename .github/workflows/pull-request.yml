@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Bun workspace
-        uses: ./.github/actions/setup-bun-project
+        uses: $/.github/actions/setup-bun-project
 
       - name: Build backend
         run: |
@@ -58,7 +58,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Bun workspace
-        uses: ./.github/actions/setup-bun-project
+        uses: $/.github/actions/setup-bun-project
 
       - name: Start CockroachDB
         run: |
@@ -97,7 +97,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Bun workspace
-        uses: ./.github/actions/setup-bun-project
+        uses: $/.github/actions/setup-bun-project
 
       - name: Build for Cloudflare
         run: |
@@ -128,7 +128,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Bun workspace
-        uses: ./.github/actions/setup-bun-project
+        uses: $/.github/actions/setup-bun-project
 
       - name: Build email-worker
         run: |
