@@ -108,6 +108,7 @@ export default function RoomAdminPanel({
     const [isPending, startTransition] = useTransition();
 
     const openAdd = () => {
+        if (isPending) return;
         setFormData(EMPTY_FORM);
         setEditingItem(null);
         setError(null);
@@ -116,6 +117,7 @@ export default function RoomAdminPanel({
     };
 
     const openEdit = (item: RoomWithDepartments) => {
+        if (isPending) return;
         setFormData(itemToForm(item));
         setEditingItem(item);
         setError(null);
@@ -230,11 +232,9 @@ export default function RoomAdminPanel({
                 <h1 className='font-semibold text-foreground text-xl tracking-tight'>
                     部屋割り
                 </h1>
-                {formMode === 'idle' && (
-                    <Button size='sm' onClick={openAdd}>
-                        + 追加
-                    </Button>
-                )}
+                <Button size='sm' onClick={openAdd}>
+                    + 追加
+                </Button>
             </div>
 
             {infoMessage && (
@@ -246,7 +246,7 @@ export default function RoomAdminPanel({
                 </p>
             )}
 
-            {error && formMode !== 'editing' && (
+            {error && formMode === 'idle' && (
                 <p
                     role='alert'
                     className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
@@ -257,15 +257,14 @@ export default function RoomAdminPanel({
 
             {formMode !== 'idle' && (
                 <AdminFormContainer
-                    editing={formMode === 'editing'}
-                    error={error}
-                    isPending={isPending}
-                    onClose={closeForm}
                     title={
                         formMode === 'adding'
                             ? '新しい部屋割りを追加'
                             : '部屋割りを編集'
                     }
+                    onClose={closeForm}
+                    isPending={isPending}
+                    error={error}
                 >
                     <div className='space-y-3'>
                         <div className='grid grid-cols-3 gap-3'>
@@ -510,7 +509,6 @@ export default function RoomAdminPanel({
                                                         onClick={() =>
                                                             openEdit(room)
                                                         }
-                                                        disabled={isPending}
                                                     >
                                                         編集
                                                     </Button>
@@ -557,7 +555,6 @@ export default function RoomAdminPanel({
                                                 size='sm'
                                                 variant='outline'
                                                 onClick={() => openEdit(room)}
-                                                disabled={isPending}
                                             >
                                                 編集
                                             </Button>

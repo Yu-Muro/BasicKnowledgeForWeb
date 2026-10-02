@@ -1,75 +1,76 @@
 'use client';
 
 import { Dialog } from '@base-ui/react/dialog';
-import type { ReactNode } from 'react';
+import { Button } from '@frontend/components/ui/button';
+import { type ReactNode, useRef } from 'react';
 
 type Props = {
-    children: ReactNode;
-    editing: boolean;
-    error: string | null;
-    isPending: boolean;
-    onClose: () => void;
     title: string;
+    onClose: () => void;
+    isPending: boolean;
+    error: string | null;
+    children: ReactNode;
 };
 
-const titleClassName = 'mb-4 font-medium text-foreground text-sm';
-
-function ErrorMessage({ error }: Pick<Props, 'error'>) {
-    if (!error) return null;
-
-    return (
-        <p
-            role='alert'
-            className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
-        >
-            {error}
-        </p>
-    );
-}
-
 export function AdminFormContainer({
-    children,
-    editing,
-    error,
-    isPending,
-    onClose,
     title,
+    onClose,
+    isPending,
+    error,
+    children,
 }: Props) {
-    if (!editing) {
-        return (
-            <div className='mb-6 rounded-xl border border-border bg-card p-4 shadow-sm'>
-                <h2 className={titleClassName}>{title}</h2>
-                {children}
-            </div>
-        );
-    }
+    const returnFocus = useRef(
+        typeof document !== 'undefined' ? document.activeElement : null,
+    );
 
     return (
         <Dialog.Root
             open
             disablePointerDismissal={isPending}
-            onOpenChange={(open) => {
-                if (!open && !isPending) onClose();
+            onOpenChange={(open, details) => {
+                if (isPending) {
+                    details.cancel();
+                    return;
+                }
+                if (!open) onClose();
             }}
         >
             <Dialog.Portal>
-                <Dialog.Backdrop className='fixed inset-0 z-50 min-h-dvh bg-black/55' />
-                <Dialog.Viewport className='fixed inset-0 z-50 flex items-center justify-center p-4'>
-                    <Dialog.Popup className='relative max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-xl sm:p-6'>
-                        <Dialog.Title className={titleClassName}>
+                <Dialog.Backdrop
+                    data-testid='admin-form-backdrop'
+                    className='fixed inset-0 z-50 bg-black/50'
+                />
+                <Dialog.Popup
+                    finalFocus={() =>
+                        returnFocus.current instanceof HTMLElement
+                            ? returnFocus.current
+                            : null
+                    }
+                    className='fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-border bg-card text-foreground shadow-xl outline-none'
+                >
+                    <div className='flex shrink-0 items-center justify-between gap-4 border-border border-b p-4'>
+                        <Dialog.Title className='font-semibold text-lg'>
                             {title}
                         </Dialog.Title>
                         <Dialog.Close
-                            aria-label='閉じる'
+                            render={<Button size='sm' variant='ghost' />}
                             disabled={isPending}
-                            className='absolute top-3 right-3 flex size-8 items-center justify-center rounded-md text-muted-foreground text-xl leading-none hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50'
                         >
-                            <span aria-hidden='true'>×</span>
+                            閉じる
                         </Dialog.Close>
-                        <ErrorMessage error={error} />
-                        {children}
-                    </Dialog.Popup>
-                </Dialog.Viewport>
+                    </div>
+                    <div className='min-h-0 overflow-y-auto overscroll-contain p-4'>
+                        {error && (
+                            <p
+                                role='alert'
+                                className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
+                            >
+                                {error}
+                            </p>
+                        )}
+                        <fieldset disabled={isPending}>{children}</fieldset>
+                    </div>
+                </Dialog.Popup>
             </Dialog.Portal>
         </Dialog.Root>
     );

@@ -117,7 +117,9 @@ describe('OtherItemAdminPanel', () => {
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
 
-        expect(screen.getByText('新しい情報を追加')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '新しい情報を追加' }),
+        ).toBeInTheDocument();
         expect(screen.getByLabelText(/タイトル/)).toBeInTheDocument();
         expect(screen.getByLabelText(/内容/)).toBeInTheDocument();
     });
@@ -127,7 +129,9 @@ describe('OtherItemAdminPanel', () => {
         render(<OtherItemAdminPanel items={MOCK_ITEMS} eventId='event-1' />);
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
-        expect(screen.getByText('新しい情報を追加')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '新しい情報を追加' }),
+        ).toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: 'キャンセル' }));
         expect(
@@ -145,7 +149,6 @@ describe('OtherItemAdminPanel', () => {
         expect(
             screen.getByRole('dialog', { name: '情報を編集' }),
         ).toBeInTheDocument();
-        expect(screen.getByText('情報を編集')).toBeInTheDocument();
         expect(screen.getByLabelText(/タイトル/)).toHaveValue('緊急連絡先');
         expect(screen.getByLabelText(/内容/)).toHaveValue('内線123');
     });

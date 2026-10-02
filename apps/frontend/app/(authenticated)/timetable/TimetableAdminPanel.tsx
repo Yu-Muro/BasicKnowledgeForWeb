@@ -131,6 +131,7 @@ export default function TimetableAdminPanel({
     const [isPending, startTransition] = useTransition();
 
     const openAdd = () => {
+        if (isPending) return;
         setFormData(EMPTY_FORM);
         setEditingItem(null);
         setError(null);
@@ -139,6 +140,7 @@ export default function TimetableAdminPanel({
     };
 
     const openEdit = (item: TimetableItem) => {
+        if (isPending) return;
         setFormData(itemToForm(item));
         setEditingItem(item);
         setError(null);
@@ -220,11 +222,9 @@ export default function TimetableAdminPanel({
                 <h1 className='font-semibold text-foreground text-xl tracking-tight'>
                     タイムテーブル
                 </h1>
-                {formMode === 'idle' && (
-                    <Button size='sm' onClick={openAdd}>
-                        + 追加
-                    </Button>
-                )}
+                <Button size='sm' onClick={openAdd}>
+                    + 追加
+                </Button>
             </div>
 
             {infoMessage && (
@@ -236,7 +236,7 @@ export default function TimetableAdminPanel({
                 </p>
             )}
 
-            {error && formMode !== 'editing' && (
+            {error && formMode === 'idle' && (
                 <p
                     role='alert'
                     className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
@@ -247,15 +247,14 @@ export default function TimetableAdminPanel({
 
             {formMode !== 'idle' && (
                 <AdminFormContainer
-                    editing={formMode === 'editing'}
-                    error={error}
-                    isPending={isPending}
-                    onClose={closeForm}
                     title={
                         formMode === 'adding'
                             ? '新しいアイテムを追加'
                             : 'アイテムを編集'
                     }
+                    onClose={closeForm}
+                    isPending={isPending}
+                    error={error}
                 >
                     <div className='space-y-3'>
                         <div>
@@ -393,7 +392,6 @@ export default function TimetableAdminPanel({
                                                     onClick={() =>
                                                         openEdit(item)
                                                     }
-                                                    disabled={isPending}
                                                 >
                                                     編集
                                                 </Button>

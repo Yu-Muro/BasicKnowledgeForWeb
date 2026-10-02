@@ -125,6 +125,7 @@ export default function ShopItemAdminPanel({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const openAdd = () => {
+        if (isPending) return;
         setFormData(EMPTY_FORM);
         setEditingItem(null);
         setError(null);
@@ -133,6 +134,7 @@ export default function ShopItemAdminPanel({
     };
 
     const openEdit = (item: ShopItem) => {
+        if (isPending) return;
         setFormData(itemToForm(item));
         setEditingItem(item);
         setError(null);
@@ -266,11 +268,9 @@ export default function ShopItemAdminPanel({
                 <h1 className='font-semibold text-foreground text-xl tracking-tight'>
                     販売物一覧
                 </h1>
-                {formMode === 'idle' && (
-                    <Button size='sm' onClick={openAdd}>
-                        + 追加
-                    </Button>
-                )}
+                <Button size='sm' onClick={openAdd}>
+                    + 追加
+                </Button>
             </div>
 
             {infoMessage && (
@@ -282,7 +282,7 @@ export default function ShopItemAdminPanel({
                 </p>
             )}
 
-            {error && formMode !== 'editing' && (
+            {error && formMode === 'idle' && (
                 <p
                     role='alert'
                     className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
@@ -293,15 +293,14 @@ export default function ShopItemAdminPanel({
 
             {formMode !== 'idle' && (
                 <AdminFormContainer
-                    editing={formMode === 'editing'}
-                    error={error}
-                    isPending={isPending}
-                    onClose={closeForm}
                     title={
                         formMode === 'adding'
                             ? '新しい販売物を追加'
                             : '販売物を編集'
                     }
+                    onClose={closeForm}
+                    isPending={isPending}
+                    error={error}
                 >
                     <div className='space-y-3'>
                         <div>
@@ -455,7 +454,6 @@ export default function ShopItemAdminPanel({
                                                     onClick={() =>
                                                         openEdit(item)
                                                     }
-                                                    disabled={isPending}
                                                 >
                                                     編集
                                                 </Button>
@@ -509,7 +507,6 @@ export default function ShopItemAdminPanel({
                                         size='sm'
                                         variant='outline'
                                         onClick={() => openEdit(item)}
-                                        disabled={isPending}
                                     >
                                         編集
                                     </Button>

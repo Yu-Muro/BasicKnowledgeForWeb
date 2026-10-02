@@ -119,11 +119,13 @@ describe('DepartmentAdminPanel', () => {
             />,
         );
 
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
 
-        expect(screen.getByText('新しい部署を追加')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '新しい部署を追加' }),
+        ).toBeInTheDocument();
         expect(screen.getByLabelText(/部署名/)).toBeInTheDocument();
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
     it('キャンセルボタンでフォームを閉じる', async () => {
@@ -136,7 +138,9 @@ describe('DepartmentAdminPanel', () => {
         );
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
-        expect(screen.getByText('新しい部署を追加')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '新しい部署を追加' }),
+        ).toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: 'キャンセル' }));
         expect(screen.queryByText('新しい部署を追加')).not.toBeInTheDocument();
@@ -157,7 +161,6 @@ describe('DepartmentAdminPanel', () => {
         expect(
             screen.getByRole('dialog', { name: '部署を編集' }),
         ).toBeInTheDocument();
-        expect(screen.getByText('部署を編集')).toBeInTheDocument();
         expect(screen.getByLabelText(/部署名/)).toHaveValue('企画部');
     });
 
@@ -177,6 +180,66 @@ describe('DepartmentAdminPanel', () => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
         expect(editButton).toHaveFocus();
     });
+
+    it.each(['追加', '編集'] as const)(
+        '%sの保存成功後に操作元へフォーカスを戻す',
+        async (mode) => {
+            const user = userEvent.setup();
+            let finishSave!: (
+                result: Awaited<
+                    ReturnType<typeof actions.createDepartmentAction>
+                >,
+            ) => void;
+            const saving = new Promise<
+                Awaited<ReturnType<typeof actions.createDepartmentAction>>
+            >((resolve) => {
+                finishSave = resolve;
+            });
+            mockCreate.mockReturnValue(saving);
+            mockUpdate.mockReturnValue(saving);
+            render(
+                <DepartmentAdminPanel
+                    departments={MOCK_DEPARTMENTS}
+                    eventId='event-1'
+                />,
+            );
+            const trigger =
+                mode === '追加'
+                    ? screen.getByRole('button', { name: '+ 追加' })
+                    : screen.getAllByRole('button', { name: '編集' })[0];
+            await user.click(trigger);
+            await user.clear(screen.getByLabelText(/部署名/));
+            await user.type(screen.getByLabelText(/部署名/), '保存後の部署');
+            await user.click(screen.getByRole('button', { name: '保存' }));
+            await waitFor(() => {
+                expect(
+                    screen.getByRole('button', { name: '保存中...' }),
+                ).toBeDisabled();
+            });
+            // 閉じる際のフォーカス復帰先は保存中もフォーカス可能に保つ。
+            expect(trigger).not.toBeDisabled();
+            fireEvent.click(trigger);
+            fireEvent.click(
+                mode === '追加'
+                    ? screen.getAllByRole('button', {
+                          name: '編集',
+                          hidden: true,
+                      })[0]
+                    : screen.getByRole('button', {
+                          name: '+ 追加',
+                          hidden: true,
+                      }),
+            );
+            expect(screen.getByLabelText(/部署名/)).toHaveValue('保存後の部署');
+            await act(async () => {
+                finishSave({ success: true, data: MOCK_DEPARTMENTS });
+            });
+            await waitFor(() => {
+                expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+                expect(trigger).toHaveFocus();
+            });
+        },
+    );
 
     it('編集時の入力エラーをモーダル内に表示する', async () => {
         const user = userEvent.setup();

@@ -83,6 +83,7 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
     }, [eventId]);
 
     const openAdd = () => {
+        if (isPending) return;
         setName('');
         setEditingItem(null);
         setError(null);
@@ -91,6 +92,7 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
     };
 
     const openEdit = (item: Department) => {
+        if (isPending) return;
         setName(item.name);
         setEditingItem(item);
         setError(null);
@@ -191,11 +193,9 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
                         イベントに参加する部署を管理します。
                     </p>
                 </div>
-                {formMode === 'idle' && (
-                    <Button size='sm' onClick={openAdd}>
-                        + 追加
-                    </Button>
-                )}
+                <Button size='sm' onClick={openAdd}>
+                    + 追加
+                </Button>
             </div>
 
             <div className='mb-6 rounded-xl border border-border bg-card p-4 shadow-sm'>
@@ -245,7 +245,7 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
                 </p>
             )}
 
-            {error && formMode !== 'editing' && (
+            {error && formMode === 'idle' && (
                 <p
                     role='alert'
                     className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
@@ -256,15 +256,14 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
 
             {formMode !== 'idle' && (
                 <AdminFormContainer
-                    editing={formMode === 'editing'}
-                    error={error}
-                    isPending={isPending}
-                    onClose={closeForm}
                     title={
                         formMode === 'adding'
                             ? '新しい部署を追加'
                             : '部署を編集'
                     }
+                    onClose={closeForm}
+                    isPending={isPending}
+                    error={error}
                 >
                     <div>
                         <Label htmlFor='department-name'>
@@ -329,7 +328,6 @@ export default function DepartmentAdminPanel({ departments, eventId }: Props) {
                                     size='sm'
                                     variant='outline'
                                     onClick={() => openEdit(dept)}
-                                    disabled={isPending}
                                 >
                                     編集
                                 </Button>
