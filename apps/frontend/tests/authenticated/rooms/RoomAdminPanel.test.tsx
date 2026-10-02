@@ -120,7 +120,9 @@ describe('RoomAdminPanel', () => {
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
 
-        expect(screen.getByText('新しい部屋割りを追加')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '新しい部屋割りを追加' }),
+        ).toBeInTheDocument();
         expect(screen.getByLabelText(/建物名/)).toBeInTheDocument();
     });
 
@@ -143,7 +145,9 @@ describe('RoomAdminPanel', () => {
         const editButtons = screen.getAllByRole('button', { name: '編集' });
         await user.click(editButtons[0]);
 
-        expect(screen.getByText('部屋割りを編集')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '部屋割りを編集' }),
+        ).toBeInTheDocument();
         expect(screen.getByLabelText(/建物名/)).toHaveValue('A棟');
         expect(screen.getByLabelText(/^部屋名/)).toHaveValue('第1会議室');
     });

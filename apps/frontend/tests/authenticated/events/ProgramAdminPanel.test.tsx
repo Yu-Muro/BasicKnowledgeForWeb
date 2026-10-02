@@ -123,7 +123,9 @@ describe('ProgramAdminPanel', () => {
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
 
-        expect(screen.getByText('新しい企画を追加')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '新しい企画を追加' }),
+        ).toBeInTheDocument();
         expect(screen.getByLabelText(/企画名/)).toBeInTheDocument();
     });
 
@@ -146,7 +148,9 @@ describe('ProgramAdminPanel', () => {
         const editButtons = screen.getAllByRole('button', { name: '編集' });
         await user.click(editButtons[0]);
 
-        expect(screen.getByText('企画を編集')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '企画を編集' }),
+        ).toBeInTheDocument();
         expect(screen.getByLabelText(/企画名/)).toHaveValue('展示会');
         expect(screen.getByLabelText(/場所/)).toHaveValue('A棟3F');
     });

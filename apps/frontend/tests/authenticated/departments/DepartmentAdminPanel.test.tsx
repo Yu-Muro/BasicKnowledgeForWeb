@@ -121,7 +121,9 @@ describe('DepartmentAdminPanel', () => {
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
 
-        expect(screen.getByText('新しい部署を追加')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '新しい部署を追加' }),
+        ).toBeInTheDocument();
         expect(screen.getByLabelText(/部署名/)).toBeInTheDocument();
     });
 
@@ -135,7 +137,9 @@ describe('DepartmentAdminPanel', () => {
         );
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
-        expect(screen.getByText('新しい部署を追加')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '新しい部署を追加' }),
+        ).toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: 'キャンセル' }));
         expect(screen.queryByText('新しい部署を追加')).not.toBeInTheDocument();
@@ -153,7 +157,9 @@ describe('DepartmentAdminPanel', () => {
         const editButtons = screen.getAllByRole('button', { name: '編集' });
         await user.click(editButtons[0]);
 
-        expect(screen.getByText('部署を編集')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '部署を編集' }),
+        ).toBeInTheDocument();
         expect(screen.getByLabelText(/部署名/)).toHaveValue('企画部');
     });
 
