@@ -77,6 +77,7 @@ export default function OtherItemAdminPanel({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const openAdd = () => {
+        if (isPending) return;
         setFormData(EMPTY_FORM);
         setEditingItem(null);
         setError(null);
@@ -86,6 +87,7 @@ export default function OtherItemAdminPanel({
     };
 
     const openEdit = (item: OtherItem) => {
+        if (isPending) return;
         setFormData(itemToForm(item));
         setEditingItem(item);
         setError(null);
@@ -198,11 +200,9 @@ export default function OtherItemAdminPanel({
                         注意事項や連絡先など、自由記述の共有事項を閲覧できます。
                     </p>
                 </div>
-                {formMode === 'idle' && (
-                    <Button size='sm' onClick={openAdd}>
-                        + 追加
-                    </Button>
-                )}
+                <Button size='sm' onClick={openAdd}>
+                    + 追加
+                </Button>
             </div>
 
             {infoMessage && (
@@ -214,7 +214,7 @@ export default function OtherItemAdminPanel({
                 </p>
             )}
 
-            {error && formMode !== 'editing' && (
+            {error && formMode === 'idle' && (
                 <p
                     role='alert'
                     className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
@@ -225,15 +225,14 @@ export default function OtherItemAdminPanel({
 
             {formMode !== 'idle' && (
                 <AdminFormContainer
-                    editing={formMode === 'editing'}
-                    error={error}
-                    isPending={isPending}
-                    onClose={closeForm}
                     title={
                         formMode === 'adding'
                             ? '新しい情報を追加'
                             : '情報を編集'
                     }
+                    onClose={closeForm}
+                    isPending={isPending}
+                    error={error}
                 >
                     <div className='space-y-3'>
                         <div>
@@ -350,7 +349,6 @@ export default function OtherItemAdminPanel({
                                         size='sm'
                                         variant='outline'
                                         onClick={() => openEdit(item)}
-                                        disabled={isPending}
                                     >
                                         編集
                                     </Button>

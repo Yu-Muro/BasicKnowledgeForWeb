@@ -136,7 +136,9 @@ describe('TimetableAdminPanel', () => {
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
 
-        expect(screen.getByText('新しいアイテムを追加')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '新しいアイテムを追加' }),
+        ).toBeInTheDocument();
         expect(screen.getByLabelText(/タイトル/)).toBeInTheDocument();
         expect(screen.getByLabelText(/場所/)).toBeInTheDocument();
         expect(screen.getByText('部署タグ')).toBeInTheDocument();
@@ -176,7 +178,6 @@ describe('TimetableAdminPanel', () => {
         expect(
             screen.getByRole('dialog', { name: 'アイテムを編集' }),
         ).toBeInTheDocument();
-        expect(screen.getByText('アイテムを編集')).toBeInTheDocument();
         expect(screen.getByLabelText(/タイトル/)).toHaveValue('開会式');
         expect(screen.getByLabelText(/場所/)).toHaveValue('大ホール');
         expect(

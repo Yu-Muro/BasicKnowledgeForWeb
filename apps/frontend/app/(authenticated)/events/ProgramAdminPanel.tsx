@@ -127,6 +127,7 @@ export default function ProgramAdminPanel({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const openAdd = () => {
+        if (isPending) return;
         setFormData(EMPTY_FORM);
         setEditingItem(null);
         setError(null);
@@ -136,6 +137,7 @@ export default function ProgramAdminPanel({
     };
 
     const openEdit = (item: Program) => {
+        if (isPending) return;
         setFormData(itemToForm(item));
         setEditingItem(item);
         setError(null);
@@ -247,11 +249,9 @@ export default function ProgramAdminPanel({
                 <h1 className='font-semibold text-foreground text-xl tracking-tight'>
                     企画一覧
                 </h1>
-                {formMode === 'idle' && (
-                    <Button size='sm' onClick={openAdd}>
-                        + 追加
-                    </Button>
-                )}
+                <Button size='sm' onClick={openAdd}>
+                    + 追加
+                </Button>
             </div>
 
             {infoMessage && (
@@ -263,7 +263,7 @@ export default function ProgramAdminPanel({
                 </p>
             )}
 
-            {error && formMode !== 'editing' && (
+            {error && formMode === 'idle' && (
                 <p
                     role='alert'
                     className='mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-400'
@@ -274,15 +274,14 @@ export default function ProgramAdminPanel({
 
             {formMode !== 'idle' && (
                 <AdminFormContainer
-                    editing={formMode === 'editing'}
-                    error={error}
-                    isPending={isPending}
-                    onClose={closeForm}
                     title={
                         formMode === 'adding'
                             ? '新しい企画を追加'
                             : '企画を編集'
                     }
+                    onClose={closeForm}
+                    isPending={isPending}
+                    error={error}
                 >
                     <div className='space-y-3'>
                         <div>
@@ -448,7 +447,6 @@ export default function ProgramAdminPanel({
                                             size='sm'
                                             variant='outline'
                                             onClick={() => openEdit(program)}
-                                            disabled={isPending}
                                         >
                                             編集
                                         </Button>

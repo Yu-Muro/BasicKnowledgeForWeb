@@ -151,7 +151,9 @@ describe('ShopItemAdminPanel', () => {
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
 
-        expect(screen.getByText('新しい販売物を追加')).toBeInTheDocument();
+        expect(
+            screen.getByRole('dialog', { name: '新しい販売物を追加' }),
+        ).toBeInTheDocument();
         expect(screen.getByLabelText(/商品名/)).toBeInTheDocument();
     });
 
@@ -177,7 +179,6 @@ describe('ShopItemAdminPanel', () => {
         expect(
             screen.getByRole('dialog', { name: '販売物を編集' }),
         ).toBeInTheDocument();
-        expect(screen.getByText('販売物を編集')).toBeInTheDocument();
         expect(screen.getByLabelText(/商品名/)).toHaveValue('オリジナルTシャツ');
         expect(screen.getByLabelText(/価格/)).toHaveValue(2000);
     });
