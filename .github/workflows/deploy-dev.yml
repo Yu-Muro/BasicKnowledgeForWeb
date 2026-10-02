@@ -22,7 +22,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Bun workspace
-        uses: ./.github/actions/setup-bun-project
+        uses: $/.github/actions/setup-bun-project
 
       - name: Deploy to Cloudflare Workers (Dev)
         id: deploy-email-worker
@@ -53,7 +53,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Bun workspace
-        uses: ./.github/actions/setup-bun-project
+        uses: $/.github/actions/setup-bun-project
 
       - name: Run database migrations
         run: |
@@ -96,7 +96,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Bun workspace
-        uses: ./.github/actions/setup-bun-project
+        uses: $/.github/actions/setup-bun-project
 
       - name: Build frontend
         run: |
