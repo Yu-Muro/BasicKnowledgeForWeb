@@ -45,6 +45,14 @@ CloudflareのWorkers Rate Limitingは拠点単位の近似制限であり、
 分散攻撃に対する厳密な全世界合算の回数保証ではない。
 IP共有による誤制限の影響をDevで評価し、本番の閾値を決める。
 
+## Devへの反映記録
+
+- backend Worker: `basic-knowledge-for-web-backend-dev`
+- 反映日: 2026-10-05
+- Version ID: `d7bec1e5-7a3b-435f-8db9-9096b0fecc49`
+- 設定のdry-runでDev専用bindingと有効化変数を確認してから反映。
+- 本番のWorker・WAF対象ホストは変更していない。
+
 ## 検証
 
 - backendの型チェック・lint・全テストを実施。
