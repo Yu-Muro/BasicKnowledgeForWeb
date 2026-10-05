@@ -19,6 +19,7 @@ import {
     authMiddleware,
 } from '../middleware/authMiddleware';
 import { contentAccessMiddleware } from '../middleware/contentAccessMiddleware';
+import { checkPublicAuthRateLimit } from '../middleware/publicAuthRateLimit';
 import { roleGuard } from '../middleware/roleGuard';
 
 type AccessCodeRepositoryFactory = (env: Env) => IAccessCodeRepository;
@@ -39,6 +40,18 @@ export function createAccessCodeRoutes(
             })
             // POST /api/access-codes/verify — 誰でも可
             .post('/access-codes/verify', async (c) => {
+                const limited = await checkPublicAuthRateLimit({
+                    enabled: c.env?.PUBLIC_AUTH_RATE_LIMIT_ENABLED === 'true',
+                    limiter: c.env?.PUBLIC_AUTH_RATE_LIMITER,
+                    ip: c.req.header('CF-Connecting-IP'),
+                    operation: 'verify',
+                });
+                if (limited) {
+                    c.header('Cache-Control', 'no-store');
+                    if (limited.retryAfter)
+                        c.header('Retry-After', limited.retryAfter);
+                    return c.json(limited.body, limited.status);
+                }
                 const repository = repositoryFactory(c.env);
                 const useCase = new VerifyAccessCodeUseCase(repository);
                 return verifyAccessCode(c, useCase);
