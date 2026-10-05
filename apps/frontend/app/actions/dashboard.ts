@@ -5,6 +5,10 @@ import {
     buildBackendUrl,
     fetchFromBackend,
 } from '@frontend/app/lib/backendFetch';
+import {
+    type AuthPayload,
+    decodeJwtPayload,
+} from '@frontend/app/lib/serverAuth';
 import { cookies } from 'next/headers';
 
 type ActionResult = { success: true } | { success: false; error: string };
@@ -13,6 +17,7 @@ type UserEntry = {
     name: string;
     email: string;
     role: 'user' | 'admin';
+    departmentId?: string | null;
 };
 type UserRoleResult =
     | { success: true; data: UserEntry[] }
@@ -68,6 +73,7 @@ export async function changePasswordAction(data: {
 export async function updateUserRoleAction(
     userId: string,
     role: 'user' | 'admin',
+    departmentId?: string,
 ): Promise<UserRoleResult> {
     const authToken = await getAuthToken();
     if (!authToken) return { success: false, error: '認証が必要です' };
@@ -80,7 +86,7 @@ export async function updateUserRoleAction(
                 'Content-Type': 'application/json',
                 Cookie: `auth_token=${authToken}`,
             },
-            body: JSON.stringify({ role }),
+            body: JSON.stringify({ role, departmentId }),
         });
         logAction(
             'updateUserRoleAction',
@@ -94,6 +100,13 @@ export async function updateUserRoleAction(
                 success: false,
                 error: body.error ?? 'ロールの変更に失敗しました',
             };
+        }
+        if (
+            role === 'user' &&
+            decodeJwtPayload<AuthPayload>(authToken)?.id === userId
+        ) {
+            (await cookies()).delete('auth_token');
+            return { success: true, data: [] };
         }
         const snapshot = await fetchUsersSnapshot(authToken);
         if (!snapshot.success) {
@@ -156,5 +169,48 @@ async function fetchUsersSnapshot(authToken: string): Promise<UserRoleResult> {
             success: false,
             error: '最新ユーザー一覧の取得に失敗しました',
         };
+    }
+}
+
+export async function updateUserDepartmentAction(
+    userId: string,
+    departmentId: string,
+): Promise<UserRoleResult> {
+    return manageUser(userId, 'PUT', { departmentId });
+}
+export async function deleteUserAction(
+    userId: string,
+): Promise<UserRoleResult> {
+    return manageUser(userId, 'DELETE');
+}
+async function manageUser(
+    userId: string,
+    method: 'PUT' | 'DELETE',
+    data?: { departmentId: string },
+): Promise<UserRoleResult> {
+    const authToken = await getAuthToken();
+    if (!authToken) return { success: false, error: '認証が必要です' };
+    try {
+        const res = await fetchFromBackend(
+            `/api/users/${userId}${method === 'PUT' ? '/department' : ''}`,
+            {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: `auth_token=${authToken}`,
+                },
+                ...(data ? { body: JSON.stringify(data) } : {}),
+            },
+        );
+        if (!res.ok) {
+            const body = (await res.json()) as { error?: string };
+            return {
+                success: false,
+                error: body.error ?? 'ユーザーの更新に失敗しました',
+            };
+        }
+        return fetchUsersSnapshot(authToken);
+    } catch {
+        return { success: false, error: 'ユーザーの更新に失敗しました' };
     }
 }

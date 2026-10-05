@@ -1,3 +1,4 @@
+import { fetchFromBackend } from './app/lib/backendFetch';
 import { verify } from 'hono/jwt';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -21,6 +22,18 @@ async function verifyToken<T>(token: string): Promise<T | null> {
     }
 }
 
+async function verifyAuthToken(token: string): Promise<AuthPayload | null> {
+    const auth = await verifyToken<AuthPayload>(token);
+    if (!auth) return null;
+    try {
+        const res = await fetchFromBackend('/api/auth/me', { headers: { Cookie: `auth_token=${token}` }, cache: 'no-store' });
+        if (!res.ok) return null;
+        const user = await res.json() as { id: string; role: string };
+        if (user.id !== auth.id) return null;
+        return { ...auth, role: user.role };
+    } catch { return null; }
+}
+
 // コンテンツページ: access_token または auth_token(admin) が必要
 const CONTENT_PATHS = ['/', '/timetable', '/rooms', '/events', '/shop', '/others', '/search'];
 
@@ -40,7 +53,7 @@ export async function middleware(request: NextRequest) {
 
     if (pathname.startsWith('/login')) {
         if (authToken) {
-            const auth = await verifyToken<AuthPayload>(authToken);
+            const auth = await verifyAuthToken(authToken);
             if (auth?.role === 'admin') {
                 debugLog('redirecting /login -> /dashboard (admin token)', {
                     role: auth.role,
@@ -58,7 +71,7 @@ export async function middleware(request: NextRequest) {
 
     if (pathname.startsWith('/access')) {
         if (authToken) {
-            const auth = await verifyToken<AuthPayload>(authToken);
+            const auth = await verifyAuthToken(authToken);
             if (auth?.role === 'admin') {
                 debugLog('redirecting /access -> / (admin token)', {
                     role: auth.role,
@@ -90,7 +103,7 @@ export async function middleware(request: NextRequest) {
             debugLog('redirect:/login missing auth_token', { pathname });
             return NextResponse.redirect(new URL('/login', request.url));
         }
-        const auth = await verifyToken<AuthPayload>(authToken);
+        const auth = await verifyAuthToken(authToken);
         if (!auth || auth.role !== 'admin') {
             debugLog('redirect:/login invalid admin token', {
                 pathname,
@@ -112,7 +125,7 @@ export async function middleware(request: NextRequest) {
             });
             return NextResponse.redirect(new URL('/login', request.url));
         }
-        const auth = await verifyToken<AuthPayload>(authToken);
+        const auth = await verifyAuthToken(authToken);
         if (!auth || auth.role !== 'admin') {
             debugLog('redirect:/login dashboard auth failed', {
                 pathname,
@@ -130,7 +143,7 @@ export async function middleware(request: NextRequest) {
     if (CONTENT_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
         // admin はユーザー認証で通過
         if (authToken) {
-            const auth = await verifyToken<AuthPayload>(authToken);
+            const auth = await verifyAuthToken(authToken);
             if (auth?.role === 'admin') {
                 debugLog('allow content with admin token', {
                     pathname,

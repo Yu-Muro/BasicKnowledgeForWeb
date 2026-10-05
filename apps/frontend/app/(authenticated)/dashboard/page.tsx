@@ -14,6 +14,7 @@ type UserEntry = {
     name: string;
     email: string;
     role: 'user' | 'admin';
+    departmentId?: string | null;
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -40,6 +41,21 @@ async function fetchUsers(authToken: string): Promise<UserEntry[]> {
     }
 }
 
+async function fetchDepartments(): Promise<{ id: string; name: string }[]> {
+    try {
+        const res = await fetchFromBackend('/api/departments', {
+            cache: 'no-store',
+        });
+        if (!res.ok) return [];
+        const body = (await res.json()) as {
+            departments?: { id: string; name: string }[];
+        };
+        return body.departments ?? [];
+    } catch {
+        return [];
+    }
+}
+
 export default async function DashboardPage({
     searchParams,
 }: {
@@ -54,19 +70,24 @@ export default async function DashboardPage({
     const buildHref = (href: string) =>
         queryString ? `${href}?${queryString}` : href;
 
-    const { authToken, role } = await resolveAuth(resolvedParams.event_id);
+    const {
+        authToken,
+        role,
+        user: currentUser,
+    } = await resolveAuth(resolvedParams.event_id);
 
     if (!authToken) {
         redirect('/login');
     }
 
-    const me = decodeJwtPayload<AuthPayload>(authToken!);
+    const me = currentUser ?? decodeJwtPayload<AuthPayload>(authToken!);
     if (!me) {
         redirect('/login');
     }
 
     const isAdmin = role === 'admin';
     const users = isAdmin ? await fetchUsers(authToken!) : [];
+    const departments = await fetchDepartments();
 
     return (
         <div className='space-y-8'>
@@ -100,6 +121,18 @@ export default async function DashboardPage({
                         </div>
                         <div className='flex flex-col gap-1 sm:flex-row sm:gap-4'>
                             <dt className='w-24 font-medium text-muted-foreground'>
+                                所属部署
+                            </dt>
+                            <dd className='text-foreground'>
+                                {departments.find(
+                                    (department) =>
+                                        department.id === me.departmentId,
+                                )?.name ??
+                                    (isAdmin ? '所属任意' : '所属未設定')}
+                            </dd>
+                        </div>
+                        <div className='flex flex-col gap-1 sm:flex-row sm:gap-4'>
+                            <dt className='w-24 font-medium text-muted-foreground'>
                                 ロール
                             </dt>
                             <dd className='text-foreground'>
@@ -114,7 +147,13 @@ export default async function DashboardPage({
             <PasswordChangeForm />
 
             {/* ユーザー管理（admin のみ） */}
-            {isAdmin && <UserRolePanel initialUsers={users} />}
+            {isAdmin && (
+                <UserRolePanel
+                    initialUsers={users}
+                    departments={departments}
+                    currentUserId={me.id}
+                />
+            )}
 
             {/* 管理メニュー（admin のみ） */}
             {isAdmin && (
@@ -134,7 +173,7 @@ export default async function DashboardPage({
                                 アクセスコード管理 →
                             </Link>
                             <Link
-                                href={buildHref('/departments')}
+                                href='/departments'
                                 className='inline-flex items-center gap-2 font-medium text-primary text-sm hover:underline'
                             >
                                 部署管理 →

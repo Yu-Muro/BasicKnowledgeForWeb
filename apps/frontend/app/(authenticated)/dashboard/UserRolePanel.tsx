@@ -1,6 +1,10 @@
 'use client';
 
-import { updateUserRoleAction } from '@frontend/app/actions/dashboard';
+import {
+    deleteUserAction,
+    updateUserDepartmentAction,
+    updateUserRoleAction,
+} from '@frontend/app/actions/dashboard';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
@@ -10,10 +14,13 @@ type User = {
     name: string;
     email: string;
     role: 'user' | 'admin';
+    departmentId?: string | null;
 };
 
 type Props = {
     initialUsers: User[];
+    departments: { id: string; name: string }[];
+    currentUserId: string;
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -41,25 +48,45 @@ async function fetchUsersFromApi(): Promise<User[] | null> {
     }
 }
 
-export default function UserRolePanel({ initialUsers }: Props) {
+export default function UserRolePanel({
+    initialUsers,
+    departments,
+    currentUserId,
+}: Props) {
     const router = useRouter();
     const [users, setUsers] = useState<User[]>(initialUsers);
     const [pendingId, setPendingId] = useState<string | null>(null);
     const [selectedRoles, setSelectedRoles] = useState<
         Record<string, 'user' | 'admin'>
     >(buildSelectedRoles(initialUsers));
+    const [selectedDepartments, setSelectedDepartments] = useState<
+        Record<string, string>
+    >(
+        Object.fromEntries(
+            initialUsers.map((u) => [u.id, u.departmentId ?? '']),
+        ),
+    );
     const [error, setError] = useState<string | null>(null);
     const [infoMessage, setInfoMessage] = useState<string | null>(null);
     const [, startTransition] = useTransition();
 
     useEffect(() => {
         setUsers(initialUsers);
+        setSelectedDepartments(
+            Object.fromEntries(
+                initialUsers.map((u) => [u.id, u.departmentId ?? '']),
+            ),
+        );
         setSelectedRoles(buildSelectedRoles(initialUsers));
     }, [initialUsers]);
 
     const handleRoleChange = (userId: string) => {
         const newRole = selectedRoles[userId];
         if (!newRole) return;
+        if (newRole === 'user' && !selectedDepartments[userId]) {
+            setError('一般ユーザーには部署を選択してください');
+            return;
+        }
 
         setError(null);
         setPendingId(userId);
@@ -67,7 +94,11 @@ export default function UserRolePanel({ initialUsers }: Props) {
         const currentRole = users.find((u) => u.id === userId)?.role;
 
         startTransition(async () => {
-            const result = await updateUserRoleAction(userId, newRole);
+            const result = await updateUserRoleAction(
+                userId,
+                newRole,
+                newRole === 'user' ? selectedDepartments[userId] : undefined,
+            );
             setPendingId(null);
             if (!result.success) {
                 setError(result.error);
@@ -78,6 +109,10 @@ export default function UserRolePanel({ initialUsers }: Props) {
                     }));
                 }
             } else {
+                if (userId === currentUserId && newRole === 'user') {
+                    router.replace('/login');
+                    return;
+                }
                 // スナップショットが遅延していても、更新したユーザーのロール表示は確実に反映する。
                 const nextUsers = result.data.map((user) =>
                     user.id === userId ? { ...user, role: newRole } : user,
@@ -91,6 +126,98 @@ export default function UserRolePanel({ initialUsers }: Props) {
             }
         });
     };
+
+    const handleDepartmentChange = (userId: string) => {
+        const departmentId = selectedDepartments[userId];
+        if (!departmentId) {
+            setError('部署を選択してください');
+            return;
+        }
+        setError(null);
+        setInfoMessage(null);
+        setPendingId(userId);
+        startTransition(async () => {
+            const result = await updateUserDepartmentAction(
+                userId,
+                departmentId,
+            );
+            setPendingId(null);
+            if (!result.success) {
+                setError(result.error);
+                return;
+            }
+            setUsers(result.data);
+            setInfoMessage('所属部署を更新しました');
+            router.refresh();
+        });
+    };
+    const handleDelete = (user: User) => {
+        if (!confirm(`「${user.name}」を削除しますか？`)) return;
+        setError(null);
+        setInfoMessage(null);
+        setPendingId(user.id);
+        startTransition(async () => {
+            const result = await deleteUserAction(user.id);
+            setPendingId(null);
+            if (!result.success) {
+                setError(result.error);
+                return;
+            }
+            setUsers(result.data.filter((entry) => entry.id !== user.id));
+            setInfoMessage('ユーザーを削除しました');
+            router.refresh();
+        });
+    };
+    const departmentControl = (user: User) => (
+        <div className='flex flex-col gap-2'>
+            <span className='text-muted-foreground text-xs'>
+                {user.departmentId
+                    ? departments.find(
+                          (department) => department.id === user.departmentId,
+                      )?.name
+                    : user.role === 'admin'
+                      ? '所属任意'
+                      : '所属未設定'}
+            </span>
+            <select
+                aria-label={`${user.name}の部署`}
+                value={selectedDepartments[user.id] ?? ''}
+                onChange={(event) =>
+                    setSelectedDepartments((prev) => ({
+                        ...prev,
+                        [user.id]: event.target.value,
+                    }))
+                }
+                disabled={!!pendingId}
+                className='rounded border border-input bg-background px-2 py-1 text-sm'
+            >
+                <option value=''>部署を選択</option>
+                {departments.map((department) => (
+                    <option key={department.id} value={department.id}>
+                        {department.name}
+                    </option>
+                ))}
+            </select>
+            <button
+                type='button'
+                onClick={() => handleDepartmentChange(user.id)}
+                disabled={!!pendingId || !selectedDepartments[user.id]}
+                className='rounded border border-input px-3 py-1 text-xs disabled:opacity-50'
+            >
+                部署を保存
+            </button>
+        </div>
+    );
+    const deleteControl = (user: User) => (
+        <button
+            type='button'
+            onClick={() => handleDelete(user)}
+            disabled={!!pendingId || user.id === currentUserId}
+            className='ml-2 rounded border border-destructive px-3 py-1 text-destructive text-xs disabled:opacity-50'
+        >
+            削除
+        </button>
+    );
 
     return (
         <section aria-labelledby='user-management-heading'>
@@ -115,8 +242,11 @@ export default function UserRolePanel({ initialUsers }: Props) {
             )}
 
             {/* Desktop table */}
-            <div className='hidden overflow-hidden rounded-lg border border-border md:block'>
-                <table className='w-full text-sm' aria-label='ユーザー一覧'>
+            <div className='hidden overflow-x-auto rounded-lg border border-border md:block'>
+                <table
+                    className='w-full min-w-[800px] text-sm'
+                    aria-label='ユーザー一覧'
+                >
                     <thead className='bg-muted/50'>
                         <tr>
                             <th className='px-4 py-3 text-left font-medium text-muted-foreground'>
@@ -127,6 +257,9 @@ export default function UserRolePanel({ initialUsers }: Props) {
                             </th>
                             <th className='px-4 py-3 text-left font-medium text-muted-foreground'>
                                 ロール
+                            </th>
+                            <th className='px-4 py-3 text-left font-medium text-muted-foreground'>
+                                所属部署
                             </th>
                             <th className='px-4 py-3 text-left font-medium text-muted-foreground'>
                                 操作
@@ -161,16 +294,20 @@ export default function UserRolePanel({ initialUsers }: Props) {
                                     </select>
                                 </td>
                                 <td className='px-4 py-3'>
+                                    {departmentControl(user)}
+                                </td>
+                                <td className='px-4 py-3'>
                                     <button
                                         type='button'
                                         onClick={() =>
                                             handleRoleChange(user.id)
                                         }
-                                        disabled={pendingId === user.id}
+                                        disabled={!!pendingId}
                                         className='rounded bg-primary px-3 py-1 font-medium text-primary-foreground text-xs hover:bg-primary/90 disabled:opacity-50'
                                     >
                                         変更
                                     </button>
+                                    {deleteControl(user)}
                                 </td>
                             </tr>
                         ))}
@@ -191,6 +328,7 @@ export default function UserRolePanel({ initialUsers }: Props) {
                         <p className='mt-1 break-all text-muted-foreground text-sm'>
                             {user.email}
                         </p>
+                        <div className='mt-3'>{departmentControl(user)}</div>
                         <div className='mt-3 flex items-center gap-2'>
                             <select
                                 aria-label={`${user.name}のロール`}
@@ -211,11 +349,12 @@ export default function UserRolePanel({ initialUsers }: Props) {
                             <button
                                 type='button'
                                 onClick={() => handleRoleChange(user.id)}
-                                disabled={pendingId === user.id}
+                                disabled={!!pendingId}
                                 className='rounded bg-primary px-3 py-1 font-medium text-primary-foreground text-xs hover:bg-primary/90 disabled:opacity-50'
                             >
                                 変更
                             </button>
+                            {deleteControl(user)}
                         </div>
                     </div>
                 ))}

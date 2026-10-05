@@ -1,10 +1,12 @@
 import { cookies } from 'next/headers';
+import { fetchFromBackend } from './backendFetch';
 
 export type AuthPayload = {
     id: string;
     name: string;
     email: string;
     role: string;
+    departmentId?: string | null;
     exp?: number;
 };
 export type AccessPayload = { event_id: string; exp?: number };
@@ -44,6 +46,7 @@ export type ResolvedAuth = {
     authToken: string | null;
     accessToken: string | null;
     role: string;
+    user?: AuthPayload | null;
 };
 
 export async function resolveAuth(
@@ -65,17 +68,29 @@ export async function resolveAuth(
     const validAccessPayload =
         accessPayload && !isTokenExpired(accessPayload) ? accessPayload : null;
 
-    const authToken = validAuthPayload ? rawAuthToken : null;
+    let currentUser: AuthPayload | null = null;
+    if (validAuthPayload && rawAuthToken) {
+        try {
+            const res = await fetchFromBackend('/api/auth/me', {
+                headers: { Cookie: `auth_token=${rawAuthToken}` },
+                cache: 'no-store',
+            });
+            if (res.ok) currentUser = (await res.json()) as AuthPayload;
+        } catch {
+            currentUser = null;
+        }
+    }
+    const authToken = currentUser ? rawAuthToken : null;
     const accessToken = validAccessPayload ? rawAccessToken : null;
 
-    const role = validAuthPayload?.role ?? 'user';
+    const role = currentUser?.role ?? 'user';
     const isPrivileged = role === 'admin';
 
     const eventId = isPrivileged
         ? (searchParamEventId ?? null)
         : (validAccessPayload?.event_id ?? null);
 
-    return { eventId, authToken, accessToken, role };
+    return { eventId, authToken, accessToken, role, user: currentUser };
 }
 
 export function buildContentFetchHeaders(

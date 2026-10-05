@@ -1,6 +1,7 @@
 'use client';
 
 import { createUserSchema } from '@backend/src/infrastructure/validators/userValidator';
+import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import { client } from '@frontend/app/utils/client';
 import { Button } from '@frontend/components/ui/button';
 import {
@@ -13,7 +14,7 @@ import {
 import { Input } from '@frontend/components/ui/input';
 import { Label } from '@frontend/components/ui/label';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -29,6 +30,33 @@ const registerSchema = createUserSchema
 type RegisterFormValues = z.input<typeof registerSchema>;
 
 export default function RegisterPage() {
+    const [departments, setDepartments] = useState<
+        { id: string; name: string }[]
+    >([]);
+    const [departmentLoading, setDepartmentLoading] = useState(true);
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                const res = await fetchFromBackend('/api/departments');
+                if (!res.ok) throw new Error();
+                const body = (await res.json()) as {
+                    departments: { id: string; name: string }[];
+                };
+                if (active) setDepartments(body.departments);
+            } catch {
+                if (active)
+                    setServerError(
+                        '部署一覧を取得できませんでした。ページを再読み込みしてください',
+                    );
+            } finally {
+                if (active) setDepartmentLoading(false);
+            }
+        })();
+        return () => {
+            active = false;
+        };
+    }, []);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [serverError, setServerError] = useState<string | null>(null);
 
@@ -42,23 +70,6 @@ export default function RegisterPage() {
         resolver: zodResolver(registerSchema),
     });
 
-    /**
-     * フォーム送信ハンドラ
-     *
-     * ここに API 呼び出しとエラーハンドリングを実装してください。
-     *
-     * 利用可能なもの:
-     * - client.api.users.$post({ json: { name, email, password } })
-     *   成功時 201: { user: { id, name, email, ... } }
-     *   重複時 400: { error: "このメールアドレスは既に使用されています" }
-     *   検証時 400: { error: "バリデーションエラー", details: [...] }
-     *   障害時 500: { error: "ユーザーの作成に失敗しました" }
-     *
-     * - setSuccessMessage(msg) .... 成功メッセージを表示してフォームを切り替える
-     * - setServerError(msg) ....... フォーム上部にグローバルエラーを表示する
-     * - setError('email', { message }) ... メールフィールドにエラーをセットする
-     * - reset() ................... フォームの値をリセットする
-     */
     const onSubmit = async (data: RegisterFormValues) => {
         setServerError(null);
         const res = await client.api.users.$post({
@@ -66,6 +77,7 @@ export default function RegisterPage() {
                 name: data.name,
                 email: data.email,
                 password: data.password,
+                departmentId: data.departmentId,
             },
         });
         const body = await res.json();
@@ -132,6 +144,40 @@ export default function RegisterPage() {
                         </div>
 
                         <div className='flex flex-col gap-1.5'>
+                            <Label htmlFor='departmentId'>所属部署</Label>
+                            <select
+                                id='departmentId'
+                                {...register('departmentId')}
+                                disabled={departmentLoading}
+                                aria-invalid={!!errors.departmentId}
+                                className='rounded-md border border-input bg-background px-3 py-2 text-sm'
+                            >
+                                <option value=''>
+                                    {departmentLoading
+                                        ? '読み込み中...'
+                                        : '部署を選択してください'}
+                                </option>
+                                {departments.map((department) => (
+                                    <option
+                                        key={department.id}
+                                        value={department.id}
+                                    >
+                                        {department.name}
+                                    </option>
+                                ))}
+                            </select>
+                            {errors.departmentId && (
+                                <p className='text-destructive text-xs'>
+                                    {errors.departmentId.message}
+                                </p>
+                            )}
+                            {!departmentLoading && departments.length === 0 && (
+                                <p className='text-destructive text-xs'>
+                                    登録できる部署がありません。管理者にお問い合わせください。
+                                </p>
+                            )}
+                        </div>
+                        <div className='flex flex-col gap-1.5'>
                             <Label htmlFor='email'>メールアドレス</Label>
                             <Input
                                 id='email'
@@ -180,7 +226,11 @@ export default function RegisterPage() {
 
                         <Button
                             type='submit'
-                            disabled={isSubmitting}
+                            disabled={
+                                isSubmitting ||
+                                departmentLoading ||
+                                departments.length === 0
+                            }
                             className='mt-2'
                         >
                             {isSubmitting ? '登録中...' : '登録する'}
