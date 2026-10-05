@@ -2,6 +2,7 @@ import type { Env } from '@backend/src/db/connection';
 import { getCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import { verify } from 'hono/jwt';
+import type { AuthVariables } from './authMiddleware';
 
 /**
  * コンテンツ閲覧用ミドルウェア。
@@ -14,6 +15,7 @@ import { verify } from 'hono/jwt';
  */
 export const contentAccessMiddleware = createMiddleware<{
     Bindings: Env;
+    Variables: AuthVariables;
 }>(async (c, next) => {
     const xEventId = c.req.header('x-event-id');
     const accessToken = getCookie(c, 'access_token');
@@ -48,7 +50,8 @@ export const contentAccessMiddleware = createMiddleware<{
     if (authToken) {
         try {
             const payload = await verify(authToken, c.env.JWT_SECRET, 'HS256');
-            const role = payload.role as string | undefined;
+            const role =
+                c.get('user')?.role ?? (payload.role as string | undefined);
             if (role === 'admin') {
                 await next();
                 return;

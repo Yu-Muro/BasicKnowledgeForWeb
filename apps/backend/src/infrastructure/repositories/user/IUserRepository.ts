@@ -9,6 +9,7 @@ export type NewUser = {
     email: string;
     password: string;
     role: string;
+    departmentId: string;
 };
 
 export interface IUserRepository {
@@ -16,6 +17,12 @@ export interface IUserRepository {
     findById(id: string): Promise<User | null>;
     findByEmail(email: string): Promise<User | null>;
     create(input: NewUser): Promise<User>;
-    updateRole(id: string, role: string): Promise<User | null>;
+    updateRole(
+        id: string,
+        role: string,
+        departmentId?: string | null,
+    ): Promise<User | null>;
+    updateDepartment(id: string, departmentId: string): Promise<User | null>;
+    softDelete(id: string): Promise<boolean>;
     updatePassword(id: string, hashedPassword: string): Promise<void>;
 }

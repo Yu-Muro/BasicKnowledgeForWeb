@@ -7,9 +7,9 @@ import type {
 export class GetDepartmentsUseCase implements IGetDepartmentsUseCase {
     constructor(private readonly departmentRepository: IDepartmentRepository) {}
 
-    async execute(eventId: string): Promise<GetDepartmentsResult> {
+    async execute(): Promise<GetDepartmentsResult> {
         try {
-            const data = await this.departmentRepository.findByEventId(eventId);
+            const data = await this.departmentRepository.findAll();
             return { success: true, data };
         } catch {
             return {

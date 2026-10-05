@@ -2,16 +2,13 @@ import { createDatabaseClient, type Env } from '@backend/src/db/connection';
 import { DepartmentRepository } from '@backend/src/infrastructure/repositories/departments/DepartmentRepository';
 import type { IDepartmentRepository } from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
 import {
-    copyDepartmentsFromEvent,
     createDepartment,
     deleteDepartment,
     getDepartments,
     updateDepartment,
 } from '@backend/src/presentation/controllers/departmentController';
-import { contentAccessMiddleware } from '@backend/src/presentation/middleware/contentAccessMiddleware';
-import { contentEditMiddleware } from '@backend/src/presentation/middleware/contentEditMiddleware';
+import { authMiddleware } from '@backend/src/presentation/middleware/authMiddleware';
 import { roleGuard } from '@backend/src/presentation/middleware/roleGuard';
-import { CopyDepartmentsFromEventUseCase } from '@backend/src/use-cases/department/CopyDepartmentsFromEventUseCase';
 import { CreateDepartmentUseCase } from '@backend/src/use-cases/department/CreateDepartmentUseCase';
 import { DeleteDepartmentUseCase } from '@backend/src/use-cases/department/DeleteDepartmentUseCase';
 import { GetDepartmentsUseCase } from '@backend/src/use-cases/department/GetDepartmentsUseCase';
@@ -28,26 +25,15 @@ export function createDepartmentRoutes(
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];
 
-    app.get('/departments', contentAccessMiddleware, async (c) => {
+    app.get('/departments', async (c) => {
         const repository = repositoryFactory(c.env);
         const useCase = new GetDepartmentsUseCase(repository);
         return getDepartments(c, useCase);
     });
 
     app.post(
-        '/departments/copy',
-        contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
-        async (c) => {
-            const repository = repositoryFactory(c.env);
-            const useCase = new CopyDepartmentsFromEventUseCase(repository);
-            return copyDepartmentsFromEvent(c, useCase);
-        },
-    );
-
-    app.post(
         '/departments',
-        contentEditMiddleware,
+        authMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
@@ -58,7 +44,7 @@ export function createDepartmentRoutes(
 
     app.put(
         '/departments/:id',
-        contentEditMiddleware,
+        authMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
@@ -69,7 +55,7 @@ export function createDepartmentRoutes(
 
     app.delete(
         '/departments/:id',
-        contentEditMiddleware,
+        authMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);

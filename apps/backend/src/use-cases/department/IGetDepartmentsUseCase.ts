@@ -5,5 +5,5 @@ export type GetDepartmentsResult =
     | { success: false; error: string; status?: number };
 
 export interface IGetDepartmentsUseCase {
-    execute(eventId: string): Promise<GetDepartmentsResult>;
+    execute(): Promise<GetDepartmentsResult>;
 }

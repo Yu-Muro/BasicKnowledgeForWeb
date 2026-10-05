@@ -39,7 +39,7 @@ export const contentEditMiddleware = createMiddleware<{
             c.env.JWT_SECRET,
             'HS256',
         )) as AuthUser & { role?: string };
-        const role = payload.role;
+        const role = c.get('user')?.role ?? payload.role;
         if (role !== 'admin') {
             console.log('[contentEdit] Forbidden: role is not admin', {
                 method: c.req.method,
@@ -51,6 +51,7 @@ export const contentEditMiddleware = createMiddleware<{
 
         const user: AuthUser = {
             id: payload.id,
+            departmentId: c.get('user')?.departmentId,
             name: payload.name,
             email: payload.email,
             role,

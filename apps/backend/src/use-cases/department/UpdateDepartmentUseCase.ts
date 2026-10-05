@@ -14,7 +14,6 @@ export class UpdateDepartmentUseCase implements IUpdateDepartmentUseCase {
         try {
             const data = await this.departmentRepository.update(
                 input.id,
-                input.eventId,
                 input.payload,
             );
             if (!data) {

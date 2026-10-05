@@ -13,7 +13,6 @@ export class CreateDepartmentUseCase implements ICreateDepartmentUseCase {
     ): Promise<CreateDepartmentResult> {
         try {
             const data = await this.departmentRepository.create({
-                eventId: input.eventId,
                 name: input.name,
             });
             return { success: true, data };

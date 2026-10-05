@@ -8,6 +8,7 @@ export type AuthUser = {
     name: string;
     email: string;
     role: string;
+    departmentId?: string | null;
 };
 
 export type AuthVariables = {
@@ -28,7 +29,7 @@ export const authMiddleware = createMiddleware<{
     }
     try {
         const payload = await verify(token, c.env.JWT_SECRET, 'HS256');
-        c.set('user', payload as AuthUser);
+        if (!c.get('user')) c.set('user', payload as AuthUser);
         await next();
     } catch (err) {
         console.log('[auth] Unauthorized: token verification failed', {
