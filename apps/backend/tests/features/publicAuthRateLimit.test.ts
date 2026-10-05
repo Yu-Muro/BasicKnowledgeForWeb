@@ -90,6 +90,27 @@ describe.each(routes)('%s の試行回数制限', (path, operation) => {
             `${operation}:192.0.2.2`,
         ]);
     });
+    it('IPv6の同一/64と表記揺れは同じキー、別/64は別キーになる', async () => {
+        const { app } = setup();
+        const limit = jest
+            .fn<PublicAuthRateLimiter['limit']>()
+            .mockResolvedValue({ success: false });
+        for (const ip of [
+            '2001:DB8:1234:5678::1',
+            '2001:0db8:1234:5678:abcd:ef01:2345:6789',
+            '2001:db8:1234:5679::1',
+        ]) {
+            expect(
+                (await app.request(path, request({}, ip), env({ limit })))
+                    .status,
+            ).toBe(429);
+        }
+        expect(limit.mock.calls.map(([options]) => options.key)).toEqual([
+            `${operation}:2001:0db8:1234:5678::/64`,
+            `${operation}:2001:0db8:1234:5678::/64`,
+            `${operation}:2001:0db8:1234:5679::/64`,
+        ]);
+    });
     it('無効な環境はバインディングなしで既存の入力検証へ進む', async () => {
         const { app } = setup();
         expect(
