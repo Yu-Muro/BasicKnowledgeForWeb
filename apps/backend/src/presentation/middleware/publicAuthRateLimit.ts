@@ -46,15 +46,25 @@ export async function checkPublicAuthRateLimit({
     retryAfter?: string;
 } | null> {
     if (!enabled) return null;
-    const unavailable = () => ({
-        status: 503 as const,
-        body: { error: '認証サービスを一時的に利用できません' },
-    });
-    if (!limiter || !ip) return unavailable();
+    const unavailable = (reason: string) => {
+        // IP・入力値・例外の詳細はログへ含めない。
+        console.error('public_auth_rate_limit_unavailable', {
+            operation,
+            reason,
+        });
+        return {
+            status: 503 as const,
+            body: { error: '認証サービスを一時的に利用できません' },
+        };
+    };
+    if (!limiter) return unavailable('missing-binding');
+    if (!ip) return unavailable('missing-ip');
     const subject = toRateLimitSubject(ip);
-    if (!subject) return unavailable();
+    if (!subject) return unavailable('invalid-ip');
     try {
-        const { success } = await limiter.limit({ key: `${operation}:${subject}` });
+        const { success } = await limiter.limit({
+            key: `${operation}:${subject}`,
+        });
         if (success) return null;
         return {
             status: 429,
@@ -64,6 +74,6 @@ export async function checkPublicAuthRateLimit({
             retryAfter: '60',
         };
     } catch {
-        return unavailable();
+        return unavailable('limiter-error');
     }
 }
