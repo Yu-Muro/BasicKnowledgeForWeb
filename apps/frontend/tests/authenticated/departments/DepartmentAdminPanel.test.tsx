@@ -20,7 +20,6 @@ jest.mock('next/navigation', () => ({
 }));
 
 jest.mock('@frontend/app/actions/departments', () => ({
-    copyDepartmentsFromEventAction: jest.fn(),
     createDepartmentAction: jest.fn(),
     updateDepartmentAction: jest.fn(),
     deleteDepartmentAction: jest.fn(),
@@ -51,7 +50,6 @@ const DepartmentAdminPanel =
 const mockCreate = jest.mocked(actions.createDepartmentAction);
 const mockUpdate = jest.mocked(actions.updateDepartmentAction);
 const mockDelete = jest.mocked(actions.deleteDepartmentAction);
-const mockCopy = jest.mocked(actions.copyDepartmentsFromEventAction);
 const mockFetchFromBackend = jest.mocked(backendFetch.fetchFromBackend);
 const mockAccessCodesGet = jest.mocked(
     frontendClient.client.api['access-codes'].$get,
@@ -82,7 +80,7 @@ describe('DepartmentAdminPanel', () => {
         render(
             <DepartmentAdminPanel
                 departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
+
             />,
         );
 
@@ -94,7 +92,7 @@ describe('DepartmentAdminPanel', () => {
         render(
             <DepartmentAdminPanel
                 departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
+
             />,
         );
 
@@ -103,7 +101,7 @@ describe('DepartmentAdminPanel', () => {
     });
 
     it('部署がない場合に空メッセージを表示する', () => {
-        render(<DepartmentAdminPanel departments={[]} eventId='event-1' />);
+        render(<DepartmentAdminPanel departments={[]}  />);
 
         expect(
             screen.getByText('登録されている部署はありません'),
@@ -115,7 +113,7 @@ describe('DepartmentAdminPanel', () => {
         render(
             <DepartmentAdminPanel
                 departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
+
             />,
         );
 
@@ -133,7 +131,7 @@ describe('DepartmentAdminPanel', () => {
         render(
             <DepartmentAdminPanel
                 departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
+
             />,
         );
 
@@ -151,7 +149,7 @@ describe('DepartmentAdminPanel', () => {
         render(
             <DepartmentAdminPanel
                 departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
+
             />,
         );
 
@@ -169,7 +167,7 @@ describe('DepartmentAdminPanel', () => {
         render(
             <DepartmentAdminPanel
                 departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
+
             />,
         );
 
@@ -200,7 +198,7 @@ describe('DepartmentAdminPanel', () => {
             render(
                 <DepartmentAdminPanel
                     departments={MOCK_DEPARTMENTS}
-                    eventId='event-1'
+
                 />,
             );
             const trigger =
@@ -246,7 +244,7 @@ describe('DepartmentAdminPanel', () => {
         render(
             <DepartmentAdminPanel
                 departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
+
             />,
         );
 
@@ -265,7 +263,7 @@ describe('DepartmentAdminPanel', () => {
             success: true,
             data: [{ id: '3', name: '新部署' }],
         });
-        render(<DepartmentAdminPanel departments={[]} eventId='event-1' />);
+        render(<DepartmentAdminPanel departments={[]}  />);
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
         await user.type(screen.getByLabelText(/部署名/), '新部署');
@@ -275,7 +273,7 @@ describe('DepartmentAdminPanel', () => {
         });
 
         await waitFor(() => {
-            expect(mockCreate).toHaveBeenCalledWith('event-1', { name: '新部署' });
+            expect(mockCreate).toHaveBeenCalledWith({ name: '新部署' });
         });
     });
 
@@ -291,7 +289,7 @@ describe('DepartmentAdminPanel', () => {
         render(
             <DepartmentAdminPanel
                 departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
+
             />,
         );
 
@@ -307,7 +305,7 @@ describe('DepartmentAdminPanel', () => {
         });
 
         await waitFor(() => {
-            expect(mockUpdate).toHaveBeenCalledWith('event-1', '1', {
+            expect(mockUpdate).toHaveBeenCalledWith('1', {
                 name: '変更後部署名',
             });
         });
@@ -322,7 +320,7 @@ describe('DepartmentAdminPanel', () => {
         render(
             <DepartmentAdminPanel
                 departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
+
             />,
         );
 
@@ -332,7 +330,7 @@ describe('DepartmentAdminPanel', () => {
         });
 
         await waitFor(() => {
-            expect(mockDelete).toHaveBeenCalledWith('event-1', '1');
+            expect(mockDelete).toHaveBeenCalledWith('1');
         });
     });
 
@@ -342,7 +340,7 @@ describe('DepartmentAdminPanel', () => {
         render(
             <DepartmentAdminPanel
                 departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
+
             />,
         );
 
@@ -354,7 +352,7 @@ describe('DepartmentAdminPanel', () => {
 
     it('部署名が空の場合にバリデーションエラーを表示する', async () => {
         const user = userEvent.setup();
-        render(<DepartmentAdminPanel departments={[]} eventId='event-1' />);
+        render(<DepartmentAdminPanel departments={[]}  />);
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
         await user.click(screen.getByRole('button', { name: '保存' }));
@@ -369,7 +367,7 @@ describe('DepartmentAdminPanel', () => {
             success: false,
             error: '登録に失敗しました',
         });
-        render(<DepartmentAdminPanel departments={[]} eventId='event-1' />);
+        render(<DepartmentAdminPanel departments={[]}  />);
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
         await user.type(screen.getByLabelText(/部署名/), '失敗部署');
@@ -391,7 +389,7 @@ describe('DepartmentAdminPanel', () => {
             success: true,
             data: [{ id: '3', name: '新部署' }],
         });
-        render(<DepartmentAdminPanel departments={[]} eventId='event-1' />);
+        render(<DepartmentAdminPanel departments={[]}  />);
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
         await user.type(screen.getByLabelText(/部署名/), '新部署');
@@ -414,7 +412,7 @@ describe('DepartmentAdminPanel', () => {
             success: true,
             data: [{ id: '3', name: '新部署' }],
         });
-        render(<DepartmentAdminPanel departments={[]} eventId='event-1' />);
+        render(<DepartmentAdminPanel departments={[]}  />);
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
         const input = screen.getByLabelText(/部署名/);
@@ -433,7 +431,7 @@ describe('DepartmentAdminPanel', () => {
             success: true,
             data: [{ id: '3', name: '新部署' }],
         });
-        render(<DepartmentAdminPanel departments={[]} eventId='event-1' />);
+        render(<DepartmentAdminPanel departments={[]}  />);
 
         await user.click(screen.getByRole('button', { name: '+ 追加' }));
         const input = screen.getByLabelText(/部署名/);
@@ -444,95 +442,12 @@ describe('DepartmentAdminPanel', () => {
         });
 
         await waitFor(() => {
-            expect(mockCreate).toHaveBeenCalledWith('event-1', { name: '新部署' });
+            expect(mockCreate).toHaveBeenCalledWith({ name: '新部署' });
         });
     });
 
-    it('コピー元会期未選択でコピーするとエラーを表示する', async () => {
-        const user = userEvent.setup();
-        mockAccessCodesGet.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({
-                codes: [{ id: 'event-2', eventName: '前回会期' }],
-            }),
-        } as never);
-        render(
-            <DepartmentAdminPanel
-                departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
-            />,
-        );
-
-        await waitFor(() => {
-            expect(screen.getByRole('button', { name: 'コピーして追加' })).toBeEnabled();
-        });
-        await user.click(screen.getByRole('button', { name: 'コピーして追加' }));
-
-        expect(screen.getByRole('alert')).toHaveTextContent(
-            'コピー元会期を選択してください',
-        );
-        expect(mockCopy).not.toHaveBeenCalled();
-    });
-
-    it('コピー元会期を選択してコピーできる', async () => {
-        const user = userEvent.setup();
-        mockAccessCodesGet.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({
-                codes: [
-                    { id: 'event-1', eventName: '現在会期' },
-                    { id: 'event-2', eventName: '前回会期' },
-                ],
-            }),
-        } as never);
-        mockFetchFromBackend.mockResolvedValueOnce(
-            new Response(
-                JSON.stringify({
-                    departments: [
-                        { id: '1', name: '企画部' },
-                        { id: '2', name: '運営部' },
-                        { id: '3', name: '広報部' },
-                    ],
-                }),
-                {
-                    status: 200,
-                    headers: { 'Content-Type': 'application/json' },
-                },
-            ),
-        );
-        mockCopy.mockResolvedValue({
-            success: true,
-            data: [
-                { id: '1', name: '企画部' },
-                { id: '2', name: '運営部' },
-                { id: '3', name: '広報部' },
-            ],
-        });
-
-        render(
-            <DepartmentAdminPanel
-                departments={MOCK_DEPARTMENTS}
-                eventId='event-1'
-            />,
-        );
-
-        await waitFor(() => {
-            expect(screen.getByRole('option', { name: '前回会期' })).toBeVisible();
-        });
-        await user.selectOptions(
-            screen.getByRole('combobox', { name: 'コピー元会期' }),
-            'event-2',
-        );
-
-        await act(async () => {
-            await user.click(screen.getByRole('button', { name: 'コピーして追加' }));
-        });
-
-        await waitFor(() => {
-            expect(mockCopy).toHaveBeenCalledWith('event-1', 'event-2');
-            expect(screen.getByRole('status')).toHaveTextContent(
-                '過去会期から部署をコピーしました',
-            );
-        });
+    it('会期コピーを表示しない', () => {
+        render(<DepartmentAdminPanel departments={MOCK_DEPARTMENTS} />);
+        expect(screen.queryByText('過去会期からコピー')).not.toBeInTheDocument();
     });
 });

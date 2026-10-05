@@ -1,6 +1,10 @@
+import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import { NextRequest } from 'next/server';
 import { verify } from 'hono/jwt';
 import { middleware } from '@frontend/middleware';
+
+jest.mock('@frontend/app/lib/backendFetch', () => ({ fetchFromBackend: jest.fn() }));
+const mockBackendFetch = jest.mocked(fetchFromBackend);
 
 // hono/jwt の verify をモック化し、JWT の実署名検証をテストから分離する
 jest.mock('hono/jwt', () => ({
@@ -35,6 +39,8 @@ const accessPayload = { event_id: 'event-1', exp: 9_999_999_999 };
 
 beforeEach(() => {
     mockVerify.mockReset();
+    mockBackendFetch.mockReset();
+    mockBackendFetch.mockImplementation(async () => new Response(JSON.stringify(adminPayload)));
 });
 
 // ─── 公開ページ ───────────────────────────────────────────────────────────────
@@ -229,5 +235,27 @@ describe('fail-closed: verify エラー時はアクセス拒否', () => {
         );
         expect(res.status).toBe(307);
         expect(res.headers.get('location')).toContain('/access');
+    });
+});
+
+
+describe('現在のアカウント状態による保護', () => {
+    it('古い管理者トークンでも降格後は管理画面へ入れない', async () => {
+        mockVerify.mockResolvedValue(adminPayload);
+        mockBackendFetch.mockResolvedValue(new Response(JSON.stringify({ ...adminPayload, role: 'user' })));
+        const res = await middleware(createRequest('/admin/access-codes', { auth_token: 'old.admin.token' }));
+        expect(res.headers.get('location')).toContain('/login');
+    });
+    it('削除後は古い管理者トークンでログイン画面から転送されない', async () => {
+        mockVerify.mockResolvedValue(adminPayload);
+        mockBackendFetch.mockResolvedValue(new Response('{}', { status: 401 }));
+        const res = await middleware(createRequest('/login', { auth_token: 'deleted.admin.token' }));
+        expect(res.headers.get('location')).toBeNull();
+    });
+    it('認証情報の確認が失敗した場合は管理画面へ入れない', async () => {
+        mockVerify.mockResolvedValue(adminPayload);
+        mockBackendFetch.mockRejectedValue(new Error('offline'));
+        const res = await middleware(createRequest('/dashboard', { auth_token: 'old.admin.token' }));
+        expect(res.headers.get('location')).toContain('/login');
     });
 });
