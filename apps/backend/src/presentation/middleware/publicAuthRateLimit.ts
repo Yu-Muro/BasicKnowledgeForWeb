@@ -8,6 +8,9 @@ type RateLimitOptions = {
     operation: 'login' | 'verify' | 'register';
 };
 
+// wrangler.jsonc の PUBLIC_AUTH_RATE_LIMITER.simple.period と対応する。
+export const PUBLIC_AUTH_RETRY_AFTER = '60';
+
 /** IPv6の表記揺れを除き、同一/64内でアドレスを変える迂回を防ぐ。 */
 export function toRateLimitSubject(ip: string): string | null {
     const version = isIP(ip);
@@ -71,7 +74,7 @@ export async function checkPublicAuthRateLimit({
             body: {
                 error: '試行回数が多すぎます。しばらく待ってから再試行してください',
             },
-            retryAfter: '60',
+            retryAfter: PUBLIC_AUTH_RETRY_AFTER,
         };
     } catch {
         return unavailable('limiter-error');
