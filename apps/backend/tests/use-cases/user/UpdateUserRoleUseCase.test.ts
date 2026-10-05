@@ -1,3 +1,4 @@
+import { departmentRepository } from '../../helpers/departmentRepository';
 import { describe, expect, it } from '@jest/globals';
 import type {
     IUserRepository,
@@ -13,6 +14,7 @@ const mockUser: User = {
     role: 'user',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
+    departmentId: '60000000-0000-4000-8000-000000000001',
     deletedAt: null,
 };
 
@@ -24,6 +26,8 @@ function createMockRepo(overrides: Partial<IUserRepository> = {}): IUserReposito
         create: async () => mockUser,
         updateRole: async () => ({ ...mockUser, role: 'admin' }),
         updatePassword: async () => undefined,
+        updateDepartment: async () => null,
+        softDelete: async () => false,
         ...overrides,
     };
 }
@@ -31,7 +35,7 @@ function createMockRepo(overrides: Partial<IUserRepository> = {}): IUserReposito
 describe('UpdateUserRoleUseCase', () => {
     it('ユーザーが存在する場合、ロールを更新して success: true を返す', async () => {
         const repo = createMockRepo();
-        const useCase = new UpdateUserRoleUseCase(repo);
+        const useCase = new UpdateUserRoleUseCase(repo, departmentRepository);
 
         const result = await useCase.execute({ id: mockUser.id, role: 'admin' });
 
@@ -40,7 +44,7 @@ describe('UpdateUserRoleUseCase', () => {
 
     it('ユーザーが存在しない場合、404 エラーを返す', async () => {
         const repo = createMockRepo({ findById: async () => null });
-        const useCase = new UpdateUserRoleUseCase(repo);
+        const useCase = new UpdateUserRoleUseCase(repo, departmentRepository);
 
         const result = await useCase.execute({ id: 'nonexistent', role: 'admin' });
 
@@ -52,7 +56,7 @@ describe('UpdateUserRoleUseCase', () => {
 
     it('updateRole が null を返した場合（並行削除など）、404 エラーを返す', async () => {
         const repo = createMockRepo({ updateRole: async () => null });
-        const useCase = new UpdateUserRoleUseCase(repo);
+        const useCase = new UpdateUserRoleUseCase(repo, departmentRepository);
 
         const result = await useCase.execute({ id: mockUser.id, role: 'admin' });
 
@@ -67,7 +71,7 @@ describe('UpdateUserRoleUseCase', () => {
                 throw new Error('DB error');
             },
         });
-        const useCase = new UpdateUserRoleUseCase(repo);
+        const useCase = new UpdateUserRoleUseCase(repo, departmentRepository);
 
         const result = await useCase.execute({ id: mockUser.id, role: 'admin' });
 

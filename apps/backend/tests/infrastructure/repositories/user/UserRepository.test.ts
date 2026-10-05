@@ -13,6 +13,7 @@ const mockUser: User = {
     role: 'user',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
+    departmentId: '60000000-0000-4000-8000-000000000001',
     deletedAt: null,
 };
 
@@ -26,7 +27,7 @@ describe('UserRepository', () => {
                 select: jest.fn().mockReturnValue({
                     from: jest
                         .fn()
-                        .mockReturnValue({ orderBy: orderByMock }),
+                        .mockReturnValue({ where: jest.fn().mockReturnValue({ orderBy: orderByMock }) }),
                 }),
             } as unknown as DatabaseClient;
             const repository = new UserRepository(db);
@@ -40,11 +41,11 @@ describe('UserRepository', () => {
         it('ユーザーが存在しない場合、空配列を返す', async () => {
             const db = {
                 select: jest.fn().mockReturnValue({
-                    from: jest.fn().mockReturnValue({
+                    from: jest.fn().mockReturnValue({ where: jest.fn().mockReturnValue({
                         orderBy: jest
                             .fn()
                             .mockImplementation(() => Promise.resolve([])),
-                    }),
+                    }) }),
                 }),
             } as unknown as DatabaseClient;
             const repository = new UserRepository(db);
@@ -152,6 +153,7 @@ describe('UserRepository', () => {
                 email: 'test@example.com',
                 password: 'hashedPassword',
                 role: 'user',
+                departmentId: '60000000-0000-4000-8000-000000000001',
             };
             const result = await repository.create(input);
 

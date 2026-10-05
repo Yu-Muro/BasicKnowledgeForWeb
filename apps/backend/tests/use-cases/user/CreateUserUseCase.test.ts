@@ -1,3 +1,4 @@
+import { departmentRepository } from '../../helpers/departmentRepository';
 import { describe, expect, it } from '@jest/globals';
 import type { IUserRepository, NewUser, User } from '@backend/src/infrastructure/repositories/user/IUserRepository';
 import { CreateUserUseCase } from '@backend/src/use-cases/user/CreateUserUseCase';
@@ -10,6 +11,7 @@ const mockUser: User = {
     role: 'user',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
+    departmentId: '60000000-0000-4000-8000-000000000001',
     deletedAt: null,
 };
 
@@ -18,6 +20,7 @@ const validInput = {
     email: 'test@example.com',
     password: 'password123',
     role: 'user' as const,
+    departmentId: '60000000-0000-4000-8000-000000000001',
 };
 
 function createMockRepo(overrides: Partial<IUserRepository> = {}): IUserRepository {
@@ -28,6 +31,8 @@ function createMockRepo(overrides: Partial<IUserRepository> = {}): IUserReposito
         create: async () => mockUser,
         updateRole: async () => null,
         updatePassword: async () => undefined,
+        updateDepartment: async () => null,
+        softDelete: async () => false,
         ...overrides,
     };
 }
@@ -35,13 +40,14 @@ function createMockRepo(overrides: Partial<IUserRepository> = {}): IUserReposito
 describe('CreateUserUseCase', () => {
     it('正常にユーザーを作成できる', async () => {
         const repo = createMockRepo();
-        const useCase = new CreateUserUseCase(repo);
+        const useCase = new CreateUserUseCase(repo, departmentRepository);
 
         const result = await useCase.execute(validInput);
 
         expect(result.success).toBe(true);
         if (!result.success) return;
-        expect(result.data).toEqual(mockUser);
+        const { password: _password, ...publicUser } = mockUser;
+        expect(result.data).toEqual(publicUser);
     });
 
     it('パスワードをハッシュ化してリポジトリに渡す', async () => {
@@ -52,7 +58,7 @@ describe('CreateUserUseCase', () => {
                 return { ...mockUser, ...input };
             },
         });
-        const useCase = new CreateUserUseCase(repo);
+        const useCase = new CreateUserUseCase(repo, departmentRepository);
 
         await useCase.execute(validInput);
 
@@ -62,7 +68,7 @@ describe('CreateUserUseCase', () => {
 
     it('メールアドレスが既に使用されている場合はエラーを返す', async () => {
         const repo = createMockRepo({ findByEmail: async () => mockUser });
-        const useCase = new CreateUserUseCase(repo);
+        const useCase = new CreateUserUseCase(repo, departmentRepository);
 
         const result = await useCase.execute(validInput);
 
@@ -79,9 +85,9 @@ describe('CreateUserUseCase', () => {
                 return { ...mockUser, ...input };
             },
         });
-        const useCase = new CreateUserUseCase(repo);
+        const useCase = new CreateUserUseCase(repo, departmentRepository);
 
-        await useCase.execute({ ...validInput, role: undefined as unknown as string });
+        await useCase.execute({ ...validInput, role: 'user' });
 
         expect(capturedInput?.role).toBe('user');
     });
@@ -92,7 +98,7 @@ describe('CreateUserUseCase', () => {
                 throw new Error('INSERT失敗');
             },
         });
-        const useCase = new CreateUserUseCase(repo);
+        const useCase = new CreateUserUseCase(repo, departmentRepository);
 
         const result = await useCase.execute(validInput);
 

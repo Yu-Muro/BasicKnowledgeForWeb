@@ -22,6 +22,7 @@ const mockUser: User = {
     role: 'user',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
+    departmentId: '60000000-0000-4000-8000-000000000001',
     deletedAt: null,
 };
 
@@ -60,6 +61,8 @@ function createMockUserRepository(
         updatePassword: jest
             .fn<(id: string, hashedPassword: string) => Promise<void>>()
             .mockResolvedValue(undefined),
+        updateDepartment: async () => null,
+        softDelete: async () => false,
         ...overrides,
     };
 }
@@ -133,6 +136,7 @@ describe('POST /api/users', () => {
         name: '新規ユーザー',
         email: 'new@example.com',
         password: 'password123',
+        departmentId: '60000000-0000-4000-8000-000000000001',
     };
 
     it('正常なデータでユーザーを作成し、201を返す', async () => {

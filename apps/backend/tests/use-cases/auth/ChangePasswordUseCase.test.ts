@@ -18,6 +18,7 @@ beforeAll(async () => {
         role: 'user',
         createdAt: new Date('2024-01-01'),
         updatedAt: new Date('2024-01-01'),
+        departmentId: '60000000-0000-4000-8000-000000000001',
         deletedAt: null,
     };
 });
@@ -38,6 +39,8 @@ function mockRepository(
         updatePassword: jest
             .fn<IUserRepository['updatePassword']>()
             .mockResolvedValue(undefined),
+        updateDepartment: async () => null,
+        softDelete: async () => false,
         ...overrides,
     };
 }

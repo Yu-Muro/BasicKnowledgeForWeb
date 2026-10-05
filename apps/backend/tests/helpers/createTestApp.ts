@@ -1,3 +1,4 @@
+import { departmentRepository } from './departmentRepository';
 import type { Env } from '@backend/src/db/connection';
 import type { IAccessCodeRepository } from '@backend/src/infrastructure/repositories/access-code/IAccessCodeRepository';
 import type { IDepartmentRepository } from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
@@ -34,7 +35,7 @@ export function createTestAppWithUsers(
     userRepository: IUserRepository,
 ) {
     const app = new Hono<{ Bindings: Env }>();
-    app.route('/api', createUserRoutes(() => userRepository));
+    app.route('/api', createUserRoutes(() => userRepository, () => departmentRepository));
     return app;
 }
 
