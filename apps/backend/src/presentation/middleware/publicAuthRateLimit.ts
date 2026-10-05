@@ -1,7 +1,7 @@
 import { isIP } from 'node:net';
 import type { PublicAuthRateLimiter } from '../../db/connection';
 
-type RateLimitOptions = {
+export type RateLimitOptions = {
     enabled: boolean;
     limiter?: PublicAuthRateLimiter;
     ip?: string;

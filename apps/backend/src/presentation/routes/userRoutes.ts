@@ -12,7 +12,7 @@ import { CreateUserUseCase } from '@backend/src/use-cases/user/CreateUserUseCase
 import { GetUsersUseCase } from '@backend/src/use-cases/user/GetUsersUseCase';
 import { UpdateUserRoleUseCase } from '@backend/src/use-cases/user/UpdateUserRoleUseCase';
 import { Hono } from 'hono';
-import { checkPublicAuthRateLimit } from '../middleware/publicAuthRateLimit';
+import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
 
 type UserRepositoryFactory = (env: Env) => IUserRepository;
 
@@ -30,18 +30,8 @@ export function createUserRoutes(
             })
             // POST /api/users - ユーザー作成
             .post('/users', async (c) => {
-                const limited = await checkPublicAuthRateLimit({
-                    enabled: c.env?.PUBLIC_AUTH_RATE_LIMIT_ENABLED === 'true',
-                    limiter: c.env?.PUBLIC_AUTH_RATE_LIMITER,
-                    ip: c.req.header('CF-Connecting-IP'),
-                    operation: 'register',
-                });
-                if (limited) {
-                    c.header('Cache-Control', 'no-store');
-                    if (limited.retryAfter)
-                        c.header('Retry-After', limited.retryAfter);
-                    return c.json(limited.body, limited.status);
-                }
+                const limited = await publicAuthRateLimitGuard(c, 'register');
+                if (limited) return limited;
                 const repository = repositoryFactory(c.env);
                 const useCase = new CreateUserUseCase(repository);
                 return createUser(c, useCase);
