@@ -274,6 +274,7 @@ users table:
   email       varchar(255) not null, unique
   password    text         not null
   role        varchar(50)  default 'user'
+  department_id uuid      FK → departments.id (RESTRICT), nullable（adminは所属任意、移行中以外のuserは必須）
   created_at  timestamp    auto-populated
   updated_at  timestamp    auto-populated
   deleted_at  timestamp    nullable (soft delete)
@@ -289,11 +290,9 @@ access_codes table:
 
 departments table:
   id          uuid        primary key
-  event_id    uuid        FK → access_codes.id (RESTRICT)
-  name        varchar(255) not null
+  name        varchar(255) not null, unique（全会期共通）
   created_at  timestamp    auto-populated
   updated_at  timestamp    auto-populated
-  UNIQUE INDEX (event_id, id)  ← composite FK の参照元として必要
 
 timetable_items table:
   id          uuid        primary key
@@ -312,9 +311,9 @@ rooms table:
   building_name       varchar(255) not null
   floor               varchar(50)  not null
   room_name           varchar(255) not null
-  pre_day_manager_id  uuid        composite FK → departments(event_id, id) (RESTRICT), nullable
+  pre_day_manager_id  uuid        FK → departments.id (RESTRICT), nullable
   pre_day_purpose     varchar(255) nullable
-  day_manager_id      uuid        composite FK → departments(event_id, id) (RESTRICT), not null
+  day_manager_id      uuid        FK → departments.id (RESTRICT), not null
   day_purpose         varchar(255) not null
   notes               text         nullable
   created_at          timestamp    auto-populated
@@ -358,7 +357,7 @@ other_items table:
 ```
 
 **⚠️ CockroachDB — 複合外部キーと migration 順序**
-CockroachDB で複合 FK（例: `(event_id, manager_id) → departments(event_id, id)`）を追加するには、
+CockroachDB で複合 FK（例: `(event_id, timetable_item_id) → timetable_items(event_id, id)`）を追加するには、
 参照先の列の組み合わせに UNIQUE INDEX が先に存在していなければならない。
 migration ファイルでは `CREATE UNIQUE INDEX IF NOT EXISTS` を `ADD CONSTRAINT ... FOREIGN KEY` より前に記述すること。
 `IF NOT EXISTS` を付けることで migration の部分実行後の再試行でもエラーにならない。
@@ -727,7 +726,7 @@ JWT ベース認証を採用しており、トークンは 2 種類あります�
 
 ### コンテンツアクセスミドルウェア
 
-`contentAccessMiddleware` (`src/presentation/middleware/contentAccessMiddleware.ts`) は全コンテンツ GET API に適用する。
+`contentAccessMiddleware` (`src/presentation/middleware/contentAccessMiddleware.ts`) は会期コンテンツ GET API に適用する。全会期共通の `GET /api/departments` は登録時の候補取得にも使うため認証・会期指定不要。部署の変更操作は `authMiddleware` + `roleGuard(['admin'])` を使う。
 
 以下のいずれかを満たすリクエストのみ通過させる:
 
@@ -752,7 +751,18 @@ Feature テストでは `app.request(path, { headers }, mockEnv)` の第3引数�
 `access_token`（event一致）または `auth_token(admin)` のみ通過する。
 より細かい RBAC が必要な場合は use case 層に追加する。
 
-### Soft Delete（今後対応）
+### ユーザーの所属とセッション
+
+- `admin` を除くユーザーは全会期共通の部署へ所属する。公開登録で `admin` を指定することはできない。
+- 新規登録時は本人が部署を選択する。既存ユーザーの所属指定と登録後の部署変更は管理者のみ可能。
+- 一般ユーザーへロール変更する際は管理者が部署を指定する。管理者への変更時は所属を解除する。
+- 既存ユーザーの未設定所属は移行期間のみ許容し、設定まではログイン・ユーザー認証セッションを拒否する。
+- API入口の `createSessionValidation` は現在のロール・所属・削除状態をDBで確認する。フロントのmiddlewareと`resolveAuth`も`/api/auth/me`で現在状態を確認する。
+- 移行手順は `docs/global-departments-migration.md` を参照する。
+
+### Soft Delete
+
+`users` は管理者による論理削除に対応する。自分自身の削除は禁止する。削除済みユーザーは一覧に返さず、ログインと発行済み `auth_token` によるAPIアクセスも拒否する。
 
 現時点で `deleted_at` を持つのは `users` テーブルのみ。
 今後ほかのテーブルへ広げる場合は次を適用する:

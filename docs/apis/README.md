@@ -51,6 +51,8 @@
 | GET | `/api/users` | `auth_token(admin)` | ユーザー一覧取得 |
 | POST | `/api/users` | 不要 | ユーザー作成（登録） |
 | PUT | `/api/users/:id/role` | `auth_token(admin)` | ユーザーロール変更 |
+| PUT | `/api/users/:id/department` | `auth_token(admin)` | ユーザーの所属部署変更 |
+| DELETE | `/api/users/:id` | `auth_token(admin)` | ユーザーの論理削除 |
 
 ### Access Codes
 
@@ -104,10 +106,10 @@
 
 | Method | Path | 認証 | 概要 |
 |---|---|---|---|
-| GET | `/api/departments` | `contentAccessMiddleware` | 部署一覧 |
-| POST | `/api/departments` | `contentEditMiddleware + admin` | 部署作成 |
-| PUT | `/api/departments/:id` | `contentEditMiddleware + admin` | 部署更新 |
-| DELETE | `/api/departments/:id` | `contentEditMiddleware + admin` | 部署削除 |
+| GET | `/api/departments` | 不要（全会期共通） | 部署一覧 |
+| POST | `/api/departments` | `auth_token(admin)` | 部署作成 |
+| PUT | `/api/departments/:id` | `auth_token(admin)` | 部署更新 |
+| DELETE | `/api/departments/:id` | `auth_token(admin)` | 部署削除 |
 
 ### Others
 

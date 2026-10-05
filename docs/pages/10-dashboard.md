@@ -2,7 +2,7 @@
 
 ## 概要
 - ログインユーザーのプロフィール表示と各種設定画面。
-- `admin` のみユーザー権限管理と管理メニューを利用できる。
+- `admin` のみユーザーの部署・権限・削除管理と管理メニューを利用できる。
 
 ## アクセス制御
 - `auth_token` がない場合は `/login` にリダイレクト。
@@ -33,7 +33,7 @@
 - `newPassword` は 8文字以上
 
 ### `GET /api/users`（admin）
-- 全ユーザー一覧を取得
+- 削除済みを除くユーザー一覧を取得。`departmentId` を含む。
 
 ### `PUT /api/users/:id/role`（admin）
 ```json
@@ -41,7 +41,15 @@
   "role": "admin"
 }
 ```
-- `role` は `user | admin`
+- `role` は `user | admin`。`user` へ変更するときは存在する `departmentId` が必須。`admin` への変更では所属を解除する。
+- 自分を一般ユーザーへ変更した場合はログインCookieを削除してログイン画面へ移動する。
+
+### `PUT /api/users/:id/department`（admin）
+- Body: `{ "departmentId": "uuid" }`。所属未設定ユーザーへの指定と部署変更に使用する。
+
+### `DELETE /api/users/:id`（admin）
+- 確認ダイアログで承認後に論理削除する。自分自身は削除できない。
+- 所属未設定ユーザーは一覧に「所属未設定」と表示する。管理者が指定するまでログインできない。
 
 ## 実装メモ
 - ページ: `apps/frontend/app/(authenticated)/dashboard/page.tsx`
@@ -54,4 +62,6 @@
 - 未ログイン時リダイレクト
 - パスワード変更の成功/失敗
 - admin でのみユーザー管理が表示される
-- ロール変更後の一覧再取得
+- ロール・部署変更と削除後の一覧更新
+- 自分自身の削除を防ぐ
+- 部署未指定の一般ユーザーへの変更を防ぐ
