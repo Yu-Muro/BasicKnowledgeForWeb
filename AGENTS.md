@@ -600,8 +600,8 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
 | ワークフロー | トリガー | ジョブ |
 |---|---|---|
 | `pull-request.yml` | PR → `main` or `develop` | lint-and-test-backend, verify-migration-backend, lint-and-test-frontend |
-| `deploy-dev.yml` | push → `develop` | DB migrate → backend deploy → frontend deploy (env: dev) |
-| `deploy-prod.yml` | push → `main` | DB migrate → backend deploy → frontend deploy (env: prod) |
+| `deploy-dev.yml` | push → `develop` | 互換DB拡張 → backend deploy → 部署統合DB移行 → frontend deploy (env: dev) |
+| `deploy-prod.yml` | push → `main` | 互換DB拡張 → backend deploy → 部署統合DB移行 → frontend deploy (env: prod) |
 | `security-scan.yml` | PR 作成/更新時 | AikidoSec, Betterleaks, anti-trojan-source |
 | `renovate.yml` | 毎日 07:00 JST / 手動実行 | Renovate（セルフホスト）で依存更新 PR を作成。実際に PR を作るかは `renovate.json` の `schedule` が判定 |
 
