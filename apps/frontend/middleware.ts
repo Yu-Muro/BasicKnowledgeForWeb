@@ -1,11 +1,11 @@
-import { fetchFromBackend } from './app/lib/backendFetch';
 import { verify } from 'hono/jwt';
 import { type NextRequest, NextResponse } from 'next/server';
+import { fetchFromBackend } from './app/lib/backendFetch';
 
 // JWT_SECRET は Edge Runtime では process.env から取得
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
 
-type AuthPayload = { id: string; role: string; exp: number };
+type AuthPayload = { id: string; role: string };
 type AccessPayload = { event_id: string; exp: number };
 
 function debugLog(message: string, details: Record<string, unknown> = {}) {
@@ -23,25 +23,34 @@ async function verifyToken<T>(token: string): Promise<T | null> {
 }
 
 async function verifyAuthToken(token: string): Promise<AuthPayload | null> {
-    const auth = await verifyToken<AuthPayload>(token);
-    if (!auth) return null;
     try {
-        const res = await fetchFromBackend('/api/auth/me', { headers: { Cookie: `auth_token=${token}` }, cache: 'no-store' });
+        const res = await fetchFromBackend('/api/auth/me', {
+            headers: { Cookie: `auth_token=${token}` },
+            cache: 'no-store',
+        });
         if (!res.ok) return null;
-        const user = await res.json() as { id: string; role: string };
-        if (user.id !== auth.id) return null;
-        return { ...auth, role: user.role };
-    } catch { return null; }
+        return (await res.json()) as AuthPayload;
+    } catch {
+        return null;
+    }
 }
 
-// コンテンツページ: access_token または auth_token(admin) が必要
-const CONTENT_PATHS = ['/', '/timetable', '/rooms', '/events', '/shop', '/others', '/search'];
+// コンテンツページ: access_token またはスタッフ・管理者のセッション が必要
+const CONTENT_PATHS = [
+    '/',
+    '/timetable',
+    '/rooms',
+    '/events',
+    '/shop',
+    '/others',
+    '/search',
+];
 
-// 管理者ダッシュボード（要ログイン）
+// ログイン済みスタッフ・管理者の設定画面
 const USER_AUTH_PATHS = ['/dashboard'];
 
 // 管理者専用ルート
-const ADMIN_PATHS = ['/admin'];
+const ADMIN_PATHS = ['/admin', '/departments'];
 
 // 公開ページ（認証不要）
 const PUBLIC_PATHS = ['/login', '/register', '/access'];
@@ -54,11 +63,13 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith('/login')) {
         if (authToken) {
             const auth = await verifyAuthToken(authToken);
-            if (auth?.role === 'admin') {
+            if (auth && ['admin', 'user'].includes(auth.role)) {
                 debugLog('redirecting /login -> /dashboard (admin token)', {
                     role: auth.role,
                 });
-                return NextResponse.redirect(new URL('/dashboard', request.url));
+                return NextResponse.redirect(
+                    new URL('/dashboard', request.url),
+                );
             }
             debugLog('auth_token present on /login but not admin', {
                 hasAuth: true,
@@ -72,7 +83,7 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith('/access')) {
         if (authToken) {
             const auth = await verifyAuthToken(authToken);
-            if (auth?.role === 'admin') {
+            if (auth && ['admin', 'user'].includes(auth.role)) {
                 debugLog('redirecting /access -> / (admin token)', {
                     role: auth.role,
                 });
@@ -104,7 +115,7 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(new URL('/login', request.url));
         }
         const auth = await verifyAuthToken(authToken);
-        if (!auth || auth.role !== 'admin') {
+        if (auth?.role !== 'admin') {
             debugLog('redirect:/login invalid admin token', {
                 pathname,
                 hasAuthToken: true,
@@ -126,7 +137,7 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(new URL('/login', request.url));
         }
         const auth = await verifyAuthToken(authToken);
-        if (!auth || auth.role !== 'admin') {
+        if (!auth || !['admin', 'user'].includes(auth.role)) {
             debugLog('redirect:/login dashboard auth failed', {
                 pathname,
                 hasAuthToken: true,
@@ -140,11 +151,15 @@ export async function middleware(request: NextRequest) {
     }
 
     // --- コンテンツページ保護 ---
-    if (CONTENT_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    if (
+        CONTENT_PATHS.some(
+            (p) => pathname === p || pathname.startsWith(`${p}/`),
+        )
+    ) {
         // admin はユーザー認証で通過
         if (authToken) {
             const auth = await verifyAuthToken(authToken);
-            if (auth?.role === 'admin') {
+            if (auth && ['admin', 'user'].includes(auth.role)) {
                 debugLog('allow content with admin token', {
                     pathname,
                     role: auth.role,

@@ -3,7 +3,6 @@ import { logoutAction } from '@frontend/app/actions/auth';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import {
     type AccessPayload,
-    type AuthPayload,
     decodeJwtPayload,
     resolveAuth,
 } from '@frontend/app/lib/serverAuth';
@@ -17,13 +16,13 @@ type AccessCode = { id: string; eventName: string };
 
 async function fetchAccessCodes(authToken: string): Promise<AccessCode[]> {
     try {
-        const res = await fetchFromBackend('/api/access-codes', {
+        const res = await fetchFromBackend('/api/events', {
             headers: { Cookie: `auth_token=${authToken}` },
             cache: 'no-store',
         });
         if (!res.ok) return [];
-        const data = (await res.json()) as { codes: AccessCode[] };
-        return data.codes ?? [];
+        const data = (await res.json()) as { events: AccessCode[] };
+        return data.events ?? [];
     } catch {
         return [];
     }
@@ -56,17 +55,14 @@ export default async function AuthenticatedLayout({
 }) {
     const { authToken, accessToken, role, user } = await resolveAuth();
 
-    const authPayload = authToken
-        ? decodeJwtPayload<AuthPayload>(authToken)
-        : null;
     const accessPayload = accessToken
         ? decodeJwtPayload<AccessPayload>(accessToken)
         : null;
 
-    const userName = user?.name ?? authPayload?.name ?? null;
+    const userName = user?.name ?? null;
     const userEventId = accessPayload?.event_id ?? null;
 
-    const isPrivileged = role === 'admin';
+    const isPrivileged = ['admin', 'user'].includes(role);
     const accessCodes: AccessCode[] =
         isPrivileged && authToken ? await fetchAccessCodes(authToken) : [];
     const userEventName: string | null =

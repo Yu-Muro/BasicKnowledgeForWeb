@@ -24,7 +24,7 @@ export function createRoomRoutes(
         new RoomRepository(createDatabaseClient(env)),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
-    const ADMIN_ROLES = ['admin'];
+    const EDITOR_ROLES = ['admin', 'user'];
 
     app.get('/rooms', contentAccessMiddleware, async (c) => {
         const repository = repositoryFactory(c.env);
@@ -35,7 +35,7 @@ export function createRoomRoutes(
     app.post(
         '/rooms',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new CreateRoomUseCase(repository);
@@ -46,7 +46,7 @@ export function createRoomRoutes(
     app.put(
         '/rooms/:id',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new UpdateRoomUseCase(repository);
@@ -57,7 +57,7 @@ export function createRoomRoutes(
     app.delete(
         '/rooms/:id',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new DeleteRoomUseCase(repository);

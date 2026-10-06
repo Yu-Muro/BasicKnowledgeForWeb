@@ -9,9 +9,9 @@ import type { AuthVariables } from './authMiddleware';
  *
  * 以下のいずれかを満たす場合にリクエストを通過させる:
  * - access_token が有効、かつ JWT 内の event_id が x-event-id ヘッダーと一致する
- * - auth_token が有効、かつ role が admin である
+ * - DBセッションが有効で、管理者または部署スタッフである
  *
- * role=user の auth_token はコンテンツ API を通過できない（access_token が必要）。
+ * 閲覧のみの一般ユーザーは access_token が必要。
  */
 export const contentAccessMiddleware = createMiddleware<{
     Bindings: Env;
@@ -46,26 +46,10 @@ export const contentAccessMiddleware = createMiddleware<{
         }
     }
 
-    // auth_token 認証: JWT が有効かつ role が admin であること
-    if (authToken) {
-        try {
-            const payload = await verify(authToken, c.env.JWT_SECRET, 'HS256');
-            const role =
-                c.get('user')?.role ?? (payload.role as string | undefined);
-            if (role === 'admin') {
-                await next();
-                return;
-            }
-            console.log('[contentAccess] auth_token role not admin', {
-                path: c.req.path,
-                role,
-            });
-        } catch (err) {
-            console.log('[contentAccess] auth_token verification failed', {
-                path: c.req.path,
-                error: err instanceof Error ? err.message : String(err),
-            });
-        }
+    // Account sessions are resolved from Better Auth and the current user row.
+    if (['admin', 'user'].includes(c.get('user')?.role ?? '')) {
+        await next();
+        return;
     }
 
     if (!accessToken && !authToken) {

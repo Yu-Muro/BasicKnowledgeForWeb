@@ -5,13 +5,19 @@ import { getCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import { verify } from 'hono/jwt';
 import type { AuthVariables } from '../middleware/authMiddleware';
+import {
+    type AuthenticationFactory,
+    createAuthenticationRepository,
+} from './authenticationFactory';
 
 export function createSessionValidation(
     repositoryFactory: (env: Env) => IUserRepository = (env) =>
         new UserRepository(createDatabaseClient(env)),
+    authenticationFactory: AuthenticationFactory = createAuthenticationRepository,
 ) {
     return createMiddleware<{ Bindings: Env; Variables: AuthVariables }>(
         async (c, next) => {
+            c.header('Cache-Control', 'no-store');
             // Event access is independent of the account session for read-only content.
             const contentRead =
                 c.req.method === 'GET' &&
@@ -54,12 +60,14 @@ export function createSessionValidation(
                 return next();
             let id: string;
             try {
-                const payload = await verify(token, c.env.JWT_SECRET, 'HS256');
-                if (typeof payload.id !== 'string')
+                const sessionUserId = await (
+                    await authenticationFactory(c.env)
+                ).getSessionUserId(new Headers(c.req.raw.headers));
+                if (!sessionUserId)
                     return c.json({ error: 'Unauthorized' }, 401);
-                id = payload.id;
+                id = sessionUserId;
             } catch {
-                return c.json({ error: 'Unauthorized' }, 401);
+                return c.json({ error: '認証情報の確認に失敗しました' }, 503);
             }
             try {
                 const user = await repositoryFactory(c.env).findById(id);

@@ -26,7 +26,7 @@ export function createShopItemRoutes(
         new ShopItemRepository(createDatabaseClient(env)),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
-    const ADMIN_ROLES = ['admin'];
+    const EDITOR_ROLES = ['admin', 'user'];
 
     app.get('/shop-items', contentAccessMiddleware, async (c) => {
         const repository = repositoryFactory(c.env);
@@ -37,7 +37,7 @@ export function createShopItemRoutes(
     app.post(
         '/shop-items',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new CreateShopItemUseCase(
@@ -51,7 +51,7 @@ export function createShopItemRoutes(
     app.put(
         '/shop-items/:id',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new UpdateShopItemUseCase(
@@ -65,7 +65,7 @@ export function createShopItemRoutes(
     app.delete(
         '/shop-items/:id',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new DeleteShopItemUseCase(repository);
@@ -76,7 +76,7 @@ export function createShopItemRoutes(
     app.post(
         '/shop-items/upload',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const useCase = new UploadShopItemImageUseCase(
                 c.env.SHOP_ITEM_ASSET_BUCKET,

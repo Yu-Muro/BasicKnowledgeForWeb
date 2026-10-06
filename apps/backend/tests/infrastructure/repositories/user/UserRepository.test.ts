@@ -1,7 +1,7 @@
-import { describe, expect, it, jest } from '@jest/globals';
 import type { createDatabaseClient } from '@backend/src/db/connection';
 import type { User } from '@backend/src/infrastructure/repositories/user/IUserRepository';
 import { UserRepository } from '@backend/src/infrastructure/repositories/user/UserRepository';
+import { describe, expect, it, jest } from '@jest/globals';
 
 type DatabaseClient = ReturnType<typeof createDatabaseClient>;
 
@@ -27,7 +27,11 @@ describe('UserRepository', () => {
                 select: jest.fn().mockReturnValue({
                     from: jest
                         .fn()
-                        .mockReturnValue({ where: jest.fn().mockReturnValue({ orderBy: orderByMock }) }),
+                        .mockReturnValue({
+                            where: jest
+                                .fn()
+                                .mockReturnValue({ orderBy: orderByMock }),
+                        }),
                 }),
             } as unknown as DatabaseClient;
             const repository = new UserRepository(db);
@@ -41,11 +45,13 @@ describe('UserRepository', () => {
         it('ユーザーが存在しない場合、空配列を返す', async () => {
             const db = {
                 select: jest.fn().mockReturnValue({
-                    from: jest.fn().mockReturnValue({ where: jest.fn().mockReturnValue({
-                        orderBy: jest
-                            .fn()
-                            .mockImplementation(() => Promise.resolve([])),
-                    }) }),
+                    from: jest.fn().mockReturnValue({
+                        where: jest.fn().mockReturnValue({
+                            orderBy: jest
+                                .fn()
+                                .mockImplementation(() => Promise.resolve([])),
+                        }),
+                    }),
                 }),
             } as unknown as DatabaseClient;
             const repository = new UserRepository(db);
@@ -137,28 +143,39 @@ describe('UserRepository', () => {
     });
 
     describe('create', () => {
-        it('ユーザーを作成して返す', async () => {
-            const valuesMock = jest.fn().mockReturnValue({
-                returning: jest
-                    .fn()
-                    .mockImplementation(() => Promise.resolve([mockUser])),
-            });
+        it('ユーザーとcredentialアカウントを同一トランザクションで保存する', async () => {
+            const values = jest
+                .fn()
+                .mockReturnValue({
+                    returning: jest
+                        .fn()
+                        .mockImplementation(() => Promise.resolve([mockUser])),
+                });
+            const tx = { insert: jest.fn().mockReturnValue({ values }) };
             const db = {
-                insert: jest.fn().mockReturnValue({ values: valuesMock }),
+                transaction: jest
+                    .fn<
+                        (
+                            callback: (transaction: typeof tx) => Promise<User>,
+                        ) => Promise<User>
+                    >()
+                    .mockImplementation((callback) => callback(tx)),
             } as unknown as DatabaseClient;
-            const repository = new UserRepository(db);
-
             const input = {
-                name: 'テストユーザー',
-                email: 'test@example.com',
-                password: 'hashedPassword',
+                name: mockUser.name,
+                email: mockUser.email,
+                password: mockUser.password,
                 role: 'user',
-                departmentId: '60000000-0000-4000-8000-000000000001',
+                departmentId: mockUser.departmentId!,
             };
-            const result = await repository.create(input);
-
-            expect(result).toEqual(mockUser);
-            expect(valuesMock).toHaveBeenCalledWith(input);
+            await new UserRepository(db).create(input);
+            expect(values).toHaveBeenNthCalledWith(1, input);
+            expect(values).toHaveBeenNthCalledWith(2, {
+                userId: mockUser.id,
+                accountId: mockUser.id,
+                providerId: 'credential',
+                password: mockUser.password,
+            });
         });
     });
 
@@ -206,20 +223,42 @@ describe('UserRepository', () => {
     });
 
     describe('updatePassword', () => {
-        it('パスワードを更新する', async () => {
-            const whereMock = jest
+        it('両方のハッシュ更新と全セッション失効を同一トランザクションで行う', async () => {
+            const where = jest
+                .fn()
+                .mockReturnValue({
+                    returning: jest
+                        .fn()
+                        .mockImplementation(() =>
+                            Promise.resolve([{ id: mockUser.id }]),
+                        ),
+                });
+            const deletion = jest
                 .fn()
                 .mockImplementation(() => Promise.resolve([]));
+            const set = jest.fn().mockReturnValue({ where });
+            const tx = {
+                update: jest.fn().mockReturnValue({ set }),
+                delete: jest.fn().mockReturnValue({ where: deletion }),
+            };
             const db = {
-                update: jest.fn().mockReturnValue({
-                    set: jest.fn().mockReturnValue({ where: whereMock }),
-                }),
+                transaction: jest
+                    .fn<
+                        (
+                            callback: (transaction: typeof tx) => Promise<void>,
+                        ) => Promise<void>
+                    >()
+                    .mockImplementation((callback) => callback(tx)),
             } as unknown as DatabaseClient;
-            const repository = new UserRepository(db);
-
-            await repository.updatePassword(mockUser.id, 'hashedpassword');
-
-            expect(whereMock).toHaveBeenCalledTimes(1);
+            await new UserRepository(db).updatePassword(
+                mockUser.id,
+                'hashedpassword',
+            );
+            expect(set).toHaveBeenCalledTimes(2);
+            expect(set).toHaveBeenCalledWith(
+                expect.objectContaining({ password: 'hashedpassword' }),
+            );
+            expect(deletion).toHaveBeenCalledTimes(1);
         });
     });
 });

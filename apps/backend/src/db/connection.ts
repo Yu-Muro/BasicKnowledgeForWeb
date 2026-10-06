@@ -33,6 +33,8 @@ export interface R2Bucket {
 export interface Env {
     HYPERDRIVE: Hyperdrive;
     JWT_SECRET: string;
+    BETTER_AUTH_SECRET: string;
+    BETTER_AUTH_URL: string;
     SHOP_ITEM_ASSET_BUCKET: R2Bucket;
     SHOP_ITEM_ASSET_BASE_URL: string;
     EMAIL_WORKER?: ServiceBinding;

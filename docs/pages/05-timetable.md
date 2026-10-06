@@ -2,18 +2,18 @@
 
 ## 概要
 - 会期ごとのタイムテーブルを表示・管理するページ。
-- `admin` は編集UI、`user` は閲覧UIを利用する。
+- 管理者（`admin`）と部署スタッフ（`user`）は編集UI、アクセスコード利用者は閲覧UIを利用する。
 
 ## アクセス制御
 - `GET /api/timetable`
   - `contentAccessMiddleware` 適用
-  - `access_token + x-event-id一致` または `auth_token(role=admin)` が必要
+  - `access_token + x-event-id一致` または `auth_token(role=admin または user)` が必要
 - 編集 API（POST/PUT/DELETE）
-  - `contentEditMiddleware` + `roleGuard(['admin'])`
-  - `auth_token(role=admin)` + `x-event-id` 必須
+  - `contentEditMiddleware` + `roleGuard(['admin', 'user'])`
+  - `auth_token(role=admin または user)` + `x-event-id` 必須
 
 ## 画面構成
-- `user`
+- アクセスコード利用者
   - 日付ごとにグルーピングしたレーン型表示
   - 表示列はユーザーが選択する
     - `全体向け`
@@ -21,11 +21,11 @@
   - `全体向け` は常時表示ではなく、選択時のみ表示する
   - 項目: 時間帯、タイトル、場所（設定されている場合のみ）、説明、表示タグ
   - 日をまたぐ項目は終了側に日付も表示する
-- `admin`
+- 管理者・部署スタッフ
   - `TimetableAdminPanel` で一覧・作成・更新・削除
   - 作成・更新フォームで `全体向けに表示` と複数の部署タグを指定できる
 
-### 追加・編集の共通操作（admin）
+### 追加・編集の共通操作（管理者・部署スタッフ）
 - 「+ 追加」と各項目の「編集」は、同じモーダルでフォームを表示する。
 - 編集時は既存の値を入力済みで表示し、入力エラーはモーダル内に表示する。
 - 長いフォームはモーダル内でスクロールできる。
@@ -65,7 +65,7 @@ DB では `timetable_items.is_public` と、
 - ヘッダー: `x-event-id`
 - レスポンス: `{ "items": TimetableItem[] }`
 
-### `POST /api/timetable`（admin）
+### `POST /api/timetable`（管理者・部署スタッフ）
 ```json
 {
   "event_id": "uuid",
@@ -83,12 +83,12 @@ DB では `timetable_items.is_public` と、
 - `department_ids` は任意。複数部署を指定できる
 - レスポンス: `{ "item": TimetableItem }`
 
-### `PUT /api/timetable/:id`（admin）
+### `PUT /api/timetable/:id`（管理者・部署スタッフ）
 - ボディは部分更新可（1項目以上必須）
 - `department_ids: []` で部署タグを全解除できる
 - レスポンス: `{ "item": TimetableItem }`
 
-### `DELETE /api/timetable/:id`（admin）
+### `DELETE /api/timetable/:id`（管理者・部署スタッフ）
 - レスポンス: `{ "id": "uuid" }`
 
 ## 実装メモ
@@ -99,11 +99,13 @@ DB では `timetable_items.is_public` と、
 
 ## テスト観点
 - 会期未選択時の表示
-- `user` で閲覧のみ可能
-- `admin` で CRUD 成功/失敗時メッセージ
+- アクセスコード利用者は閲覧のみ可能
+- 管理者・部署スタッフで CRUD 成功/失敗時メッセージ
 - 表示列の選択で `全体向け` と部署列を切り替えられること
 - 全体向けと部署タグの両方を持つ項目が該当列に表示されること
 - 部署一覧の取得失敗時も項目に含まれる部署レーンを表示できること
 - 日をまたぐ項目の終了日時を判別できること
 - `x-event-id` 不備時の `400`
 - 認証不備時の `401/403`
+
+部署スタッフは所属部署にかかわらず全コンテンツを閲覧・編集できる。部署管理・アクセスコード管理・他ユーザー管理は管理者のみ。

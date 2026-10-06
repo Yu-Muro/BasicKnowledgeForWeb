@@ -66,7 +66,7 @@ export default async function OthersPage({
     const items = await fetchOtherItems(eventId, authToken, accessToken, role);
     const sorted = [...items].sort((a, b) => a.displayOrder - b.displayOrder);
 
-    if (role === 'admin') {
+    if (['admin', 'user'].includes(role)) {
         return <OtherItemAdminPanel items={sorted} eventId={eventId} />;
     }
 

@@ -1,6 +1,6 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 jest.mock('@frontend/app/actions/dashboard', () => ({
     changePasswordAction: jest.fn(),
@@ -121,9 +121,13 @@ describe('PasswordChangeForm', () => {
             currentPassword: 'currentpass',
             newPassword: 'newpassword1',
         });
-        expect(mockFetchFromBackend).toHaveBeenCalledWith('/api/auth/me', {
-            credentials: 'include',
-        });
+        expect(mockFetchFromBackend).not.toHaveBeenCalled();
+        expect(
+            screen.getByRole('link', { name: 'ログイン画面へ' }),
+        ).toHaveAttribute('href', '/login');
+        expect(screen.getByRole('status')).toHaveTextContent(
+            '再ログインしてください',
+        );
     });
 
     it('API エラー時にエラーメッセージを表示する', async () => {
@@ -134,10 +138,7 @@ describe('PasswordChangeForm', () => {
         });
         render(<PasswordChangeForm />);
 
-        await user.type(
-            screen.getByLabelText('現在のパスワード'),
-            'wrongpass',
-        );
+        await user.type(screen.getByLabelText('現在のパスワード'), 'wrongpass');
         await user.type(
             screen.getByLabelText('新しいパスワード'),
             'newpassword1',
@@ -176,12 +177,8 @@ describe('PasswordChangeForm', () => {
         });
 
         await waitFor(() => {
-            expect(
-                screen.getByLabelText('現在のパスワード'),
-            ).toHaveValue('');
-            expect(
-                screen.getByLabelText('新しいパスワード'),
-            ).toHaveValue('');
+            expect(screen.getByLabelText('現在のパスワード')).toHaveValue('');
+            expect(screen.getByLabelText('新しいパスワード')).toHaveValue('');
             expect(screen.getByLabelText('確認')).toHaveValue('');
         });
     });

@@ -4,6 +4,7 @@ import { logger } from 'hono/logger';
 import type { Env } from './db/connection';
 import { createAccessCodeRoutes } from './presentation/routes/accessCodeRoutes';
 import { createAuthRoutes } from './presentation/routes/authRoutes';
+import { csrfProtection } from './presentation/routes/csrfProtection';
 import { createDepartmentRoutes } from './presentation/routes/departmentRoutes';
 import { createHealthRoutes } from './presentation/routes/healthRoutes';
 import { createOtherItemRoutes } from './presentation/routes/otherItemRoutes';
@@ -48,6 +49,7 @@ app.get('/assets/*', async (c) => {
     });
 });
 
+app.use('/api/*', csrfProtection);
 app.use('/api/*', createSessionValidation());
 
 const appWithRoutes = app

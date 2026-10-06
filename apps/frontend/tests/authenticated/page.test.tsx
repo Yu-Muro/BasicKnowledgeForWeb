@@ -26,8 +26,8 @@ jest.mock('@frontend/app/lib/serverAuth', () => ({
 
 const serverAuth =
     require('@frontend/app/lib/serverAuth') as typeof import('@frontend/app/lib/serverAuth');
-const HomePage =
-    require('@frontend/app/(authenticated)/page').default as typeof import('@frontend/app/(authenticated)/page').default;
+const HomePage = require('@frontend/app/(authenticated)/page')
+    .default as typeof import('@frontend/app/(authenticated)/page').default;
 
 const mockResolveAuth = jest.mocked(serverAuth.resolveAuth);
 const mockBuildHeaders = jest.mocked(serverAuth.buildContentFetchHeaders);
@@ -36,7 +36,7 @@ const USER_AUTH: serverAuth.ResolvedAuth = {
     eventId: 'event-1',
     authToken: null,
     accessToken: 'access-token',
-    role: 'user',
+    role: 'viewer',
 };
 
 const ADMIN_AUTH: serverAuth.ResolvedAuth = {
@@ -82,9 +82,7 @@ describe('HomePage', () => {
         expect(
             screen.getByRole('link', { name: /その他のお知らせ/ }),
         ).toBeInTheDocument();
-        expect(
-            screen.getByRole('link', { name: /検索/ }),
-        ).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /検索/ })).toBeInTheDocument();
     });
 
     it('user ロールでは access_token 由来の会期名を表示すること', async () => {
@@ -110,7 +108,7 @@ describe('HomePage', () => {
             'event-1',
             null,
             'access-token',
-            'user',
+            'viewer',
         );
 
         const timetableLink = screen.getByRole('link', {

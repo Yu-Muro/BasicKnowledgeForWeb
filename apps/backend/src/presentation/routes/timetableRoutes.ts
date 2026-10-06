@@ -24,7 +24,7 @@ export function createTimetableRoutes(
         new TimetableRepository(createDatabaseClient(env)),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
-    const ADMIN_ROLES = ['admin'];
+    const EDITOR_ROLES = ['admin', 'user'];
 
     app.get('/timetable', contentAccessMiddleware, async (c) => {
         const repository = repositoryFactory(c.env);
@@ -35,7 +35,7 @@ export function createTimetableRoutes(
     app.post(
         '/timetable',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new CreateTimetableItemUseCase(repository);
@@ -46,7 +46,7 @@ export function createTimetableRoutes(
     app.put(
         '/timetable/:id',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new UpdateTimetableItemUseCase(repository);
@@ -57,7 +57,7 @@ export function createTimetableRoutes(
     app.delete(
         '/timetable/:id',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new DeleteTimetableItemUseCase(repository);

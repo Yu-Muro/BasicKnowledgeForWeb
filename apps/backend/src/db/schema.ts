@@ -3,7 +3,9 @@ import {
     boolean,
     cockroachTable,
     foreignKey,
+    index,
     int4,
+    int8,
     primaryKey,
     text,
     timestamp,
@@ -16,7 +18,7 @@ export const users = cockroachTable('users', {
     id: uuid('id').primaryKey().defaultRandom(),
     name: varchar('name', { length: 255 }).notNull(),
     email: varchar('email', { length: 255 }).notNull().unique(),
-    password: text('password').notNull(),
+    password: text('password').notNull().default(''),
     role: varchar('role', { length: 50 }).notNull().default('user'),
     departmentId: uuid('department_id').references(() => departments.id, {
         onDelete: 'restrict',
@@ -24,6 +26,75 @@ export const users = cockroachTable('users', {
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
     deletedAt: timestamp('deleted_at'),
+    emailVerified: boolean('email_verified').notNull().default(false),
+    image: text('image'),
+});
+
+export const authSessions = cockroachTable(
+    'auth_sessions',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        userId: uuid('user_id')
+            .notNull()
+            .references(() => users.id, { onDelete: 'cascade' }),
+        token: text('token').notNull().unique(),
+        expiresAt: timestamp('expires_at').notNull(),
+        createdAt: timestamp('created_at').notNull().defaultNow(),
+        updatedAt: timestamp('updated_at').notNull().defaultNow(),
+        ipAddress: text('ip_address'),
+        userAgent: text('user_agent'),
+    },
+    (table) => [index('auth_sessions_user_id_idx').on(table.userId)],
+);
+
+export const authAccounts = cockroachTable(
+    'auth_accounts',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        userId: uuid('user_id')
+            .notNull()
+            .references(() => users.id, { onDelete: 'cascade' }),
+        accountId: text('account_id').notNull(),
+        providerId: text('provider_id').notNull(),
+        password: text('password'),
+        accessToken: text('access_token'),
+        refreshToken: text('refresh_token'),
+        idToken: text('id_token'),
+        accessTokenExpiresAt: timestamp('access_token_expires_at'),
+        refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+        scope: text('scope'),
+        createdAt: timestamp('created_at').notNull().defaultNow(),
+        updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    },
+    (table) => [
+        index('auth_accounts_user_id_idx').on(table.userId),
+        uniqueIndex('auth_accounts_provider_account_idx').on(
+            table.providerId,
+            table.accountId,
+        ),
+    ],
+);
+
+export const authVerifications = cockroachTable(
+    'auth_verifications',
+    {
+        id: uuid('id').primaryKey().defaultRandom(),
+        identifier: text('identifier').notNull(),
+        value: text('value').notNull(),
+        expiresAt: timestamp('expires_at').notNull(),
+        createdAt: timestamp('created_at').notNull().defaultNow(),
+        updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    },
+    (table) => [
+        index('auth_verifications_identifier_idx').on(table.identifier),
+    ],
+);
+
+export const authRateLimits = cockroachTable('auth_rate_limits', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    key: text('key').notNull().unique(),
+    count: int4('count').notNull(),
+    lastRequest: int8('last_request', { mode: 'number' }).notNull(),
 });
 
 export const accessCodes = cockroachTable('access_codes', {

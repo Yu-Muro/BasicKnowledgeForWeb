@@ -1,10 +1,10 @@
-import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import type { Env } from '@backend/src/db/connection';
 import type {
     AccessCode,
     IAccessCodeRepository,
     NewAccessCode,
 } from '@backend/src/infrastructure/repositories/access-code/IAccessCodeRepository';
+import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { sign } from 'hono/jwt';
 import { createTestAppWithAccessCodes } from '../helpers/createTestApp';
 
@@ -46,12 +46,24 @@ beforeAll(async () => {
     const exp = Math.floor(Date.now() / 1000) + 3600;
 
     adminToken = await sign(
-        { id: 'admin-id', name: 'Admin', email: 'admin@test.com', role: 'admin', exp },
+        {
+            id: 'admin-id',
+            name: 'Admin',
+            email: 'admin@test.com',
+            role: 'admin',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
     userToken = await sign(
-        { id: 'user-id', name: 'User', email: 'user@test.com', role: 'user', exp },
+        {
+            id: 'user-id',
+            name: 'User',
+            email: 'user@test.com',
+            role: 'user',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
@@ -66,9 +78,7 @@ function createMockAccessCodeRepository(
     overrides: Partial<IAccessCodeRepository> = {},
 ): IAccessCodeRepository {
     return {
-        findAll: jest
-            .fn<() => Promise<AccessCode[]>>()
-            .mockResolvedValue([]),
+        findAll: jest.fn<() => Promise<AccessCode[]>>().mockResolvedValue([]),
         findById: jest
             .fn<(id: string) => Promise<AccessCode | null>>()
             .mockResolvedValue(null),
@@ -155,7 +165,9 @@ describe('POST /api/access-codes/verify', () => {
     });
 
     it('バリデーションエラー（空のコード）で 400 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             '/api/access-codes/verify',
@@ -199,7 +211,9 @@ describe('GET /api/access-codes', () => {
     });
 
     it('Cookie なしで 401 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request('/api/access-codes', {}, mockEnv);
 
@@ -207,7 +221,9 @@ describe('GET /api/access-codes', () => {
     });
 
     it('user ロールのトークンで 403 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             '/api/access-codes',
@@ -230,7 +246,9 @@ describe('POST /api/access-codes', () => {
     };
 
     it('admin トークンがあれば 201 と code キーでアクセスコードが返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             '/api/access-codes',
@@ -252,7 +270,9 @@ describe('POST /api/access-codes', () => {
     });
 
     it('Cookie なしで 401 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             '/api/access-codes',
@@ -268,7 +288,9 @@ describe('POST /api/access-codes', () => {
     });
 
     it('user ロールのトークンで 403 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             '/api/access-codes',
@@ -287,7 +309,9 @@ describe('POST /api/access-codes', () => {
     });
 
     it('バリデーションエラー（validTo が validFrom より前）で 400 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             '/api/access-codes',
@@ -315,7 +339,9 @@ describe('DELETE /api/access-codes/:id', () => {
     const targetId = '00000000-0000-0000-0000-000000000002';
 
     it('admin トークンがあれば 200 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             `/api/access-codes/${targetId}`,
@@ -353,7 +379,9 @@ describe('DELETE /api/access-codes/:id', () => {
     });
 
     it('Cookie なしで 401 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             `/api/access-codes/${targetId}`,
@@ -365,7 +393,9 @@ describe('DELETE /api/access-codes/:id', () => {
     });
 
     it('user ロールのトークンで 403 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             `/api/access-codes/${targetId}`,
@@ -428,7 +458,9 @@ describe('GET /api/access-codes/:id', () => {
     });
 
     it('x-event-id が access_token の event_id と不一致なら 401 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             `/api/access-codes/${targetId}`,
@@ -445,7 +477,9 @@ describe('GET /api/access-codes/:id', () => {
     });
 
     it('Cookie なしで 401 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             `/api/access-codes/${targetId}`,
@@ -456,8 +490,14 @@ describe('GET /api/access-codes/:id', () => {
         expect(res.status).toBe(401);
     });
 
-    it('user ロールの auth_token（access_token なし）では 401 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+    it('部署スタッフのセッションでアクセスできること', async () => {
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository({
+                findById: jest
+                    .fn<IAccessCodeRepository['findById']>()
+                    .mockResolvedValue(validAccessCode),
+            }),
+        );
 
         const res = await app.request(
             `/api/access-codes/${targetId}`,
@@ -465,11 +505,13 @@ describe('GET /api/access-codes/:id', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(200);
     });
 
     it('存在しない ID で 404 が返ること', async () => {
-        const app = createTestAppWithAccessCodes(createMockAccessCodeRepository());
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
 
         const res = await app.request(
             `/api/access-codes/${targetId}`,
@@ -485,5 +527,63 @@ describe('GET /api/access-codes/:id', () => {
 
         expect(res.status).toBe(404);
         expect(body.error).toBe('アクセスコードが見つかりません');
+    });
+});
+
+describe('部署スタッフの会期選択', () => {
+    it('会期一覧にはアクセスコードを含めない', async () => {
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository({
+                findAll: jest
+                    .fn<IAccessCodeRepository['findAll']>()
+                    .mockResolvedValue([validAccessCode]),
+            }),
+        );
+        const res = await app.request(
+            '/api/events',
+            { headers: { Cookie: `auth_token=${userToken}` } },
+            mockEnv,
+        );
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({
+            events: [
+                {
+                    id: validAccessCode.id,
+                    eventName: validAccessCode.eventName,
+                },
+            ],
+        });
+    });
+    it('アクセスコードだけの閲覧者は全会期一覧を取得できない', async () => {
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository(),
+        );
+        const res = await app.request(
+            '/api/events',
+            { headers: { Cookie: `access_token=${userAccessToken}` } },
+            mockEnv,
+        );
+        expect(res.status).toBe(401);
+    });
+    it('会期名の取得でもスタッフにはアクセスコードを返さない', async () => {
+        const app = createTestAppWithAccessCodes(
+            createMockAccessCodeRepository({
+                findById: jest
+                    .fn<IAccessCodeRepository['findById']>()
+                    .mockResolvedValue(validAccessCode),
+            }),
+        );
+        const res = await app.request(
+            `/api/access-codes/${validAccessCode.id}`,
+            { headers: { Cookie: `auth_token=${userToken}` } },
+            mockEnv,
+        );
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({
+            code: {
+                id: validAccessCode.id,
+                eventName: validAccessCode.eventName,
+            },
+        });
     });
 });

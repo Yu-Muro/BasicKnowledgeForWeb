@@ -1,18 +1,8 @@
 'use client';
 
 import { changePasswordAction } from '@frontend/app/actions/dashboard';
-import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
+import Link from 'next/link';
 import { useState } from 'react';
-
-async function refetchCurrentUser(): Promise<void> {
-    try {
-        await fetchFromBackend('/api/auth/me', {
-            credentials: 'include',
-        });
-    } catch {
-        // リフェッチ失敗時もパスワード変更結果は保持する
-    }
-}
 
 export default function PasswordChangeForm() {
     const [currentPassword, setCurrentPassword] = useState('');
@@ -48,8 +38,7 @@ export default function PasswordChangeForm() {
             if (!result.success) {
                 setError(result.error);
             } else {
-                await refetchCurrentUser();
-                setSuccess('パスワードを変更しました');
+                setSuccess('パスワードを変更しました。再ログインしてください');
                 setCurrentPassword('');
                 setNewPassword('');
                 setConfirmPassword('');
@@ -129,13 +118,16 @@ export default function PasswordChangeForm() {
                             className='rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-800 text-sm dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
                         >
                             {success}
+                            <Link href='/login' className='ml-2 underline'>
+                                ログイン画面へ
+                            </Link>
                         </p>
                     )}
 
                     <button
                         type='button'
                         onClick={handleSubmit}
-                        disabled={isPending}
+                        disabled={isPending || Boolean(success)}
                         className='rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition-colors hover:bg-primary/90 disabled:opacity-50'
                     >
                         {isPending ? '変更中...' : '変更する'}

@@ -1,10 +1,10 @@
-import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import type { Env } from '@backend/src/db/connection';
 import type {
     ITimetableRepository,
     TimetableItem,
 } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
 import { InvalidTimetableDepartmentIdsError } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
+import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { sign } from 'hono/jwt';
 import { createTestAppWithTimetable } from '../helpers/createTestApp';
 
@@ -46,12 +46,24 @@ beforeAll(async () => {
     const exp = Math.floor(Date.now() / 1000) + 3600;
     accessToken = await sign({ event_id: EVENT_ID, exp }, JWT_SECRET);
     adminToken = await sign(
-        { id: 'admin-id', name: 'Admin', email: 'admin@test.com', role: 'admin', exp },
+        {
+            id: 'admin-id',
+            name: 'Admin',
+            email: 'admin@test.com',
+            role: 'admin',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
     userToken = await sign(
-        { id: 'user-id', name: 'User', email: 'user@test.com', role: 'user', exp },
+        {
+            id: 'user-id',
+            name: 'User',
+            email: 'user@test.com',
+            role: 'user',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
@@ -138,9 +150,7 @@ describe('GET /api/timetable', () => {
         const findByEventId = jest
             .fn<(eventId: string) => Promise<TimetableItem[]>>()
             .mockImplementation((eventId) =>
-                Promise.resolve(
-                    eventId === EVENT_ID ? [item1, item2] : [],
-                ),
+                Promise.resolve(eventId === EVENT_ID ? [item1, item2] : []),
             );
         const app = createTestAppWithTimetable(
             createMockTimetableRepository({ findByEventId }),
@@ -197,7 +207,7 @@ describe('GET /api/timetable', () => {
         expect(res.status).toBe(401);
     });
 
-    it('role=user の auth_token では 401 が返ること', async () => {
+    it('部署スタッフのセッションでアクセスできること', async () => {
         const app = createTestAppWithTimetable(createMockTimetableRepository());
 
         const res = await app.request(
@@ -211,7 +221,7 @@ describe('GET /api/timetable', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(200);
     });
 
     it('access_token の event_id と x-event-id が不一致のとき 401 が返ること', async () => {
@@ -491,22 +501,19 @@ describe('POST /api/timetable', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithTimetable(createMockTimetableRepository());
 
-        const res = await app.request(
-            '/api/timetable',
-            {
-                method: 'POST',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(validBody),
+        const res = await app.request('/api/timetable', {
+            method: 'POST',
+            headers: {
+                'x-event-id': EVENT_ID,
+                'Content-Type': 'application/json',
             },
-        );
+            body: JSON.stringify(validBody),
+        });
 
         expect(res.status).toBe(401);
     });
 
-    it('role=user の auth_token では 403 が返ること', async () => {
+    it('部署スタッフのセッションでアクセスできること', async () => {
         const app = createTestAppWithTimetable(createMockTimetableRepository());
 
         const res = await app.request(
@@ -523,7 +530,7 @@ describe('POST /api/timetable', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(201);
     });
 });
 
@@ -532,33 +539,36 @@ describe('POST /api/timetable', () => {
 const ITEM_ID = item1.id;
 
 describe('PUT /api/timetable/:id', () => {
-    it('admin トークンと正しいボディで 200 と更新済み item が返ること', async () => {
-        const updated = { ...item1, title: '変更後タイトル' };
-        const repo = createMockTimetableRepository({
-            update: jest
-                .fn<ITimetableRepository['update']>()
-                .mockImplementation(() => Promise.resolve(updated)),
-        });
-        const app = createTestAppWithTimetable(repo);
+    it.each(['admin', 'user'])(
+        'admin トークンと正しいボディで 200 と更新済み item が返ること（ロール: %s）',
+        async (role) => {
+            const updated = { ...item1, title: '変更後タイトル' };
+            const repo = createMockTimetableRepository({
+                update: jest
+                    .fn<ITimetableRepository['update']>()
+                    .mockImplementation(() => Promise.resolve(updated)),
+            });
+            const app = createTestAppWithTimetable(repo);
 
-        const res = await app.request(
-            `/api/timetable/${ITEM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                    Cookie: `auth_token=${adminToken}`,
+            const res = await app.request(
+                `/api/timetable/${ITEM_ID}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        'Content-Type': 'application/json',
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
+                    body: JSON.stringify({ title: '変更後タイトル' }),
                 },
-                body: JSON.stringify({ title: '変更後タイトル' }),
-            },
-            mockEnv,
-        );
+                mockEnv,
+            );
 
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as { item: TimetableItem };
-        expect(body.item.title).toBe('変更後タイトル');
-    });
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { item: TimetableItem };
+            expect(body.item.title).toBe('変更後タイトル');
+        },
+    );
 
     it('アイテムが存在しない場合は 404 が返ること', async () => {
         const repo = createMockTimetableRepository({
@@ -625,37 +635,40 @@ describe('PUT /api/timetable/:id', () => {
         expect(res.status).toBe(400);
     });
 
-    it('部署タグだけを更新できること', async () => {
-        const updated = {
-            ...item1,
-            departments: [{ id: DEPARTMENT_ID, name: '広報部' }],
-        };
-        const update = jest
-            .fn<ITimetableRepository['update']>()
-            .mockImplementation(() => Promise.resolve(updated));
-        const app = createTestAppWithTimetable(
-            createMockTimetableRepository({ update }),
-        );
+    it.each(['admin', 'user'])(
+        '部署タグだけを更新できること（ロール: %s）',
+        async (role) => {
+            const updated = {
+                ...item1,
+                departments: [{ id: DEPARTMENT_ID, name: '広報部' }],
+            };
+            const update = jest
+                .fn<ITimetableRepository['update']>()
+                .mockImplementation(() => Promise.resolve(updated));
+            const app = createTestAppWithTimetable(
+                createMockTimetableRepository({ update }),
+            );
 
-        const res = await app.request(
-            `/api/timetable/${ITEM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                    Cookie: `auth_token=${adminToken}`,
+            const res = await app.request(
+                `/api/timetable/${ITEM_ID}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        'Content-Type': 'application/json',
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
+                    body: JSON.stringify({ department_ids: [DEPARTMENT_ID] }),
                 },
-                body: JSON.stringify({ department_ids: [DEPARTMENT_ID] }),
-            },
-            mockEnv,
-        );
+                mockEnv,
+            );
 
-        expect(res.status).toBe(200);
-        expect(update).toHaveBeenCalledWith(ITEM_ID, EVENT_ID, {
-            departmentIds: [DEPARTMENT_ID],
-        });
-    });
+            expect(res.status).toBe(200);
+            expect(update).toHaveBeenCalledWith(ITEM_ID, EVENT_ID, {
+                departmentIds: [DEPARTMENT_ID],
+            });
+        },
+    );
 
     it('開始時刻だけを既存の終了時刻より後へ更新する場合は 400 が返ること', async () => {
         const update = jest.fn<ITimetableRepository['update']>();
@@ -737,17 +750,14 @@ describe('PUT /api/timetable/:id', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithTimetable(createMockTimetableRepository());
 
-        const res = await app.request(
-            `/api/timetable/${ITEM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ title: '変更' }),
+        const res = await app.request(`/api/timetable/${ITEM_ID}`, {
+            method: 'PUT',
+            headers: {
+                'x-event-id': EVENT_ID,
+                'Content-Type': 'application/json',
             },
-        );
+            body: JSON.stringify({ title: '変更' }),
+        });
 
         expect(res.status).toBe(401);
     });
@@ -756,30 +766,33 @@ describe('PUT /api/timetable/:id', () => {
 // ─── DELETE /api/timetable/:id ────────────────────────────────────────────────
 
 describe('DELETE /api/timetable/:id', () => {
-    it('admin トークンで 200 と削除した id が返ること', async () => {
-        const repo = createMockTimetableRepository({
-            delete: jest
-                .fn<ITimetableRepository['delete']>()
-                .mockImplementation(() => Promise.resolve(true)),
-        });
-        const app = createTestAppWithTimetable(repo);
+    it.each(['admin', 'user'])(
+        'admin トークンで 200 と削除した id が返ること（ロール: %s）',
+        async (role) => {
+            const repo = createMockTimetableRepository({
+                delete: jest
+                    .fn<ITimetableRepository['delete']>()
+                    .mockImplementation(() => Promise.resolve(true)),
+            });
+            const app = createTestAppWithTimetable(repo);
 
-        const res = await app.request(
-            `/api/timetable/${ITEM_ID}`,
-            {
-                method: 'DELETE',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    Cookie: `auth_token=${adminToken}`,
+            const res = await app.request(
+                `/api/timetable/${ITEM_ID}`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
                 },
-            },
-            mockEnv,
-        );
+                mockEnv,
+            );
 
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as { id: string };
-        expect(body.id).toBe(ITEM_ID);
-    });
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { id: string };
+            expect(body.id).toBe(ITEM_ID);
+        },
+    );
 
     it('アイテムが存在しない場合は 404 が返ること', async () => {
         const repo = createMockTimetableRepository({
@@ -825,13 +838,10 @@ describe('DELETE /api/timetable/:id', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithTimetable(createMockTimetableRepository());
 
-        const res = await app.request(
-            `/api/timetable/${ITEM_ID}`,
-            {
-                method: 'DELETE',
-                headers: { 'x-event-id': EVENT_ID },
-            },
-        );
+        const res = await app.request(`/api/timetable/${ITEM_ID}`, {
+            method: 'DELETE',
+            headers: { 'x-event-id': EVENT_ID },
+        });
 
         expect(res.status).toBe(401);
     });

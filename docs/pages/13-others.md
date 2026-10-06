@@ -2,22 +2,22 @@
 
 ## 概要
 - 会期ごとの自由記述情報（注意事項・連絡事項など）を表示・管理するページ。
-- `admin` は編集UI、`user` は閲覧UIを利用する。
+- 管理者（`admin`）と部署スタッフ（`user`）は編集UI、アクセスコード利用者は閲覧UIを利用する。
 
 ## アクセス制御
 - 閲覧: `contentAccessMiddleware`
-- 編集: `contentEditMiddleware` + `roleGuard(['admin'])`
-- 編集 API は `auth_token(role=admin)` と `x-event-id` が必須
+- 編集: `contentEditMiddleware` + `roleGuard(['admin', 'user'])`
+- 編集 API は `auth_token(role=admin または user)` と `x-event-id` が必須
 
 ## 画面構成
-- `user`
+- アクセスコード利用者
   - `displayOrder` 昇順で一覧表示
   - タイトル、本文、画像を表示
-- `admin`
+- 管理者・部署スタッフ
   - `OtherItemAdminPanel` で一覧・作成・更新・削除
   - 画像アップロード機能あり
 
-### 追加・編集の共通操作（admin）
+### 追加・編集の共通操作（管理者・部署スタッフ）
 - 「+ 追加」と各項目の「編集」は、同じモーダルでフォームを表示する。
 - 編集時は既存の値を入力済みで表示し、入力エラーはモーダル内に表示する。
 - 長いフォームはモーダル内でスクロールできる。
@@ -42,7 +42,7 @@ type OtherItem = {
 - ヘッダー: `x-event-id`
 - レスポンス: `{ "items": OtherItem[] }`
 
-### `POST /api/others`（admin）
+### `POST /api/others`（管理者・部署スタッフ）
 ```json
 {
   "event_id": "uuid",
@@ -54,13 +54,13 @@ type OtherItem = {
 ```
 - `createdBy` はサーバー側で `auth_token` から補完
 
-### `PUT /api/others/:id`（admin）
+### `PUT /api/others/:id`（管理者・部署スタッフ）
 - 部分更新可
 
-### `DELETE /api/others/:id`（admin）
+### `DELETE /api/others/:id`（管理者・部署スタッフ）
 - レスポンス: `{ "id": "uuid" }`
 
-### `POST /api/others/upload`（admin）
+### `POST /api/others/upload`（管理者・部署スタッフ）
 - `multipart/form-data` で `file` を送信
 - レスポンス: `{ "imageKey": "others/<event_id>/<uuid>.ext" }`
 
@@ -72,5 +72,7 @@ type OtherItem = {
 ## テスト観点
 - `display_order` の昇順表示
 - 画像キーのプレフィックス検証（`others/<event_id>/`）
-- `admin` と `user` の表示分岐
+- 管理者・部署スタッフと閲覧者の表示分岐
 - 会期未選択時の表示
+
+部署スタッフは所属部署にかかわらず全コンテンツを閲覧・編集できる。部署管理・アクセスコード管理・他ユーザー管理は管理者のみ。

@@ -26,7 +26,7 @@ export function createProgramRoutes(
         new ProgramRepository(createDatabaseClient(env)),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
-    const ADMIN_ROLES = ['admin'];
+    const EDITOR_ROLES = ['admin', 'user'];
 
     app.get('/programs', contentAccessMiddleware, async (c) => {
         const repository = repositoryFactory(c.env);
@@ -37,7 +37,7 @@ export function createProgramRoutes(
     app.post(
         '/programs',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new CreateProgramUseCase(
@@ -51,7 +51,7 @@ export function createProgramRoutes(
     app.put(
         '/programs/:id',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new UpdateProgramUseCase(
@@ -65,7 +65,7 @@ export function createProgramRoutes(
     app.delete(
         '/programs/:id',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new DeleteProgramUseCase(repository);
@@ -76,7 +76,7 @@ export function createProgramRoutes(
     app.post(
         '/programs/upload',
         contentEditMiddleware,
-        roleGuard(ADMIN_ROLES),
+        roleGuard(EDITOR_ROLES),
         async (c) => {
             const useCase = new UploadProgramImageUseCase(
                 c.env.SHOP_ITEM_ASSET_BUCKET,

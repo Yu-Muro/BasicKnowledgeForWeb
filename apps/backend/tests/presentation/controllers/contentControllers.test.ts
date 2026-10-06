@@ -1,28 +1,43 @@
-import { Hono } from 'hono';
-import { describe, expect, it, jest } from '@jest/globals';
 import type { Env, R2Bucket } from '@backend/src/db/connection';
-import type { ContentEditVariables } from '@backend/src/presentation/middleware/contentEditMiddleware';
+import type { OtherItem } from '@backend/src/infrastructure/repositories/other-item/IOtherItemRepository';
+import type { Program } from '@backend/src/infrastructure/repositories/program/IProgramRepository';
+import type { RoomWithDepartments } from '@backend/src/infrastructure/repositories/room/IRoomRepository';
+import type { ShopItem } from '@backend/src/infrastructure/repositories/shop-item/IShopItemRepository';
+import type { TimetableItem } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
+import {
+    createOtherItem,
+    updateOtherItem,
+} from '@backend/src/presentation/controllers/otherItemController';
+import {
+    createProgram,
+    deleteProgram,
+} from '@backend/src/presentation/controllers/programController';
+import {
+    createRoom,
+    updateRoom,
+} from '@backend/src/presentation/controllers/roomController';
+import {
+    createShopItem,
+    updateShopItem,
+} from '@backend/src/presentation/controllers/shopItemController';
+import {
+    createTimetableItem,
+    getTimetableItems,
+} from '@backend/src/presentation/controllers/timetableController';
 import type { AuthUser } from '@backend/src/presentation/middleware/authMiddleware';
-import { getTimetableItems, createTimetableItem } from '@backend/src/presentation/controllers/timetableController';
-import { createRoom, updateRoom } from '@backend/src/presentation/controllers/roomController';
-import { createProgram, deleteProgram } from '@backend/src/presentation/controllers/programController';
-import { createShopItem, updateShopItem } from '@backend/src/presentation/controllers/shopItemController';
-import { createOtherItem, updateOtherItem } from '@backend/src/presentation/controllers/otherItemController';
-import type { IGetTimetableItemsUseCase } from '@backend/src/use-cases/timetable/IGetTimetableItemsUseCase';
-import type { ICreateTimetableItemUseCase } from '@backend/src/use-cases/timetable/ICreateTimetableItemUseCase';
-import type { ICreateRoomUseCase } from '@backend/src/use-cases/room/ICreateRoomUseCase';
-import type { IUpdateRoomUseCase } from '@backend/src/use-cases/room/IUpdateRoomUseCase';
-import type { ICreateProgramUseCase } from '@backend/src/use-cases/program/ICreateProgramUseCase';
-import type { IDeleteProgramUseCase } from '@backend/src/use-cases/program/IDeleteProgramUseCase';
-import type { ICreateShopItemUseCase } from '@backend/src/use-cases/shop-item/ICreateShopItemUseCase';
-import type { IUpdateShopItemUseCase } from '@backend/src/use-cases/shop-item/IUpdateShopItemUseCase';
+import type { ContentEditVariables } from '@backend/src/presentation/middleware/contentEditMiddleware';
 import type { ICreateOtherItemUseCase } from '@backend/src/use-cases/other-item/ICreateOtherItemUseCase';
 import type { IUpdateOtherItemUseCase } from '@backend/src/use-cases/other-item/IUpdateOtherItemUseCase';
-import type { TimetableItem } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
-import type { RoomWithDepartments } from '@backend/src/infrastructure/repositories/room/IRoomRepository';
-import type { Program } from '@backend/src/infrastructure/repositories/program/IProgramRepository';
-import type { ShopItem } from '@backend/src/infrastructure/repositories/shop-item/IShopItemRepository';
-import type { OtherItem } from '@backend/src/infrastructure/repositories/other-item/IOtherItemRepository';
+import type { ICreateProgramUseCase } from '@backend/src/use-cases/program/ICreateProgramUseCase';
+import type { IDeleteProgramUseCase } from '@backend/src/use-cases/program/IDeleteProgramUseCase';
+import type { ICreateRoomUseCase } from '@backend/src/use-cases/room/ICreateRoomUseCase';
+import type { IUpdateRoomUseCase } from '@backend/src/use-cases/room/IUpdateRoomUseCase';
+import type { ICreateShopItemUseCase } from '@backend/src/use-cases/shop-item/ICreateShopItemUseCase';
+import type { IUpdateShopItemUseCase } from '@backend/src/use-cases/shop-item/IUpdateShopItemUseCase';
+import type { ICreateTimetableItemUseCase } from '@backend/src/use-cases/timetable/ICreateTimetableItemUseCase';
+import type { IGetTimetableItemsUseCase } from '@backend/src/use-cases/timetable/IGetTimetableItemsUseCase';
+import { describe, expect, it, jest } from '@jest/globals';
+import { Hono } from 'hono';
 
 const EVENT_ID = '00000000-0000-4000-8000-000000000001';
 const OTHER_EVENT_ID = '00000000-0000-4000-8000-000000000002';
@@ -36,6 +51,8 @@ const adminUser: AuthUser = {
 
 const mockEnv: Env = {
     HYPERDRIVE: { connectionString: '' },
+    BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters',
+    BETTER_AUTH_URL: 'http://localhost:8080',
     JWT_SECRET: 'test-secret',
     SHOP_ITEM_ASSET_BUCKET: {} as R2Bucket,
     SHOP_ITEM_ASSET_BASE_URL: 'https://assets.example.com',
@@ -273,11 +290,13 @@ describe('programController', () => {
 
     it('deleteProgram surfaces use case error status', async () => {
         const useCase: IDeleteProgramUseCase = {
-            execute: jest.fn<IDeleteProgramUseCase['execute']>().mockResolvedValue({
-                success: false,
-                error: 'not-found',
-                status: 404,
-            }),
+            execute: jest
+                .fn<IDeleteProgramUseCase['execute']>()
+                .mockResolvedValue({
+                    success: false,
+                    error: 'not-found',
+                    status: 404,
+                }),
         };
         const app = createAdminApp();
         app.delete('/programs/:id', (c) => deleteProgram(c, useCase));

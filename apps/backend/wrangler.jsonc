@@ -13,11 +13,12 @@
 		}
 	],
 	"vars": {
-		"SHOP_ITEM_ASSET_BASE_URL": "http://localhost:8080/assets"
+		"SHOP_ITEM_ASSET_BASE_URL": "http://localhost:8080/assets",
+        "BETTER_AUTH_URL": "http://localhost:8080"
 	},
 	"secrets": {
 		"required": [
-			"JWT_SECRET"
+			"JWT_SECRET", "BETTER_AUTH_SECRET"
 		]
 	},
 	"hyperdrive": [
@@ -43,7 +44,8 @@
 				}
 			],
 			"vars": {
-				"SHOP_ITEM_ASSET_BASE_URL": "https://assets.dev.reitaisai.info"
+				"SHOP_ITEM_ASSET_BASE_URL": "https://assets.dev.reitaisai.info",
+                "BETTER_AUTH_URL": "https://dev.reitaisai.info"
 			},
 			"services": [
 				{
@@ -65,7 +67,7 @@
 			],
             "secrets": {
                 "required": [
-                    "JWT_SECRET"
+                    "JWT_SECRET", "BETTER_AUTH_SECRET"
                 ]
             },
             "observability": {
@@ -87,7 +89,8 @@
 				}
 			],
 			"vars": {
-				"SHOP_ITEM_ASSET_BASE_URL": "https://assets.reitaisai.info"
+				"SHOP_ITEM_ASSET_BASE_URL": "https://assets.reitaisai.info",
+                "BETTER_AUTH_URL": "https://reitaisai.info"
 			},
 			"services": [
 				{
@@ -109,7 +112,7 @@
 			],
             "secrets": {
                 "required": [
-                    "JWT_SECRET"
+                    "JWT_SECRET", "BETTER_AUTH_SECRET"
                 ]
             },
             "observability": {

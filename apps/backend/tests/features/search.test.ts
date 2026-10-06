@@ -1,4 +1,3 @@
-import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import type { Env } from '@backend/src/db/connection';
 import type {
     IOtherItemRepository,
@@ -20,6 +19,7 @@ import type {
     ITimetableRepository,
     TimetableItem,
 } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
+import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { sign } from 'hono/jwt';
 import { createTestAppWithSearch } from '../helpers/createTestApp';
 
@@ -37,12 +37,24 @@ beforeAll(async () => {
     const exp = Math.floor(Date.now() / 1000) + 3600;
     accessToken = await sign({ event_id: EVENT_ID, exp }, JWT_SECRET);
     adminToken = await sign(
-        { id: 'admin-id', name: 'Admin', email: 'admin@test.com', role: 'admin', exp },
+        {
+            id: 'admin-id',
+            name: 'Admin',
+            email: 'admin@test.com',
+            role: 'admin',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
     userToken = await sign(
-        { id: 'user-id', name: 'User', email: 'user@test.com', role: 'user', exp },
+        {
+            id: 'user-id',
+            name: 'User',
+            email: 'user@test.com',
+            role: 'user',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
@@ -53,23 +65,23 @@ function createRepositories() {
         findByEventId: jest
             .fn<(eventId: string) => Promise<TimetableItem[]>>()
             .mockResolvedValue([]),
-        findById: jest.fn<ITimetableRepository['findById']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
+        findById: jest
+            .fn<ITimetableRepository['findById']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
         search: jest
             .fn<
                 (keyword: string, eventId: string) => Promise<TimetableItem[]>
             >()
             .mockResolvedValue([]),
-        create: jest.fn<ITimetableRepository['create']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
-        update: jest.fn<ITimetableRepository['update']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
-        delete: jest.fn<ITimetableRepository['delete']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
+        create: jest
+            .fn<ITimetableRepository['create']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
+        update: jest
+            .fn<ITimetableRepository['update']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
+        delete: jest
+            .fn<ITimetableRepository['delete']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
     };
     const roomRepository: IRoomRepository = {
         findByEventId: jest
@@ -83,35 +95,35 @@ function createRepositories() {
                 ) => Promise<RoomWithDepartments[]>
             >()
             .mockResolvedValue([]),
-        create: jest.fn<IRoomRepository['create']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
-        update: jest.fn<IRoomRepository['update']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
-        delete: jest.fn<IRoomRepository['delete']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
+        create: jest
+            .fn<IRoomRepository['create']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
+        update: jest
+            .fn<IRoomRepository['update']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
+        delete: jest
+            .fn<IRoomRepository['delete']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
     };
     const programRepository: IProgramRepository = {
         findByEventId: jest
             .fn<(eventId: string) => Promise<Program[]>>()
             .mockResolvedValue([]),
-        findById: jest.fn<IProgramRepository['findById']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
+        findById: jest
+            .fn<IProgramRepository['findById']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
         search: jest
             .fn<(keyword: string, eventId: string) => Promise<Program[]>>()
             .mockResolvedValue([]),
-        create: jest.fn<IProgramRepository['create']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
-        update: jest.fn<IProgramRepository['update']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
-        delete: jest.fn<IProgramRepository['delete']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
+        create: jest
+            .fn<IProgramRepository['create']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
+        update: jest
+            .fn<IProgramRepository['update']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
+        delete: jest
+            .fn<IProgramRepository['delete']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
     };
     const shopItemRepository: IShopItemRepository = {
         findByEventId: jest
@@ -120,15 +132,15 @@ function createRepositories() {
         search: jest
             .fn<(keyword: string, eventId: string) => Promise<ShopItem[]>>()
             .mockResolvedValue([]),
-        create: jest.fn<IShopItemRepository['create']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
-        update: jest.fn<IShopItemRepository['update']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
-        delete: jest.fn<IShopItemRepository['delete']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
+        create: jest
+            .fn<IShopItemRepository['create']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
+        update: jest
+            .fn<IShopItemRepository['update']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
+        delete: jest
+            .fn<IShopItemRepository['delete']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
     };
     const otherItemRepository: IOtherItemRepository = {
         findByEventId: jest
@@ -137,15 +149,15 @@ function createRepositories() {
         search: jest
             .fn<(keyword: string, eventId: string) => Promise<OtherItem[]>>()
             .mockResolvedValue([]),
-        create: jest.fn<IOtherItemRepository['create']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
-        update: jest.fn<IOtherItemRepository['update']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
-        delete: jest.fn<IOtherItemRepository['delete']>().mockImplementation(
-            () => Promise.reject(new Error('not called')),
-        ),
+        create: jest
+            .fn<IOtherItemRepository['create']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
+        update: jest
+            .fn<IOtherItemRepository['update']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
+        delete: jest
+            .fn<IOtherItemRepository['delete']>()
+            .mockImplementation(() => Promise.reject(new Error('not called'))),
     };
     return {
         timetableRepository,
@@ -250,7 +262,7 @@ describe('GET /api/search', () => {
         );
     });
 
-    it('role=user の auth_token では 401 を返す', async () => {
+    it('部署スタッフのセッションでアクセスできること', async () => {
         const repos = createRepositories();
         const app = createTestAppWithSearch(repos);
 
@@ -265,7 +277,7 @@ describe('GET /api/search', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(200);
     });
 
     it('access_token の event_id と x-event-id が一致しない場合 401 を返す', async () => {

@@ -1,9 +1,12 @@
 import type { createDatabaseClient } from '@backend/src/db/connection';
-import { users } from '@backend/src/db/schema';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { authAccounts, authSessions, users } from '@backend/src/db/schema';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { IUserRepository, NewUser, User } from './IUserRepository';
 
-type DatabaseClient = ReturnType<typeof createDatabaseClient>;
+type DatabaseClient = Pick<
+    ReturnType<typeof createDatabaseClient>,
+    'select' | 'insert' | 'update' | 'delete' | 'transaction' | 'execute'
+>;
 
 export class UserRepository implements IUserRepository {
     constructor(private readonly db: DatabaseClient) {}
@@ -35,8 +38,35 @@ export class UserRepository implements IUserRepository {
     }
 
     async create(input: NewUser): Promise<User> {
-        const [newUser] = await this.db.insert(users).values(input).returning();
-        return newUser;
+        return this.db.transaction(async (tx) => {
+            const [newUser] = await tx.insert(users).values(input).returning();
+            await tx.insert(authAccounts).values({
+                userId: newUser.id,
+                accountId: newUser.id,
+                providerId: 'credential',
+                password: input.password,
+            });
+            return newUser;
+        });
+    }
+
+    // Reconcile credentials written by the previous Worker during a rolling deployment.
+    async ensureCredentialAccount(email: string): Promise<void> {
+        await this.db.transaction(async (tx) => {
+            // The previous Worker may have registered mixed-case email addresses.
+            await tx.execute(sql`
+                UPDATE users SET email = lower(email)
+                WHERE lower(email) = ${email.toLowerCase()} AND email <> lower(email)
+            `);
+            await tx.execute(sql`
+            INSERT INTO auth_accounts (user_id, account_id, provider_id, password)
+            SELECT id, id::string, 'credential', password FROM users
+            WHERE email = ${email.toLowerCase()} AND deleted_at IS NULL
+            ON CONFLICT (provider_id, account_id) DO UPDATE SET password = excluded.password,
+                updated_at = now()
+            WHERE auth_accounts.password IS DISTINCT FROM excluded.password
+        `);
+        });
     }
 
     async updateRole(
@@ -77,9 +107,25 @@ export class UserRepository implements IUserRepository {
         return rows.length > 0;
     }
     async updatePassword(id: string, hashedPassword: string): Promise<void> {
-        await this.db
-            .update(users)
-            .set({ password: hashedPassword, updatedAt: new Date() })
-            .where(and(eq(users.id, id), isNull(users.deletedAt)));
+        await this.db.transaction(async (tx) => {
+            const now = new Date();
+            const changed = await tx
+                .update(users)
+                .set({ password: hashedPassword, updatedAt: now })
+                .where(and(eq(users.id, id), isNull(users.deletedAt)))
+                .returning({ id: users.id });
+            if (changed.length === 0)
+                throw new Error('ユーザーが見つかりません');
+            await tx
+                .update(authAccounts)
+                .set({ password: hashedPassword, updatedAt: now })
+                .where(
+                    and(
+                        eq(authAccounts.userId, id),
+                        eq(authAccounts.providerId, 'credential'),
+                    ),
+                );
+            await tx.delete(authSessions).where(eq(authSessions.userId, id));
+        });
     }
 }

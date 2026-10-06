@@ -7,9 +7,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-const mockUseSearchParams = jest
-    .fn()
-    .mockReturnValue(new URLSearchParams());
+const mockUseSearchParams = jest.fn().mockReturnValue(new URLSearchParams());
 const mockUsePathname = jest.fn().mockReturnValue('/');
 
 jest.mock('next/navigation', () => ({
@@ -41,7 +39,7 @@ const ACCESS_CODES = [
 ];
 
 const defaultProps = {
-    role: 'user',
+    role: 'viewer',
     userName: 'テストユーザー',
     userEventId: 'event-1',
     userEventName: null,
@@ -94,16 +92,15 @@ describe('AuthHeader', () => {
                 screen.getByRole('link', { name: 'スタッフポータル' }),
             ).toBeInTheDocument();
         });
-
     });
 
     describe('buildNavigationHref', () => {
         it('検索クエリは検索ページ以外に引き継がれないこと', () => {
             const rawParams = 'event_id=event-1&q=hogehoge';
 
-            expect(
-                buildNavigationHref('/timetable', rawParams),
-            ).toBe('/timetable?event_id=event-1');
+            expect(buildNavigationHref('/timetable', rawParams)).toBe(
+                '/timetable?event_id=event-1',
+            );
             expect(buildNavigationHref('/search', rawParams)).toBe(
                 '/search?event_id=event-1&q=hogehoge',
             );
@@ -111,23 +108,33 @@ describe('AuthHeader', () => {
     });
 
     describe('会期セレクター — 権限制御', () => {
-        it('user ロールでは会期セレクターが表示されないこと', () => {
-            renderHeader({ ...defaultProps, role: 'user', accessCodes: ACCESS_CODES });
+        it('閲覧者では会期セレクターが表示されないこと', () => {
+            renderHeader({
+                ...defaultProps,
+                role: 'viewer',
+                accessCodes: ACCESS_CODES,
+            });
             expect(
                 screen.queryByRole('combobox', { name: '会期を選択' }),
             ).not.toBeInTheDocument();
         });
 
-        it('admin ロールでは会期セレクターが表示されること', () => {
-            renderHeader({ ...defaultProps, role: 'admin', accessCodes: ACCESS_CODES });
-            const selectors = screen.getAllByRole('combobox', {
-                name: '会期を選択',
-            });
+        it.each(['admin', 'user'])(
+            '%s ロールでは会期セレクターが表示されること',
+            (role) => {
+                renderHeader({
+                    ...defaultProps,
+                    role,
+                    accessCodes: ACCESS_CODES,
+                });
+                const selectors = screen.getAllByRole('combobox', {
+                    name: '会期を選択',
+                });
 
-            expect(selectors.length).toBeGreaterThanOrEqual(1);
-            expect(selectors[0]).toHaveClass('text-[var(--header-fg)]');
-        });
-
+                expect(selectors.length).toBeGreaterThanOrEqual(1);
+                expect(selectors[0]).toHaveClass('text-[var(--header-fg)]');
+            },
+        );
     });
 
     describe('ロゴ表示', () => {
@@ -138,19 +145,19 @@ describe('AuthHeader', () => {
             ).toBeInTheDocument();
         });
 
-        it('user ロールではスタッフポータルと表示されること', () => {
-            renderHeader({ ...defaultProps, role: 'user' });
+        it('閲覧者ではスタッフポータルと表示されること', () => {
+            renderHeader({ ...defaultProps, role: 'viewer' });
             expect(
                 screen.getByRole('link', { name: 'スタッフポータル' }),
             ).toBeInTheDocument();
         });
     });
 
-    describe('イベント名表示 — user ロール', () => {
+    describe('イベント名表示 — 閲覧者', () => {
         it('userEventName が渡された場合にイベント名が表示されること', () => {
             renderHeader({
                 ...defaultProps,
-                role: 'user',
+                role: 'viewer',
                 userEventName: '第1回テストイベント',
             });
             const names = screen.getAllByText('第1回テストイベント');
@@ -158,7 +165,11 @@ describe('AuthHeader', () => {
         });
 
         it('userEventName が null の場合にイベント名が表示されないこと', () => {
-            renderHeader({ ...defaultProps, role: 'user', userEventName: null });
+            renderHeader({
+                ...defaultProps,
+                role: 'viewer',
+                userEventName: null,
+            });
             expect(
                 screen.queryByText('第1回テストイベント'),
             ).not.toBeInTheDocument();

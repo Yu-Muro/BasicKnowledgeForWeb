@@ -2,22 +2,22 @@
 
 ## 概要
 - 会期ごとの企画情報を表示・管理するページ。
-- `admin` は編集UI、`user` はカード形式で閲覧する。
+- 管理者・部署スタッフは編集UI、アクセスコード利用者はカード形式で閲覧する。
 
 ## アクセス制御
 - 閲覧: `contentAccessMiddleware`
-- 編集: `contentEditMiddleware` + `roleGuard(['admin'])`
-- 編集 API は `auth_token(role=admin)` と `x-event-id` が必須
+- 編集: `contentEditMiddleware` + `roleGuard(['admin', 'user'])`
+- 編集 API は `auth_token(role=admin または user)` と `x-event-id` が必須
 
 ## 画面構成
-- `user`
+- アクセスコード利用者
   - 企画名、場所、日時、説明、画像を表示
   - 開始時刻順で表示
-- `admin`
+- 管理者・部署スタッフ
   - `ProgramAdminPanel` で一覧・作成・更新・削除
   - 画像アップロード機能あり
 
-### 追加・編集の共通操作（admin）
+### 追加・編集の共通操作（管理者・部署スタッフ）
 - 「+ 追加」と各項目の「編集」は、同じモーダルでフォームを表示する。
 - 編集時は既存の値を入力済みで表示し、入力エラーはモーダル内に表示する。
 - 長いフォームはモーダル内でスクロールできる。
@@ -43,7 +43,7 @@ type Program = {
 - ヘッダー: `x-event-id`
 - レスポンス: `{ "programs": Program[] }`
 
-### `POST /api/programs`（admin）
+### `POST /api/programs`（管理者・部署スタッフ）
 ```json
 {
   "event_id": "uuid",
@@ -57,13 +57,13 @@ type Program = {
 ```
 - `end_time` は `start_time` より後である必要がある
 
-### `PUT /api/programs/:id`（admin）
+### `PUT /api/programs/:id`（管理者・部署スタッフ）
 - 部分更新可
 
-### `DELETE /api/programs/:id`（admin）
+### `DELETE /api/programs/:id`（管理者・部署スタッフ）
 - レスポンス: `{ "id": "uuid" }`
 
-### `POST /api/programs/upload`（admin）
+### `POST /api/programs/upload`（管理者・部署スタッフ）
 - `multipart/form-data` で `file` を送信
 - レスポンス: `{ "imageKey": "programs/<event_id>/<uuid>.ext" }`
 
@@ -75,5 +75,7 @@ type Program = {
 ## テスト観点
 - `end_time <= start_time` の拒否
 - 画像キーのプレフィックス検証（`programs/<event_id>/`）
-- `admin` と `user` の表示分岐
+- 管理者・部署スタッフと閲覧者の表示分岐
 - 会期未選択時の表示
+
+部署スタッフは所属部署にかかわらず全コンテンツを閲覧・編集できる。部署管理・アクセスコード管理・他ユーザー管理は管理者のみ。

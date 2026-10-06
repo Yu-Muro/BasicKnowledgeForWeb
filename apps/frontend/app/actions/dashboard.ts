@@ -5,10 +5,7 @@ import {
     buildBackendUrl,
     fetchFromBackend,
 } from '@frontend/app/lib/backendFetch';
-import {
-    type AuthPayload,
-    decodeJwtPayload,
-} from '@frontend/app/lib/serverAuth';
+import { resolveAuth } from '@frontend/app/lib/serverAuth';
 import { cookies } from 'next/headers';
 
 type ActionResult = { success: true } | { success: false; error: string };
@@ -58,6 +55,7 @@ export async function changePasswordAction(data: {
                 error: body.error ?? 'パスワードの変更に失敗しました',
             };
         }
+        (await cookies()).delete('auth_token');
         return { success: true };
     } catch (err) {
         logActionError(
@@ -78,6 +76,7 @@ export async function updateUserRoleAction(
     const authToken = await getAuthToken();
     if (!authToken) return { success: false, error: '認証が必要です' };
 
+    const currentUser = (await resolveAuth()).user;
     const endpoint = `/api/users/${userId}/role`;
     try {
         const res = await fetchFromBackend(endpoint, {
@@ -101,10 +100,19 @@ export async function updateUserRoleAction(
                 error: body.error ?? 'ロールの変更に失敗しました',
             };
         }
-        if (
-            role === 'user' &&
-            decodeJwtPayload<AuthPayload>(authToken)?.id === userId
-        ) {
+        if (role === 'user' && currentUser?.id === userId) {
+            const logout = await fetchFromBackend('/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    Cookie: `auth_token=${authToken}`,
+                    Origin: new URL(buildBackendUrl('/api/auth/logout')).origin,
+                },
+            });
+            if (!logout.ok)
+                return {
+                    success: false,
+                    error: 'ロールは変更されましたが、ログアウトに失敗しました',
+                };
             (await cookies()).delete('auth_token');
             return { success: true, data: [] };
         }

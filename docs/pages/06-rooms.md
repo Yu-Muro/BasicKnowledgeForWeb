@@ -6,18 +6,18 @@
 
 ## アクセス制御
 - 閲覧: `contentAccessMiddleware`
-- 編集: `contentEditMiddleware` + `roleGuard(['admin'])`
-- 編集 API は `auth_token(role=admin)` と `x-event-id` が必須
+- 編集: `contentEditMiddleware` + `roleGuard(['admin', 'user'])`
+- 編集 API は `auth_token(role=admin または user)` と `x-event-id` が必須
 
 ## 画面構成
-- `user`
+- アクセスコード利用者
   - デスクトップ: テーブル表示（部屋、前日担当、当日担当、備考）
   - モバイル: カード表示
-- `admin`
+- 管理者・部署スタッフ
   - `RoomAdminPanel` で一覧・作成・更新・削除
   - 部署候補は `/api/departments` から取得
 
-### 追加・編集の共通操作（admin）
+### 追加・編集の共通操作（管理者・部署スタッフ）
 - 「+ 追加」と各項目の「編集」は、同じモーダルでフォームを表示する。
 - 編集時は既存の値を入力済みで表示し、入力エラーはモーダル内に表示する。
 - 長いフォームはモーダル内でスクロールできる。
@@ -47,7 +47,7 @@ type RoomWithDepartments = {
 - ヘッダー: `x-event-id`
 - レスポンス: `{ "rooms": RoomWithDepartments[] }`
 
-### `POST /api/rooms`（admin）
+### `POST /api/rooms`（管理者・部署スタッフ）
 ```json
 {
   "event_id": "uuid",
@@ -62,10 +62,10 @@ type RoomWithDepartments = {
 }
 ```
 
-### `PUT /api/rooms/:id`（admin）
+### `PUT /api/rooms/:id`（管理者・部署スタッフ）
 - 部分更新可
 
-### `DELETE /api/rooms/:id`（admin）
+### `DELETE /api/rooms/:id`（管理者・部署スタッフ）
 - レスポンス: `{ "id": "uuid" }`
 
 ## 関連 API
@@ -81,3 +81,5 @@ type RoomWithDepartments = {
 - 会期不一致データの更新拒否
 - 部署未設定（前日担当なし）の表示
 - 認証/認可失敗時のステータス
+
+部署スタッフは所属部署にかかわらず全コンテンツを閲覧・編集できる。部署管理・アクセスコード管理・他ユーザー管理は管理者のみ。

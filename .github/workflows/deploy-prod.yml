@@ -62,6 +62,16 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      # Auth/session/permission reads must observe revocation immediately.
+      - name: Disable Hyperdrive query caching for authentication
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: hyperdrive update 5a36ae3ca5ed4a4697040c00685f213e --caching-disabled
+          workingDirectory: apps/backend
+          environment: prod
+
       - name: Deploy to Cloudflare Workers (Production)
         id: deploy-backend
         uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
@@ -73,10 +83,12 @@ jobs:
           secrets: |
             DATABASE_URL
             JWT_SECRET
+            BETTER_AUTH_SECRET
           environment: prod
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
 
       - name: Finalize database migrations after backend deployment
         run: |
