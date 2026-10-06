@@ -275,7 +275,7 @@ describe('PUT /api/auth/password', () => {
         const body = (await res.json()) as { message: string };
 
         expect(res.status).toBe(200);
-        expect(body.message).toBe('パスワードを変更しました');
+        expect(body.message).toBe('パスワードを変更しました。再ログインしてください');
     });
 
     it('現在のパスワードが誤っている場合 400 が返ること', async () => {

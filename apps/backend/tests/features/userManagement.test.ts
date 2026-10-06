@@ -1,20 +1,22 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { Hono } from 'hono';
-import { sign } from 'hono/jwt';
 import type { Env } from '@backend/src/db/connection';
 import type {
     IUserRepository,
     User,
 } from '@backend/src/infrastructure/repositories/user/IUserRepository';
-import { createUserRoutes } from '@backend/src/presentation/routes/userRoutes';
-import { createSessionValidation } from '@backend/src/presentation/routes/sessionValidation';
-import { createDepartmentRoutes } from '@backend/src/presentation/routes/departmentRoutes';
-import { createAuthRoutes } from '@backend/src/presentation/routes/authRoutes';
 import { contentAccessMiddleware } from '@backend/src/presentation/middleware/contentAccessMiddleware';
+import { createAuthRoutes } from '@backend/src/presentation/routes/authRoutes';
+import { createDepartmentRoutes } from '@backend/src/presentation/routes/departmentRoutes';
+import { createSessionValidation } from '@backend/src/presentation/routes/sessionValidation';
+import { createUserRoutes } from '@backend/src/presentation/routes/userRoutes';
+import { describe, expect, it, jest } from '@jest/globals';
+import { Hono } from 'hono';
+import { sign } from 'hono/jwt';
+import { testAuthentication } from '../helpers/authentication';
 import {
     department,
     departmentRepository,
 } from '../helpers/departmentRepository';
+
 const env = { JWT_SECRET: 'test-secret' } as Env;
 const id = 'abcdefab-0000-4000-8000-000000000001';
 const admin: User = {
@@ -48,11 +50,17 @@ function app(repo: IUserRepository) {
     const app = new Hono<{ Bindings: Env }>();
     app.use(
         '/api/*',
-        createSessionValidation(() => repo),
+        createSessionValidation(
+            () => repo,
+            async (env) => testAuthentication(env),
+        ),
     );
     app.route(
         '/api',
-        createAuthRoutes(() => repo),
+        createAuthRoutes(
+            () => repo,
+            async (env) => testAuthentication(env, repo),
+        ),
     );
     app.get('/api/timetable', contentAccessMiddleware, (c) =>
         c.json({ items: [] }),
