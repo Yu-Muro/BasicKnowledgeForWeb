@@ -13,7 +13,7 @@
 
 - `auth_token`（Cookie）
   - 発行: `POST /api/auth/login`
-  - payload: `{ id, name, email, role, exp }`
+  - Better Authの署名付きセッションCookie。DBで検証し、ユーザー情報は `/api/auth/me` で取得する（JWTではない）。
 - `access_token`（Cookie）
   - 発行: `POST /api/access-codes/verify`
   - payload: `{ event_id, exp }`
@@ -40,7 +40,7 @@
 | Method | Path | 認証 | 概要 |
 |---|---|---|---|
 | POST | `/api/auth/login` | 不要 | ログインして `auth_token` を発行 |
-| POST | `/api/auth/logout` | 不要 | ログアウト（Cookie削除） |
+| POST | `/api/auth/logout` | 不要 | ログアウト（DBセッション失効・Cookie削除） |
 | GET | `/api/auth/me` | `auth_token` 必須 | ログインユーザー情報を返す |
 | PUT | `/api/auth/password` | `auth_token` 必須 | パスワード変更 |
 

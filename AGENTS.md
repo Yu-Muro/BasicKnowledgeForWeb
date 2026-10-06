@@ -507,7 +507,7 @@ app/
 ├── login/page.tsx / register/page.tsx / access/page.tsx
 ├── actions/*.ts                               # Server Actions（CRUD/認証）
 ├── lib/backendFetch.ts                        # BACKEND service binding経由 fetch
-├── lib/serverAuth.ts                          # JWT payload 解決 + ヘッダー組み立て
+├── lib/serverAuth.ts                          # DBセッション・会期JWT解決 + ヘッダー組み立て
 ├── utils/client.ts                            # Type-safe Hono API client
 components/
 ├── AuthHeader.tsx / EventSelector.tsx
@@ -646,6 +646,7 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
 | `CLOUDFLARE_API_TOKEN` | デプロイワークフロー |
 | `CLOUDFLARE_ACCOUNT_ID` | デプロイワークフロー |
 | `DATABASE_URL` | デプロイワークフロー（db:migrate） |
+| `BETTER_AUTH_SECRET` | Better Authセッション署名（dev/prod各環境のBackendへ設定） |
 | `RENOVATE_APP_PRIVATE_KEY` | Renovate 専用 GitHub App の秘密鍵（PEM）。リポジトリへコミットせず、Actions Secret に登録します |
 
 ### 必須変数（Variables）
@@ -713,15 +714,20 @@ NEXT_PUBLIC_API_URL=http://localhost:8080
 
 ### 認証
 
-JWT ベース認証を採用しており、トークンは 2 種類あります。
+ユーザー認証は Better Auth のDBセッション、会期閲覧は従来のJWTを使用します。
 
 | トークン | Cookie 名 | 発行エンドポイント | Payload | スコープ |
 |---|---|---|---|---|
 | Access token | `access_token` | `POST /api/access-codes/verify` | `{ event_id, exp }` | イベント単位 |
-| Auth token | `auth_token` | `POST /api/auth/login` | `{ id, name, email, role, exp }` | ユーザー単位 |
+| Auth session | `auth_token` | `POST /api/auth/login` | 署名付きセッション識別子（JWTではない） | ユーザー単位 |
 
 - JWT secret は Cloudflare Workers secret（`JWT_SECRET`）で管理し、`wrangler.jsonc` には置かない
-- トークン検証は `hono/jwt`（`verify(token, secret, 'HS256')`）を使用
+- 会期JWT検証は `hono/jwt`（`verify(token, secret, 'HS256')`）を使用
+- ユーザーセッションは `BETTER_AUTH_SECRET`（32文字以上）で署名し、DBで検証する。権限・所属・削除状態は毎回現在の `users` を参照する
+- セッション有効期限は7日、自動延長とCookieキャッシュは無効。Hyperdriveのクエリキャッシュも無効にする
+- ログアウトは現在のDBセッション、パスワード変更は全セッションを失効させる
+- 汎用Better Authルートは公開しない。既存APIを維持し、メール認証・OTP・パスキー・Googleログインは今回の対象外
+- 導入・ロールバック手順: `docs/better-auth-migration.md`
 - 認証ロジックは `src/presentation/middleware/` に集約
 
 ### コンテンツアクセスミドルウェア
@@ -731,12 +737,12 @@ JWT ベース認証を採用しており、トークンは 2 種類あります�
 以下のいずれかを満たすリクエストのみ通過させる:
 
 1. **access_token 認証**: `access_token` Cookie の JWT が有効、かつ `payload.event_id === x-event-id` ヘッダーの値
-2. **auth_token 認証**: `auth_token` Cookie の JWT が有効、かつ `payload.role === 'admin'`
+2. **auth_token 認証**: `auth_token` Cookie のDBセッションが有効、かつDB上の現在のユーザーが `role=admin`
 
 `role=user` の `auth_token` はコンテンツ API を通過できない。一般ユーザーは `access_token` が必要。
 どちらも満たさない場合は `401 Unauthorized` を返す。
 
-Feature テストでは `app.request(path, { headers }, mockEnv)` の第3引数で `{ JWT_SECRET }` を渡す。
+Feature テストでは会期JWT用の `JWT_SECRET` と、DIで差し替えた認証リポジトリを使用する。実際のBetter AuthとDBの検証は `bun run test:auth:integration`（専用 `AUTH_TEST_DATABASE_URL` 必須）で行う。
 
 ### ロールと RBAC
 
