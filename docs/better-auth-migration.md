@@ -73,3 +73,13 @@ BackendとFrontendを揃えて戻し、再ログインを案内する。Better A
 - [Better Auth Drizzle adapter](https://www.better-auth.com/docs/adapters/drizzle)
 - [Better Authセッション管理](https://www.better-auth.com/docs/concepts/session-management)
 - [Cloudflare Hyperdriveキャッシュ](https://developers.cloudflare.com/hyperdrive/configuration/query-caching/)
+
+## 利用者と権限
+
+| 利用者 | 認証 | 許可 |
+|---|---|---|
+| 一般閲覧者 | アクセスコードのJWT | 該当会期の閲覧のみ |
+| 部署スタッフ | Better Auth・DBの `role=user` | 全会期・全部署のコンテンツ閲覧・編集、自身のパスワード変更 |
+| 管理者 | Better Auth・DBの `role=admin` | コンテンツ編集に加え、部署・アクセスコード・他ユーザー管理 |
+
+Frontendの `viewer` は閲覧者を表す内部状態であり、DBロールではない。スタッフは `/api/events` で会期を選択できるが、アクセスコード自体は取得できない。

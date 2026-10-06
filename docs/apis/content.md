@@ -20,18 +20,18 @@
   - 必須: `x-event-id: <uuid>`
   - 許可条件:
     - `access_token.event_id === x-event-id`
-    - または `auth_token.role === admin`
+    - または DBセッションの現在のロールが `admin` または `user`（部署スタッフ）
 - 編集（POST/PUT/DELETE）:
-  - `contentEditMiddleware` + `roleGuard(['admin'])`
+  - `contentEditMiddleware` + `roleGuard(['admin', 'user'])`
   - 必須:
-    - `auth_token`（admin）
+    - `auth_token`（管理者・部署スタッフ）
     - `x-event-id: <uuid>`
 
 ### 共通エラー
 
 - `400`: バリデーションエラー / `event_id` 不一致
 - `401`: Unauthorized
-- `403`: Forbidden（非admin）
+- `403`: Forbidden（未許可ロール）
 - `404`: 対象データなし
 - `500`: サーバーエラー
 

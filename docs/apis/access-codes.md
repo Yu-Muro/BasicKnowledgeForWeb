@@ -9,7 +9,7 @@
   - `auth_token`（`POST /api/auth/login` で発行）
 - 閲覧系（`GET /api/access-codes/:id`）は `contentAccessMiddleware` を使用
   - `access_token` の `event_id` と `x-event-id` が一致、または
-  - `auth_token` の `role=admin`
+  - 管理者・部署スタッフのDBセッション
 
 ## POST `/api/access-codes/verify`
 
@@ -110,3 +110,9 @@
 - Route: `apps/backend/src/presentation/routes/accessCodeRoutes.ts`
 - Controller: `apps/backend/src/presentation/controllers/accessCodeController.ts`
 - Validator: `apps/backend/src/infrastructure/validators/accessCodeValidator.ts`
+
+## 部署スタッフの会期選択
+
+`GET /api/events` はDBセッションが有効な管理者・部署スタッフ向け。`200` / `{ "events": [{ "id": "uuid", "eventName": "会期名" }] }` を返す。コードや作成者情報は含めない。アクセスコードだけの閲覧者は `401`、未許可ロールは `403`。
+
+`GET /api/access-codes/:id` は会期名表示のためスタッフにも許可する。ただし管理者以外には `code` オブジェクト内の `id`・`eventName` のみを返す。アクセスコードの一覧・作成・削除は引き続き管理者専用。

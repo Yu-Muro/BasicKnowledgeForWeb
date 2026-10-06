@@ -69,38 +69,38 @@
 | Method | Path | 認証 | 概要 |
 |---|---|---|---|
 | GET | `/api/timetable` | `contentAccessMiddleware` | タイムテーブル一覧 |
-| POST | `/api/timetable` | `contentEditMiddleware + admin` | タイムテーブル作成 |
-| PUT | `/api/timetable/:id` | `contentEditMiddleware + admin` | タイムテーブル更新 |
-| DELETE | `/api/timetable/:id` | `contentEditMiddleware + admin` | タイムテーブル削除 |
+| POST | `/api/timetable` | `contentEditMiddleware + admin/user` | タイムテーブル作成 |
+| PUT | `/api/timetable/:id` | `contentEditMiddleware + admin/user` | タイムテーブル更新 |
+| DELETE | `/api/timetable/:id` | `contentEditMiddleware + admin/user` | タイムテーブル削除 |
 
 ### Rooms
 
 | Method | Path | 認証 | 概要 |
 |---|---|---|---|
 | GET | `/api/rooms` | `contentAccessMiddleware` | 部屋割り一覧 |
-| POST | `/api/rooms` | `contentEditMiddleware + admin` | 部屋割り作成 |
-| PUT | `/api/rooms/:id` | `contentEditMiddleware + admin` | 部屋割り更新 |
-| DELETE | `/api/rooms/:id` | `contentEditMiddleware + admin` | 部屋割り削除 |
+| POST | `/api/rooms` | `contentEditMiddleware + admin/user` | 部屋割り作成 |
+| PUT | `/api/rooms/:id` | `contentEditMiddleware + admin/user` | 部屋割り更新 |
+| DELETE | `/api/rooms/:id` | `contentEditMiddleware + admin/user` | 部屋割り削除 |
 
 ### Programs
 
 | Method | Path | 認証 | 概要 |
 |---|---|---|---|
 | GET | `/api/programs` | `contentAccessMiddleware` | 企画一覧 |
-| POST | `/api/programs` | `contentEditMiddleware + admin` | 企画作成 |
-| PUT | `/api/programs/:id` | `contentEditMiddleware + admin` | 企画更新 |
-| DELETE | `/api/programs/:id` | `contentEditMiddleware + admin` | 企画削除 |
-| POST | `/api/programs/upload` | `contentEditMiddleware + admin` | 企画画像アップロード |
+| POST | `/api/programs` | `contentEditMiddleware + admin/user` | 企画作成 |
+| PUT | `/api/programs/:id` | `contentEditMiddleware + admin/user` | 企画更新 |
+| DELETE | `/api/programs/:id` | `contentEditMiddleware + admin/user` | 企画削除 |
+| POST | `/api/programs/upload` | `contentEditMiddleware + admin/user` | 企画画像アップロード |
 
 ### Shop Items
 
 | Method | Path | 認証 | 概要 |
 |---|---|---|---|
 | GET | `/api/shop-items` | `contentAccessMiddleware` | 販売物一覧 |
-| POST | `/api/shop-items` | `contentEditMiddleware + admin` | 販売物作成 |
-| PUT | `/api/shop-items/:id` | `contentEditMiddleware + admin` | 販売物更新 |
-| DELETE | `/api/shop-items/:id` | `contentEditMiddleware + admin` | 販売物削除 |
-| POST | `/api/shop-items/upload` | `contentEditMiddleware + admin` | 販売物画像アップロード |
+| POST | `/api/shop-items` | `contentEditMiddleware + admin/user` | 販売物作成 |
+| PUT | `/api/shop-items/:id` | `contentEditMiddleware + admin/user` | 販売物更新 |
+| DELETE | `/api/shop-items/:id` | `contentEditMiddleware + admin/user` | 販売物削除 |
+| POST | `/api/shop-items/upload` | `contentEditMiddleware + admin/user` | 販売物画像アップロード |
 
 ### Departments
 
@@ -116,10 +116,10 @@
 | Method | Path | 認証 | 概要 |
 |---|---|---|---|
 | GET | `/api/others` | `contentAccessMiddleware` | その他情報一覧 |
-| POST | `/api/others` | `contentEditMiddleware + admin` | その他情報作成 |
-| PUT | `/api/others/:id` | `contentEditMiddleware + admin` | その他情報更新 |
-| DELETE | `/api/others/:id` | `contentEditMiddleware + admin` | その他情報削除 |
-| POST | `/api/others/upload` | `contentEditMiddleware + admin` | その他情報画像アップロード |
+| POST | `/api/others` | `contentEditMiddleware + admin/user` | その他情報作成 |
+| PUT | `/api/others/:id` | `contentEditMiddleware + admin/user` | その他情報更新 |
+| DELETE | `/api/others/:id` | `contentEditMiddleware + admin/user` | その他情報削除 |
+| POST | `/api/others/upload` | `contentEditMiddleware + admin/user` | その他情報画像アップロード |
 
 ### Search
 
@@ -150,3 +150,13 @@
   - `apps/backend/src/presentation/middleware/contentAccessMiddleware.ts`
   - `apps/backend/src/presentation/middleware/contentEditMiddleware.ts`
   - `apps/backend/src/presentation/middleware/roleGuard.ts`
+
+## 利用者と権限
+
+| 利用者 | 認証 | 許可 |
+|---|---|---|
+| 一般閲覧者 | アクセスコードのJWT | 該当会期の閲覧のみ |
+| 部署スタッフ | Better Auth・DBの `role=user` | 全会期・全部署のコンテンツ閲覧・編集、自身のパスワード変更 |
+| 管理者 | Better Auth・DBの `role=admin` | コンテンツ編集に加え、部署・アクセスコード・他ユーザー管理 |
+
+Frontendの `viewer` は閲覧者を表す内部状態であり、DBロールではない。スタッフは `/api/events` で会期を選択できるが、アクセスコード自体は取得できない。

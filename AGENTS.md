@@ -737,9 +737,9 @@ NEXT_PUBLIC_API_URL=http://localhost:8080
 以下のいずれかを満たすリクエストのみ通過させる:
 
 1. **access_token 認証**: `access_token` Cookie の JWT が有効、かつ `payload.event_id === x-event-id` ヘッダーの値
-2. **auth_token 認証**: `auth_token` Cookie のDBセッションが有効、かつDB上の現在のユーザーが `role=admin`
+2. **auth_token 認証**: `auth_token` Cookie のDBセッションが有効、かつDB上の現在のユーザーが `role=admin` または `role=user`（部署スタッフ）
 
-`role=user` の `auth_token` はコンテンツ API を通過できない。一般ユーザーは `access_token` が必要。
+部署スタッフ（`role=user`）は全会期・全部署のコンテンツを閲覧・編集できる。アクセスコード利用者は閲覧のみ。部署管理・アクセスコード管理・他ユーザー管理は `admin` のみ。
 どちらも満たさない場合は `401 Unauthorized` を返す。
 
 Feature テストでは会期JWT用の `JWT_SECRET` と、DIで差し替えた認証リポジトリを使用する。実際のBetter AuthとDBの検証は `bun run test:auth:integration`（専用 `AUTH_TEST_DATABASE_URL` 必須）で行う。
@@ -750,11 +750,11 @@ Feature テストでは会期JWT用の `JWT_SECRET` と、DIで差し替えた�
 
 | ロール | 説明 |
 |---|---|
-| `user` | 一般ユーザー（デフォルト） |
+| `user` | 部署スタッフ（全コンテンツの閲覧・編集、デフォルト） |
 | `admin` | 管理者権限 |
 
 コンテンツ GET API では `contentAccessMiddleware` が role チェックを担い、
-`access_token`（event一致）または `auth_token(admin)` のみ通過する。
+`access_token`（event一致）または管理者・部署スタッフのDBセッションが通過する。Frontendでは閲覧のみの状態を `viewer` として区別する（DBロールではない）。
 より細かい RBAC が必要な場合は use case 層に追加する。
 
 ### ユーザーの所属とセッション
