@@ -16,7 +16,9 @@
         "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
         "db:check": "drizzle-kit check",
         "db:up": "drizzle-kit up",
-        "db:drop": "drizzle-kit drop"
+        "db:drop": "drizzle-kit drop",
+        "db:migrate:expand": "bun scripts/migrate-expand.ts",
+        "db:test:departments": "bun scripts/verify-global-departments-migration.ts"
     },
     "dependencies": {
         "@hono/zod-validator": "^0.9.0",

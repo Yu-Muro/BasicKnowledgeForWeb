@@ -55,10 +55,10 @@ jobs:
       - name: Setup Bun workspace
         uses: $/.github/actions/setup-bun-project
 
-      - name: Run database migrations
+      - name: Run backward-compatible database migrations
         run: |
           cd apps/backend
-          bun run db:migrate
+          bun run db:migrate:expand
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
@@ -78,6 +78,13 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
+      - name: Finalize database migrations after backend deployment
+        run: |
+          cd apps/backend
+          bun run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       - name: Notify deployment
         env:
           DEPLOYMENT_URL: ${{ steps.deploy-backend.outputs.deployment-url }}
@@ -87,6 +94,7 @@ jobs:
           echo "Deployment URL: ${DEPLOYMENT_URL}"
 
   deploy-frontend:
+    needs: deploy-backend
     runs-on: ubuntu-latest
     environment: dev
     steps:

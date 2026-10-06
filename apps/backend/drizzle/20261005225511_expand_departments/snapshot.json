@@ -1,9 +1,9 @@
 {
   "version": "1",
   "dialect": "cockroach",
-  "id": "d1c4cc87-ed22-4ca0-b2a5-baf6d46fd56f",
+  "id": "706c3bb2-d377-44e7-af73-522be0e24284",
   "prevIds": [
-    "706c3bb2-d377-44e7-af73-522be0e24284"
+    "12410dfd-d298-42a5-b730-62acda814413"
   ],
   "ddl": [
     {
@@ -160,6 +160,19 @@
       "generated": null,
       "identity": null,
       "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "departments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "event_id",
       "entityType": "columns",
       "schema": "public",
       "table": "departments"
@@ -984,19 +997,6 @@
       "table": "users"
     },
     {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "department_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "users"
-    },
-    {
       "type": "timestamp",
       "typeSchema": null,
       "notNull": false,
@@ -1039,7 +1039,12 @@
       "nameExplicit": true,
       "columns": [
         {
-          "value": "name",
+          "value": "event_id",
+          "isExpression": false,
+          "asc": true
+        },
+        {
+          "value": "id",
           "isExpression": false,
           "asc": true
         }
@@ -1047,7 +1052,7 @@
       "isUnique": true,
       "where": null,
       "method": "btree",
-      "name": "departments_name_idx",
+      "name": "departments_event_id_id_idx",
       "entityType": "indexes",
       "schema": "public",
       "table": "departments"
@@ -1073,6 +1078,23 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "timetable_items"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "event_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "access_codes",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "name": "departments_event_id_access_codes_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "departments"
     },
     {
       "nameExplicit": false,
@@ -1121,40 +1143,6 @@
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "name": "rooms_event_id_access_codes_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "rooms"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "pre_day_manager_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "departments",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
-      "name": "rooms_pre_day_manager_id_departments_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "rooms"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "day_manager_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "departments",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
-      "name": "rooms_day_manager_id_departments_id_fkey",
       "entityType": "fks",
       "schema": "public",
       "table": "rooms"
@@ -1215,23 +1203,6 @@
     {
       "nameExplicit": false,
       "columns": [
-        "department_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "departments",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
-      "name": "timetable_item_departments_department_id_departments_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "timetable_item_departments"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
         "event_id"
       ],
       "schemaTo": "public",
@@ -1245,23 +1216,6 @@
       "entityType": "fks",
       "schema": "public",
       "table": "timetable_items"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "department_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "departments",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
-      "name": "users_department_id_departments_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "users"
     },
     {
       "columns": [
@@ -1387,6 +1341,87 @@
       "table": "users",
       "schema": "public",
       "entityType": "indexes"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "department_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "users"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "pre_day_manager_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "departments",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "name": "rooms_pre_day_manager_id_departments_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "rooms"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "day_manager_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "departments",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "name": "rooms_day_manager_id_departments_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "rooms"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "department_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "departments",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "name": "timetable_item_departments_department_id_departments_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "timetable_item_departments"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "department_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "departments",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "name": "users_department_id_departments_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "users"
     }
   ],
   "renames": []
