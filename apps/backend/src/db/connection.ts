@@ -30,7 +30,13 @@ export interface R2Bucket {
     delete(key: string): Promise<void>;
 }
 
+export interface PublicAuthRateLimiter {
+    limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 export interface Env {
+    PUBLIC_AUTH_RATE_LIMIT_ENABLED?: string;
+    PUBLIC_AUTH_RATE_LIMITER?: PublicAuthRateLimiter;
     HYPERDRIVE: Hyperdrive;
     JWT_SECRET: string;
     SHOP_ITEM_ASSET_BUCKET: R2Bucket;

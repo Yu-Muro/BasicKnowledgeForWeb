@@ -12,6 +12,7 @@ import { CreateUserUseCase } from '@backend/src/use-cases/user/CreateUserUseCase
 import { GetUsersUseCase } from '@backend/src/use-cases/user/GetUsersUseCase';
 import { UpdateUserRoleUseCase } from '@backend/src/use-cases/user/UpdateUserRoleUseCase';
 import { Hono } from 'hono';
+import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
 
 type UserRepositoryFactory = (env: Env) => IUserRepository;
 
@@ -29,6 +30,8 @@ export function createUserRoutes(
             })
             // POST /api/users - ユーザー作成
             .post('/users', async (c) => {
+                const limited = await publicAuthRateLimitGuard(c, 'register');
+                if (limited) return limited;
                 const repository = repositoryFactory(c.env);
                 const useCase = new CreateUserUseCase(repository);
                 return createUser(c, useCase);

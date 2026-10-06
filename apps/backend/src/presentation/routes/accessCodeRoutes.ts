@@ -20,6 +20,7 @@ import {
 } from '../middleware/authMiddleware';
 import { contentAccessMiddleware } from '../middleware/contentAccessMiddleware';
 import { roleGuard } from '../middleware/roleGuard';
+import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
 
 type AccessCodeRepositoryFactory = (env: Env) => IAccessCodeRepository;
 
@@ -39,6 +40,8 @@ export function createAccessCodeRoutes(
             })
             // POST /api/access-codes/verify — 誰でも可
             .post('/access-codes/verify', async (c) => {
+                const limited = await publicAuthRateLimitGuard(c, 'verify');
+                if (limited) return limited;
                 const repository = repositoryFactory(c.env);
                 const useCase = new VerifyAccessCodeUseCase(repository);
                 return verifyAccessCode(c, useCase);

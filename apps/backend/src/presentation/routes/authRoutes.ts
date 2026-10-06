@@ -14,6 +14,7 @@ import {
     type AuthVariables,
     authMiddleware,
 } from '../middleware/authMiddleware';
+import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
 
 type UserRepositoryFactory = (env: Env) => IUserRepository;
 
@@ -25,6 +26,8 @@ export function createAuthRoutes(
         new Hono<{ Bindings: Env; Variables: AuthVariables }>()
             // POST /api/auth/login
             .post('/auth/login', async (c) => {
+                const limited = await publicAuthRateLimitGuard(c, 'login');
+                if (limited) return limited;
                 const repository = repositoryFactory(c.env);
                 const useCase = new LoginUseCase(repository);
                 return login(c, useCase);
