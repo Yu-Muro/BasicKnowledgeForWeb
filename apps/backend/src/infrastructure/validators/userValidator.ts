@@ -11,7 +11,8 @@ export const createUserSchema = z.object({
             /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
             '有効なメールアドレスを入力してください',
         )
-        .max(255, 'メールアドレスは255文字以内で入力してください'),
+        .max(255, 'メールアドレスは255文字以内で入力してください')
+        .transform((email) => email.toLowerCase()),
     password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
     departmentId: z.string().uuid('部署を選択してください'),
     role: z.literal('user').optional().default('user'),

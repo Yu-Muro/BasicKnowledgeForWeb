@@ -6,18 +6,11 @@ import {
 import type { IChangePasswordUseCase } from '@backend/src/use-cases/auth/IChangePasswordUseCase';
 import type { ILoginUseCase } from '@backend/src/use-cases/auth/ILoginUseCase';
 import type { Context } from 'hono';
-import { deleteCookie, setCookie } from 'hono/cookie';
+import { deleteCookie } from 'hono/cookie';
+import type { ILogoutUseCase } from '../../use-cases/auth/LogoutUseCase';
 import type { AuthVariables } from '../middleware/authMiddleware';
 
 type AppContext = Context<{ Bindings: Env; Variables: AuthVariables }>;
-
-const COOKIE_OPTIONS = {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'Lax' as const,
-    path: '/',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-};
 
 export async function login(c: AppContext, useCase: ILoginUseCase) {
     const body = await c.req.json().catch(() => null);
@@ -31,19 +24,26 @@ export async function login(c: AppContext, useCase: ILoginUseCase) {
 
     const result = await useCase.execute({
         ...parsed.data,
-        jwtSecret: c.env.JWT_SECRET,
+        headers: new Headers(c.req.raw.headers),
     });
 
     if (!result.success) {
-        return c.json({ error: result.error }, 401);
+        return c.json(
+            { error: result.error },
+            result.status as 401 | 403 | 429 | 503,
+        );
     }
 
-    setCookie(c, 'auth_token', result.token, COOKIE_OPTIONS);
+    for (const cookie of result.data.cookies)
+        c.header('Set-Cookie', cookie, { append: true });
     return c.json({ message: 'ログインしました' }, 200);
 }
 
-export function logout(c: AppContext) {
-    deleteCookie(c, 'auth_token', { path: '/' });
+export async function logout(c: AppContext, useCase: ILogoutUseCase) {
+    const result = await useCase.execute(new Headers(c.req.raw.headers));
+    if (!result.success) return c.json({ error: result.error }, 503);
+    for (const cookie of result.data.cookies)
+        c.header('Set-Cookie', cookie, { append: true });
     return c.json({ message: 'ログアウトしました' }, 200);
 }
 
@@ -85,5 +85,9 @@ export async function changePassword(
         return c.json({ error: result.error }, result.status as 400 | 404);
     }
 
-    return c.json({ message: 'パスワードを変更しました' }, 200);
+    deleteCookie(c, 'auth_token', { path: '/' });
+    return c.json(
+        { message: 'パスワードを変更しました。再ログインしてください' },
+        200,
+    );
 }

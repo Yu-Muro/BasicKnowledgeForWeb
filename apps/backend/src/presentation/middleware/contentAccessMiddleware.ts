@@ -46,26 +46,10 @@ export const contentAccessMiddleware = createMiddleware<{
         }
     }
 
-    // auth_token 認証: JWT が有効かつ role が admin であること
-    if (authToken) {
-        try {
-            const payload = await verify(authToken, c.env.JWT_SECRET, 'HS256');
-            const role =
-                c.get('user')?.role ?? (payload.role as string | undefined);
-            if (role === 'admin') {
-                await next();
-                return;
-            }
-            console.log('[contentAccess] auth_token role not admin', {
-                path: c.req.path,
-                role,
-            });
-        } catch (err) {
-            console.log('[contentAccess] auth_token verification failed', {
-                path: c.req.path,
-                error: err instanceof Error ? err.message : String(err),
-            });
-        }
+    // Account sessions are resolved from Better Auth and the current user row.
+    if (c.get('user')?.role === 'admin') {
+        await next();
+        return;
     }
 
     if (!accessToken && !authToken) {

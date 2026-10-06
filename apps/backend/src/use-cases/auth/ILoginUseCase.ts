@@ -1,17 +1,18 @@
 export type LoginInput = {
     email: string;
     password: string;
-    jwtSecret: string;
+    headers: Headers;
 };
 
 export type LoginSuccess = {
     success: true;
-    token: string;
+    data: { cookies: string[] };
 };
 
 export type LoginFailure = {
     success: false;
     error: string;
+    status: number;
 };
 
 export type LoginResult = LoginSuccess | LoginFailure;
