@@ -12,6 +12,32 @@ export function createSessionValidation(
 ) {
     return createMiddleware<{ Bindings: Env; Variables: AuthVariables }>(
         async (c, next) => {
+            // Event access is independent of the account session for read-only content.
+            const contentRead =
+                c.req.method === 'GET' &&
+                ([
+                    '/api/timetable',
+                    '/api/rooms',
+                    '/api/programs',
+                    '/api/shop-items',
+                    '/api/others',
+                    '/api/search',
+                ].includes(c.req.path) ||
+                    /^\/api\/access-codes\/[^/]+$/.test(c.req.path));
+            const accessToken = getCookie(c, 'access_token');
+            if (contentRead && accessToken && c.req.header('x-event-id')) {
+                try {
+                    const payload = await verify(
+                        accessToken,
+                        c.env.JWT_SECRET,
+                        'HS256',
+                    );
+                    if (payload.event_id === c.req.header('x-event-id'))
+                        return next();
+                } catch {
+                    // Fall through to account validation when event access is invalid.
+                }
+            }
             const token = getCookie(c, 'auth_token');
             // Login/logout must work even with an expired or deleted-account cookie.
             if (
