@@ -112,7 +112,7 @@ try {
     await db.insert(users).values({
         id: userId,
         name: '移行検証',
-        email,
+        email: email.toUpperCase(),
         password: await hash(password, 1),
         role: 'admin',
     });
