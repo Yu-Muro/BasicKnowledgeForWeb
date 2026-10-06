@@ -56,7 +56,11 @@ export async function getAccessCode(
     if (!result.success) {
         return c.json({ error: result.error }, 404);
     }
-    return c.json({ code: result.data }, 200);
+    const data =
+        c.get('user')?.role === 'admin'
+            ? result.data
+            : { id: result.data.id, eventName: result.data.eventName };
+    return c.json({ code: data }, 200);
 }
 
 export async function getAccessCodes(
@@ -68,6 +72,19 @@ export async function getAccessCodes(
         return c.json({ error: result.error }, 500);
     }
     return c.json({ codes: result.data }, 200);
+}
+
+// Staff event selection must not disclose access codes or management data.
+export async function getEvents(
+    c: AppContext,
+    useCase: IGetAccessCodesUseCase,
+) {
+    const result = await useCase.execute();
+    if (!result.success) return c.json({ error: result.error }, 500);
+    return c.json(
+        { events: result.data.map(({ id, eventName }) => ({ id, eventName })) },
+        200,
+    );
 }
 
 export async function createAccessCode(

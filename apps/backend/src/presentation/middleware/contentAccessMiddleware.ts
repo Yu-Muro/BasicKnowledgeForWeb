@@ -9,9 +9,9 @@ import type { AuthVariables } from './authMiddleware';
  *
  * 以下のいずれかを満たす場合にリクエストを通過させる:
  * - access_token が有効、かつ JWT 内の event_id が x-event-id ヘッダーと一致する
- * - auth_token が有効、かつ role が admin である
+ * - DBセッションが有効で、管理者または部署スタッフである
  *
- * role=user の auth_token はコンテンツ API を通過できない（access_token が必要）。
+ * 閲覧のみの一般ユーザーは access_token が必要。
  */
 export const contentAccessMiddleware = createMiddleware<{
     Bindings: Env;
@@ -47,7 +47,7 @@ export const contentAccessMiddleware = createMiddleware<{
     }
 
     // Account sessions are resolved from Better Auth and the current user row.
-    if (c.get('user')?.role === 'admin') {
+    if (['admin', 'user'].includes(c.get('user')?.role ?? '')) {
         await next();
         return;
     }

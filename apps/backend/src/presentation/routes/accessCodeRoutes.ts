@@ -6,6 +6,7 @@ import {
     deleteAccessCode,
     getAccessCode,
     getAccessCodes,
+    getEvents,
     verifyAccessCode,
 } from '@backend/src/presentation/controllers/accessCodeController';
 import { CreateAccessCodeUseCase } from '@backend/src/use-cases/access-code/CreateAccessCodeUseCase';
@@ -31,6 +32,16 @@ export function createAccessCodeRoutes(
 ) {
     return (
         new Hono<{ Bindings: Env; Variables: AuthVariables }>()
+            // GET /api/events — ログイン済みスタッフ・管理者向け会期選択
+            .get(
+                '/events',
+                authMiddleware,
+                roleGuard(['admin', 'user']),
+                async (c) => {
+                    const repository = repositoryFactory(c.env);
+                    return getEvents(c, new GetAccessCodesUseCase(repository));
+                },
+            )
             // GET /api/access-codes/:id — contentAccessMiddleware（user: access_token、admin/dev: auth_token）
             .get('/access-codes/:id', contentAccessMiddleware, async (c) => {
                 const repository = repositoryFactory(c.env);

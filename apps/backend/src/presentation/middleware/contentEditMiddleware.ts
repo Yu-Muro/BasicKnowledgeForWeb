@@ -24,7 +24,8 @@ export const contentEditMiddleware = createMiddleware<{
 
     const user = c.get('user');
     if (!user) return c.json({ error: 'Unauthorized' }, 401);
-    if (user.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
+    if (!['admin', 'user'].includes(user.role))
+        return c.json({ error: 'Forbidden' }, 403);
     c.set('eventId', headerResult.data['x-event-id']);
     await next();
 });
