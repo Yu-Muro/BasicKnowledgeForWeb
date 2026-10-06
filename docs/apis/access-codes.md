@@ -55,6 +55,8 @@
   - `401` Unauthorized
   - `404` not found
 
+上記の完全なレスポンスは管理者向け。部署スタッフ・アクセスコード利用者へのレスポンスは `id` と `eventName` のみ。
+
 ## GET `/api/access-codes`
 
 - 認証: `auth_token` 必須
