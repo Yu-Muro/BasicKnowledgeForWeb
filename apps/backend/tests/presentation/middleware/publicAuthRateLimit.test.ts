@@ -61,40 +61,49 @@ describe('障害ログ', () => {
     });
 });
 
-it.each(['元の設定', 'コメント・末尾カンマ付き'])(
-    '%s: Devの期間とRetry-Afterが一致し、本番とnamespaceを共有しない',
-    (format) => {
-        const source = readFileSync(
-            resolve(__dirname, '../../../wrangler.jsonc'),
-            'utf8',
-        );
-        const text =
-            format === '元の設定'
-                ? source
-                : source
-                      .replace(
-                          '"namespace_id": "1003",',
-                          '"namespace_id": "1003", /* Dev */ // Dev専用',
-                      )
-                      .replace(
-                          '"simple": { "limit": 60, "period": 60 }',
-                          '"simple": { "limit": 60, "period": 60, },',
-                      );
-        const { config, error } = ts.parseConfigFileTextToJson(
-            'wrangler.jsonc',
-            text,
-        );
-        expect(error).toBeUndefined();
-        const limiter = config.env.dev.ratelimits.find(
-            (item: { name: string }) =>
-                item.name === 'PUBLIC_AUTH_RATE_LIMITER',
-        );
-        expect(String(limiter.simple.period)).toBe(PUBLIC_AUTH_RETRY_AFTER);
-        expect(
-            config.env.prod.ratelimits?.some(
-                (item: { namespace_id: string }) =>
-                    item.namespace_id === limiter.namespace_id,
-            ) ?? false,
-        ).toBe(false);
-    },
-);
+it('実設定のDev期間とRetry-Afterが一致し、本番とnamespaceを共有しない', () => {
+    const source = readFileSync(
+        resolve(__dirname, '../../../wrangler.jsonc'),
+        'utf8',
+    );
+    const { config, error } = ts.parseConfigFileTextToJson(
+        'wrangler.jsonc',
+        source,
+    );
+    expect(error).toBeUndefined();
+    const limiter = config.env.dev.ratelimits.find(
+        (item: { name: string }) => item.name === 'PUBLIC_AUTH_RATE_LIMITER',
+    );
+    expect(String(limiter.simple.period)).toBe(PUBLIC_AUTH_RETRY_AFTER);
+    expect(
+        config.env.prod.ratelimits?.some(
+            (item: { namespace_id: string }) =>
+                item.namespace_id === limiter.namespace_id,
+        ) ?? false,
+    ).toBe(false);
+});
+
+it('実設定の値や書式に依存せずコメントと末尾カンマ付きJSONCを読める', () => {
+    const source = `{
+        // 行頭コメント
+        "ratelimits": [
+            {
+                "namespace_id": "test", /* ブロックコメント */ // 行末コメント
+                "simple": {
+                    "limit": 30,
+                    "period": 60,
+                },
+            },
+        ],
+    }`;
+    const { config, error } = ts.parseConfigFileTextToJson(
+        'fixture.jsonc',
+        source,
+    );
+    expect(error).toBeUndefined();
+    expect(config).toEqual({
+        ratelimits: [
+            { namespace_id: 'test', simple: { limit: 30, period: 60 } },
+        ],
+    });
+});
