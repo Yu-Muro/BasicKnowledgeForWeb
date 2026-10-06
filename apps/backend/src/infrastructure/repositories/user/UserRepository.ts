@@ -52,7 +52,13 @@ export class UserRepository implements IUserRepository {
 
     // Reconcile credentials written by the previous Worker during a rolling deployment.
     async ensureCredentialAccount(email: string): Promise<void> {
-        await this.db.execute(sql`
+        await this.db.transaction(async (tx) => {
+            // The previous Worker may have registered mixed-case email addresses.
+            await tx.execute(sql`
+                UPDATE users SET email = lower(email)
+                WHERE lower(email) = ${email.toLowerCase()} AND email <> lower(email)
+            `);
+            await tx.execute(sql`
             INSERT INTO auth_accounts (user_id, account_id, provider_id, password)
             SELECT id, id::string, 'credential', password FROM users
             WHERE email = ${email.toLowerCase()} AND deleted_at IS NULL
@@ -60,6 +66,7 @@ export class UserRepository implements IUserRepository {
                 updated_at = now()
             WHERE auth_accounts.password IS DISTINCT FROM excluded.password
         `);
+        });
     }
 
     async updateRole(

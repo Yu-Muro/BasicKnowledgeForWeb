@@ -11,6 +11,13 @@ export class LoginUseCase implements ILoginUseCase {
                 input.headers,
             );
             if (!response.ok) {
+                if (response.status >= 500) {
+                    return {
+                        success: false,
+                        status: 503,
+                        error: 'ログイン処理中にエラーが発生しました',
+                    };
+                }
                 const body = (await response.json()) as { message?: string };
                 return {
                     success: false,
