@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    jest,
+} from '@jest/globals';
 import { render, screen } from '@testing-library/react';
 
 // decodeJwtPayload は実装を残し、resolveAuth のみモックする
@@ -28,11 +35,11 @@ jest.mock('@frontend/app/actions/dashboard', () => ({
 
 const serverAuth =
     require('@frontend/app/lib/serverAuth') as typeof import('@frontend/app/lib/serverAuth');
-const navigation =
-    require('next/navigation') as { redirect: ReturnType<typeof jest.fn> };
-const DashboardPage =
-    require('@frontend/app/(authenticated)/dashboard/page')
-        .default as typeof import('@frontend/app/(authenticated)/dashboard/page').default;
+const navigation = require('next/navigation') as {
+    redirect: ReturnType<typeof jest.fn>;
+};
+const DashboardPage = require('@frontend/app/(authenticated)/dashboard/page')
+    .default as typeof import('@frontend/app/(authenticated)/dashboard/page').default;
 
 const mockResolveAuth = jest.mocked(serverAuth.resolveAuth);
 const mockRedirect = navigation.redirect as ReturnType<typeof jest.fn>;
@@ -40,17 +47,6 @@ const mockRedirect = navigation.redirect as ReturnType<typeof jest.fn>;
 const buildPageProps = (params?: { event_id?: string }) => ({
     searchParams: Promise.resolve(params ?? {}),
 });
-
-// テスト用の偽 JWT を生成（decodeJwtPayload が payload を取得できる形式）
-function createMockJwt(payload: object): string {
-    const json = JSON.stringify(payload);
-    const base64url = Buffer.from(json)
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '');
-    return `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${base64url}.fakesignature`;
-}
 
 const MOCK_USER_PAYLOAD = {
     id: 'user-1',
@@ -69,8 +65,18 @@ const MOCK_ADMIN_PAYLOAD = {
 };
 
 const MOCK_USERS = [
-    { id: 'user-1', name: '山田太郎', email: 'yamada@example.com', role: 'user' },
-    { id: 'admin-1', name: '管理者A', email: 'admin@example.com', role: 'admin' },
+    {
+        id: 'user-1',
+        name: '山田太郎',
+        email: 'yamada@example.com',
+        role: 'user',
+    },
+    {
+        id: 'admin-1',
+        name: '管理者A',
+        email: 'admin@example.com',
+        role: 'admin',
+    },
 ];
 
 const originalFetch = global.fetch;
@@ -100,7 +106,7 @@ describe('DashboardPage', () => {
         );
     });
 
-    it('JWT が不正な場合 /login にリダイレクトする', async () => {
+    it('検証済みのセッションユーザーがない場合 /login にリダイレクトする', async () => {
         mockResolveAuth.mockResolvedValue({
             authToken: 'invalid-not-a-jwt',
             accessToken: null,
@@ -115,7 +121,8 @@ describe('DashboardPage', () => {
 
     it('プロフィール情報（名前・メール・ロール）を表示する', async () => {
         mockResolveAuth.mockResolvedValue({
-            authToken: createMockJwt(MOCK_USER_PAYLOAD),
+            authToken: 'opaque-user-session',
+            user: MOCK_USER_PAYLOAD,
             accessToken: null,
             eventId: null,
             role: 'user',
@@ -131,7 +138,8 @@ describe('DashboardPage', () => {
 
     it('パスワード変更フォームを表示する', async () => {
         mockResolveAuth.mockResolvedValue({
-            authToken: createMockJwt(MOCK_USER_PAYLOAD),
+            authToken: 'opaque-user-session',
+            user: MOCK_USER_PAYLOAD,
             accessToken: null,
             eventId: null,
             role: 'user',
@@ -150,7 +158,8 @@ describe('DashboardPage', () => {
 
     it('user ロール時にユーザー管理・管理メニューが表示されない', async () => {
         mockResolveAuth.mockResolvedValue({
-            authToken: createMockJwt(MOCK_USER_PAYLOAD),
+            authToken: 'opaque-user-session',
+            user: MOCK_USER_PAYLOAD,
             accessToken: null,
             eventId: null,
             role: 'user',
@@ -168,7 +177,8 @@ describe('DashboardPage', () => {
 
     it('admin ロール時にユーザー管理と管理メニューが表示される', async () => {
         mockResolveAuth.mockResolvedValue({
-            authToken: createMockJwt(MOCK_ADMIN_PAYLOAD),
+            authToken: 'opaque-admin-session',
+            user: MOCK_ADMIN_PAYLOAD,
             accessToken: null,
             eventId: null,
             role: 'admin',
@@ -184,14 +194,13 @@ describe('DashboardPage', () => {
 
         expect(screen.getByText('ユーザー管理')).toBeInTheDocument();
         expect(screen.getByText('管理メニュー')).toBeInTheDocument();
-        expect(
-            screen.getByText('アクセスコード管理 →'),
-        ).toBeInTheDocument();
+        expect(screen.getByText('アクセスコード管理 →')).toBeInTheDocument();
     });
 
     it('admin ロール時にユーザー一覧を表示する', async () => {
         mockResolveAuth.mockResolvedValue({
-            authToken: createMockJwt(MOCK_ADMIN_PAYLOAD),
+            authToken: 'opaque-admin-session',
+            user: MOCK_ADMIN_PAYLOAD,
             accessToken: null,
             eventId: null,
             role: 'admin',
@@ -207,6 +216,8 @@ describe('DashboardPage', () => {
 
         expect(screen.getAllByText('山田太郎').length).toBeGreaterThan(0);
         expect(screen.getAllByText('管理者A').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('admin@example.com').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('admin@example.com').length).toBeGreaterThan(
+            0,
+        );
     });
 });

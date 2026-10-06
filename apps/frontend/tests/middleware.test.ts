@@ -1,9 +1,11 @@
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
-import { NextRequest } from 'next/server';
-import { verify } from 'hono/jwt';
 import { middleware } from '@frontend/middleware';
+import { verify } from 'hono/jwt';
+import { NextRequest } from 'next/server';
 
-jest.mock('@frontend/app/lib/backendFetch', () => ({ fetchFromBackend: jest.fn() }));
+jest.mock('@frontend/app/lib/backendFetch', () => ({
+    fetchFromBackend: jest.fn(),
+}));
 const mockBackendFetch = jest.mocked(fetchFromBackend);
 
 // hono/jwt の verify をモック化し、JWT の実署名検証をテストから分離する
@@ -40,7 +42,15 @@ const accessPayload = { event_id: 'event-1', exp: 9_999_999_999 };
 beforeEach(() => {
     mockVerify.mockReset();
     mockBackendFetch.mockReset();
-    mockBackendFetch.mockImplementation(async () => new Response(JSON.stringify(adminPayload)));
+    mockBackendFetch.mockImplementation(async (_path, init) => {
+        const cookie = (init?.headers as Record<string, string>)?.Cookie ?? '';
+        if (cookie.includes('tampered'))
+            return new Response('{}', { status: 401 });
+        const user = cookie.includes('user.token')
+            ? { ...adminPayload, id: 'user-id', role: 'user' }
+            : adminPayload;
+        return new Response(JSON.stringify(user));
+    });
 });
 
 // ─── 公開ページ ───────────────────────────────────────────────────────────────
@@ -119,7 +129,9 @@ describe('/admin/* 保護', () => {
     it('admin ロールの auth_token があれば通過できること', async () => {
         mockVerify.mockResolvedValue(adminPayload);
         const res = await middleware(
-            createRequest('/admin/dashboard', { auth_token: 'valid.admin.token' }),
+            createRequest('/admin/dashboard', {
+                auth_token: 'valid.admin.token',
+            }),
         );
         expect(res.headers.get('location')).toBeNull();
     });
@@ -214,7 +226,9 @@ describe('コンテンツページ保護', () => {
 
 describe('fail-closed: verify エラー時はアクセス拒否', () => {
     it('/admin/* へのアクセスは verify エラーで /login にリダイレクトされること', async () => {
-        mockVerify.mockRejectedValue(new Error('signature verification failed'));
+        mockVerify.mockRejectedValue(
+            new Error('signature verification failed'),
+        );
         const res = await middleware(
             createRequest('/admin/dashboard', {
                 auth_token: 'tampered.token',
@@ -238,24 +252,50 @@ describe('fail-closed: verify エラー時はアクセス拒否', () => {
     });
 });
 
-
 describe('現在のアカウント状態による保護', () => {
     it('古い管理者トークンでも降格後は管理画面へ入れない', async () => {
         mockVerify.mockResolvedValue(adminPayload);
-        mockBackendFetch.mockResolvedValue(new Response(JSON.stringify({ ...adminPayload, role: 'user' })));
-        const res = await middleware(createRequest('/admin/access-codes', { auth_token: 'old.admin.token' }));
+        mockBackendFetch.mockResolvedValue(
+            new Response(JSON.stringify({ ...adminPayload, role: 'user' })),
+        );
+        const res = await middleware(
+            createRequest('/admin/access-codes', {
+                auth_token: 'old.admin.token',
+            }),
+        );
         expect(res.headers.get('location')).toContain('/login');
     });
     it('削除後は古い管理者トークンでログイン画面から転送されない', async () => {
         mockVerify.mockResolvedValue(adminPayload);
         mockBackendFetch.mockResolvedValue(new Response('{}', { status: 401 }));
-        const res = await middleware(createRequest('/login', { auth_token: 'deleted.admin.token' }));
+        const res = await middleware(
+            createRequest('/login', { auth_token: 'deleted.admin.token' }),
+        );
         expect(res.headers.get('location')).toBeNull();
     });
     it('認証情報の確認が失敗した場合は管理画面へ入れない', async () => {
         mockVerify.mockResolvedValue(adminPayload);
         mockBackendFetch.mockRejectedValue(new Error('offline'));
-        const res = await middleware(createRequest('/dashboard', { auth_token: 'old.admin.token' }));
+        const res = await middleware(
+            createRequest('/dashboard', { auth_token: 'old.admin.token' }),
+        );
         expect(res.headers.get('location')).toContain('/login');
     });
+});
+
+it('管理者セッションはBackendで検証しJWTとして検証しない', async () => {
+    const response = await middleware(
+        createRequest('/admin/dashboard', {
+            auth_token: 'opaque-admin-session',
+        }),
+    );
+    expect(response.status).toBe(200);
+    expect(mockVerify).not.toHaveBeenCalled();
+    expect(mockBackendFetch).toHaveBeenCalledWith(
+        '/api/auth/me',
+        expect.objectContaining({
+            headers: { Cookie: 'auth_token=opaque-admin-session' },
+            cache: 'no-store',
+        }),
+    );
 });
