@@ -1,6 +1,7 @@
 import type { users } from '@backend/src/db/schema';
 
-export type User = typeof users.$inferSelect;
+export type User = Omit<typeof users.$inferSelect, 'emailVerified' | 'image'> &
+    Partial<Pick<typeof users.$inferSelect, 'emailVerified' | 'image'>>;
 
 export type UserPublic = Omit<User, 'password'>;
 
