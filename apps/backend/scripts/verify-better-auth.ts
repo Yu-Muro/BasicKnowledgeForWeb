@@ -199,7 +199,7 @@ try {
     const active = cookies(updated);
     await repo.updateRole(userId, 'user', departmentId);
     assert.equal((await request('/api/users', 'GET', active)).status, 403);
-    assert.equal((await request('/api/timetable', 'GET', active)).status, 401);
+    assert.equal((await request('/api/timetable', 'GET', active)).status, 200);
     const me = await request('/api/auth/me', 'GET', active);
     assert.equal(
         ((await me.json()) as { departmentId: string }).departmentId,

@@ -1,9 +1,9 @@
-import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import type { Env, R2Bucket } from '@backend/src/db/connection';
 import type {
     IShopItemRepository,
     ShopItem,
 } from '@backend/src/infrastructure/repositories/shop-item/IShopItemRepository';
+import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { sign } from 'hono/jwt';
 import { createTestAppWithShopItems } from '../helpers/createTestApp';
 
@@ -46,12 +46,24 @@ beforeAll(async () => {
     const exp = Math.floor(Date.now() / 1000) + 3600;
     accessToken = await sign({ event_id: EVENT_ID, exp }, JWT_SECRET);
     adminToken = await sign(
-        { id: 'admin-id', name: 'Admin', email: 'admin@test.com', role: 'admin', exp },
+        {
+            id: 'admin-id',
+            name: 'Admin',
+            email: 'admin@test.com',
+            role: 'admin',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
     userToken = await sign(
-        { id: 'user-id', name: 'User', email: 'user@test.com', role: 'user', exp },
+        {
+            id: 'user-id',
+            name: 'User',
+            email: 'user@test.com',
+            role: 'user',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
@@ -65,9 +77,7 @@ function createMockShopItemRepository(
             .fn<(eventId: string) => Promise<ShopItem[]>>()
             .mockResolvedValue([]),
         search: jest
-            .fn<
-                (keyword: string, eventId: string) => Promise<ShopItem[]>
-            >()
+            .fn<(keyword: string, eventId: string) => Promise<ShopItem[]>>()
             .mockResolvedValue([]),
         create: jest
             .fn<IShopItemRepository['create']>()
@@ -171,7 +181,7 @@ describe('GET /api/shop-items', () => {
         expect(res.status).toBe(401);
     });
 
-    it('role=user の auth_token では 401 が返ること', async () => {
+    it('部署スタッフのセッションでアクセスできること', async () => {
         const app = createTestAppWithShopItems(createMockShopItemRepository());
 
         const res = await app.request(
@@ -185,7 +195,7 @@ describe('GET /api/shop-items', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(200);
     });
 
     it('access_token の event_id と x-event-id が不一致のとき 401 が返ること', async () => {
@@ -347,22 +357,19 @@ describe('POST /api/shop-items', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithShopItems(createMockShopItemRepository());
 
-        const res = await app.request(
-            '/api/shop-items',
-            {
-                method: 'POST',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(validShopItemBody),
+        const res = await app.request('/api/shop-items', {
+            method: 'POST',
+            headers: {
+                'x-event-id': EVENT_ID,
+                'Content-Type': 'application/json',
             },
-        );
+            body: JSON.stringify(validShopItemBody),
+        });
 
         expect(res.status).toBe(401);
     });
 
-    it('role=user の auth_token では 403 が返ること', async () => {
+    it('部署スタッフのセッションでアクセスできること', async () => {
         const app = createTestAppWithShopItems(createMockShopItemRepository());
 
         const res = await app.request(
@@ -379,75 +386,81 @@ describe('POST /api/shop-items', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(201);
     });
 });
 
 // ─── PUT /api/shop-items/:id ──────────────────────────────────────────────────
 
 describe('PUT /api/shop-items/:id', () => {
-    it('admin トークンと正しいボディで 200 と更新済み item が返ること', async () => {
-        const updated = { ...shopItem1, name: '変更後グッズ' };
-        const repo = createMockShopItemRepository({
-            update: jest
-                .fn<IShopItemRepository['update']>()
-                .mockImplementation(() => Promise.resolve(updated)),
-        });
-        const app = createTestAppWithShopItems(repo);
+    it.each(['admin', 'user'])(
+        'admin トークンと正しいボディで 200 と更新済み item が返ること（ロール: %s）',
+        async (role) => {
+            const updated = { ...shopItem1, name: '変更後グッズ' };
+            const repo = createMockShopItemRepository({
+                update: jest
+                    .fn<IShopItemRepository['update']>()
+                    .mockImplementation(() => Promise.resolve(updated)),
+            });
+            const app = createTestAppWithShopItems(repo);
 
-        const res = await app.request(
-            `/api/shop-items/${SHOP_ITEM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                    Cookie: `auth_token=${adminToken}`,
+            const res = await app.request(
+                `/api/shop-items/${SHOP_ITEM_ID}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        'Content-Type': 'application/json',
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
+                    body: JSON.stringify({ name: '変更後グッズ' }),
                 },
-                body: JSON.stringify({ name: '変更後グッズ' }),
-            },
-            mockEnv,
-        );
-
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as { item: ShopItem };
-        expect(body.item.name).toBe('変更後グッズ');
-    });
-
-    it('image_key を更新すると imageUrl も再計算されること', async () => {
-        const update = jest
-            .fn<IShopItemRepository['update']>()
-            .mockImplementation(() =>
-                Promise.resolve({ ...shopItem1, imageUrl: 'placeholder' }),
+                mockEnv,
             );
-        const repo = createMockShopItemRepository({ update });
-        const app = createTestAppWithShopItems(repo);
-        const newKey = `shop-items/${EVENT_ID}/new.webp`;
 
-        const res = await app.request(
-            `/api/shop-items/${SHOP_ITEM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                    Cookie: `auth_token=${adminToken}`,
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { item: ShopItem };
+            expect(body.item.name).toBe('変更後グッズ');
+        },
+    );
+
+    it.each(['admin', 'user'])(
+        'image_key を更新すると imageUrl も再計算されること（ロール: %s）',
+        async (role) => {
+            const update = jest
+                .fn<IShopItemRepository['update']>()
+                .mockImplementation(() =>
+                    Promise.resolve({ ...shopItem1, imageUrl: 'placeholder' }),
+                );
+            const repo = createMockShopItemRepository({ update });
+            const app = createTestAppWithShopItems(repo);
+            const newKey = `shop-items/${EVENT_ID}/new.webp`;
+
+            const res = await app.request(
+                `/api/shop-items/${SHOP_ITEM_ID}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        'Content-Type': 'application/json',
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
+                    body: JSON.stringify({ image_key: newKey }),
                 },
-                body: JSON.stringify({ image_key: newKey }),
-            },
-            mockEnv,
-        );
+                mockEnv,
+            );
 
-        expect(res.status).toBe(200);
-        expect(update).toHaveBeenCalledWith(
-            SHOP_ITEM_ID,
-            EVENT_ID,
-            expect.objectContaining({
-                imageKey: newKey,
-                imageUrl: `${SHOP_ITEM_ASSET_BASE_URL}/${newKey}`,
-            }),
-        );
-    });
+            expect(res.status).toBe(200);
+            expect(update).toHaveBeenCalledWith(
+                SHOP_ITEM_ID,
+                EVENT_ID,
+                expect.objectContaining({
+                    imageKey: newKey,
+                    imageUrl: `${SHOP_ITEM_ASSET_BASE_URL}/${newKey}`,
+                }),
+            );
+        },
+    );
 
     it('アイテムが存在しない場合は 404 が返ること', async () => {
         const repo = createMockShopItemRepository({
@@ -497,17 +510,14 @@ describe('PUT /api/shop-items/:id', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithShopItems(createMockShopItemRepository());
 
-        const res = await app.request(
-            `/api/shop-items/${SHOP_ITEM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ name: '変更' }),
+        const res = await app.request(`/api/shop-items/${SHOP_ITEM_ID}`, {
+            method: 'PUT',
+            headers: {
+                'x-event-id': EVENT_ID,
+                'Content-Type': 'application/json',
             },
-        );
+            body: JSON.stringify({ name: '変更' }),
+        });
 
         expect(res.status).toBe(401);
     });
@@ -516,30 +526,33 @@ describe('PUT /api/shop-items/:id', () => {
 // ─── DELETE /api/shop-items/:id ───────────────────────────────────────────────
 
 describe('DELETE /api/shop-items/:id', () => {
-    it('admin トークンで 200 と削除した id が返ること', async () => {
-        const repo = createMockShopItemRepository({
-            delete: jest
-                .fn<IShopItemRepository['delete']>()
-                .mockImplementation(() => Promise.resolve(true)),
-        });
-        const app = createTestAppWithShopItems(repo);
+    it.each(['admin', 'user'])(
+        'admin トークンで 200 と削除した id が返ること（ロール: %s）',
+        async (role) => {
+            const repo = createMockShopItemRepository({
+                delete: jest
+                    .fn<IShopItemRepository['delete']>()
+                    .mockImplementation(() => Promise.resolve(true)),
+            });
+            const app = createTestAppWithShopItems(repo);
 
-        const res = await app.request(
-            `/api/shop-items/${SHOP_ITEM_ID}`,
-            {
-                method: 'DELETE',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    Cookie: `auth_token=${adminToken}`,
+            const res = await app.request(
+                `/api/shop-items/${SHOP_ITEM_ID}`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
                 },
-            },
-            mockEnv,
-        );
+                mockEnv,
+            );
 
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as { id: string };
-        expect(body.id).toBe(SHOP_ITEM_ID);
-    });
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { id: string };
+            expect(body.id).toBe(SHOP_ITEM_ID);
+        },
+    );
 
     it('アイテムが存在しない場合は 404 が返ること', async () => {
         const repo = createMockShopItemRepository({
@@ -585,13 +598,10 @@ describe('DELETE /api/shop-items/:id', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithShopItems(createMockShopItemRepository());
 
-        const res = await app.request(
-            `/api/shop-items/${SHOP_ITEM_ID}`,
-            {
-                method: 'DELETE',
-                headers: { 'x-event-id': EVENT_ID },
-            },
-        );
+        const res = await app.request(`/api/shop-items/${SHOP_ITEM_ID}`, {
+            method: 'DELETE',
+            headers: { 'x-event-id': EVENT_ID },
+        });
 
         expect(res.status).toBe(401);
     });

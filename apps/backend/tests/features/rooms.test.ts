@@ -1,9 +1,9 @@
-import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import type { Env } from '@backend/src/db/connection';
 import type {
     IRoomRepository,
     RoomWithDepartments,
 } from '@backend/src/infrastructure/repositories/room/IRoomRepository';
+import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { sign } from 'hono/jwt';
 import { createTestAppWithRooms } from '../helpers/createTestApp';
 
@@ -53,12 +53,24 @@ beforeAll(async () => {
     const exp = Math.floor(Date.now() / 1000) + 3600;
     accessToken = await sign({ event_id: EVENT_ID, exp }, JWT_SECRET);
     adminToken = await sign(
-        { id: 'admin-id', name: 'Admin', email: 'admin@test.com', role: 'admin', exp },
+        {
+            id: 'admin-id',
+            name: 'Admin',
+            email: 'admin@test.com',
+            role: 'admin',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
     userToken = await sign(
-        { id: 'user-id', name: 'User', email: 'user@test.com', role: 'user', exp },
+        {
+            id: 'user-id',
+            name: 'User',
+            email: 'user@test.com',
+            role: 'user',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
@@ -181,7 +193,7 @@ describe('GET /api/rooms', () => {
         expect(res.status).toBe(401);
     });
 
-    it('role=user の auth_token では 401 が返ること', async () => {
+    it('部署スタッフのセッションでアクセスできること', async () => {
         const app = createTestAppWithRooms(createMockRoomRepository());
 
         const res = await app.request(
@@ -195,7 +207,7 @@ describe('GET /api/rooms', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(200);
     });
 
     it('access_token の event_id と x-event-id が不一致のとき 401 が返ること', async () => {
@@ -348,22 +360,19 @@ describe('POST /api/rooms', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithRooms(createMockRoomRepository());
 
-        const res = await app.request(
-            '/api/rooms',
-            {
-                method: 'POST',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(validRoomBody),
+        const res = await app.request('/api/rooms', {
+            method: 'POST',
+            headers: {
+                'x-event-id': EVENT_ID,
+                'Content-Type': 'application/json',
             },
-        );
+            body: JSON.stringify(validRoomBody),
+        });
 
         expect(res.status).toBe(401);
     });
 
-    it('role=user の auth_token では 403 が返ること', async () => {
+    it('部署スタッフのセッションでアクセスできること', async () => {
         const app = createTestAppWithRooms(createMockRoomRepository());
 
         const res = await app.request(
@@ -380,40 +389,43 @@ describe('POST /api/rooms', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(201);
     });
 });
 
 // ─── PUT /api/rooms/:id ───────────────────────────────────────────────────────
 
 describe('PUT /api/rooms/:id', () => {
-    it('admin トークンと正しいボディで 200 と更新済み room が返ること', async () => {
-        const updated = { ...room1, roomName: '変更後会議室' };
-        const repo = createMockRoomRepository({
-            update: jest
-                .fn<IRoomRepository['update']>()
-                .mockImplementation(() => Promise.resolve(updated)),
-        });
-        const app = createTestAppWithRooms(repo);
+    it.each(['admin', 'user'])(
+        'admin トークンと正しいボディで 200 と更新済み room が返ること（ロール: %s）',
+        async (role) => {
+            const updated = { ...room1, roomName: '変更後会議室' };
+            const repo = createMockRoomRepository({
+                update: jest
+                    .fn<IRoomRepository['update']>()
+                    .mockImplementation(() => Promise.resolve(updated)),
+            });
+            const app = createTestAppWithRooms(repo);
 
-        const res = await app.request(
-            `/api/rooms/${ROOM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                    Cookie: `auth_token=${adminToken}`,
+            const res = await app.request(
+                `/api/rooms/${ROOM_ID}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        'Content-Type': 'application/json',
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
+                    body: JSON.stringify({ room_name: '変更後会議室' }),
                 },
-                body: JSON.stringify({ room_name: '変更後会議室' }),
-            },
-            mockEnv,
-        );
+                mockEnv,
+            );
 
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as { room: RoomWithDepartments };
-        expect(body.room.roomName).toBe('変更後会議室');
-    });
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { room: RoomWithDepartments };
+            expect(body.room.roomName).toBe('変更後会議室');
+        },
+    );
 
     it('部屋が存在しない場合は 404 が返ること', async () => {
         const repo = createMockRoomRepository({
@@ -463,17 +475,14 @@ describe('PUT /api/rooms/:id', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithRooms(createMockRoomRepository());
 
-        const res = await app.request(
-            `/api/rooms/${ROOM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ room_name: '変更' }),
+        const res = await app.request(`/api/rooms/${ROOM_ID}`, {
+            method: 'PUT',
+            headers: {
+                'x-event-id': EVENT_ID,
+                'Content-Type': 'application/json',
             },
-        );
+            body: JSON.stringify({ room_name: '変更' }),
+        });
 
         expect(res.status).toBe(401);
     });
@@ -482,30 +491,33 @@ describe('PUT /api/rooms/:id', () => {
 // ─── DELETE /api/rooms/:id ────────────────────────────────────────────────────
 
 describe('DELETE /api/rooms/:id', () => {
-    it('admin トークンで 200 と削除した id が返ること', async () => {
-        const repo = createMockRoomRepository({
-            delete: jest
-                .fn<IRoomRepository['delete']>()
-                .mockImplementation(() => Promise.resolve(true)),
-        });
-        const app = createTestAppWithRooms(repo);
+    it.each(['admin', 'user'])(
+        'admin トークンで 200 と削除した id が返ること（ロール: %s）',
+        async (role) => {
+            const repo = createMockRoomRepository({
+                delete: jest
+                    .fn<IRoomRepository['delete']>()
+                    .mockImplementation(() => Promise.resolve(true)),
+            });
+            const app = createTestAppWithRooms(repo);
 
-        const res = await app.request(
-            `/api/rooms/${ROOM_ID}`,
-            {
-                method: 'DELETE',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    Cookie: `auth_token=${adminToken}`,
+            const res = await app.request(
+                `/api/rooms/${ROOM_ID}`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
                 },
-            },
-            mockEnv,
-        );
+                mockEnv,
+            );
 
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as { id: string };
-        expect(body.id).toBe(ROOM_ID);
-    });
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { id: string };
+            expect(body.id).toBe(ROOM_ID);
+        },
+    );
 
     it('部屋が存在しない場合は 404 が返ること', async () => {
         const repo = createMockRoomRepository({
@@ -551,13 +563,10 @@ describe('DELETE /api/rooms/:id', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithRooms(createMockRoomRepository());
 
-        const res = await app.request(
-            `/api/rooms/${ROOM_ID}`,
-            {
-                method: 'DELETE',
-                headers: { 'x-event-id': EVENT_ID },
-            },
-        );
+        const res = await app.request(`/api/rooms/${ROOM_ID}`, {
+            method: 'DELETE',
+            headers: { 'x-event-id': EVENT_ID },
+        });
 
         expect(res.status).toBe(401);
     });

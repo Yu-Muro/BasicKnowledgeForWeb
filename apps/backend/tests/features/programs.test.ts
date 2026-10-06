@@ -1,9 +1,9 @@
-import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import type { Env } from '@backend/src/db/connection';
 import type {
     IProgramRepository,
     Program,
 } from '@backend/src/infrastructure/repositories/program/IProgramRepository';
+import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { sign } from 'hono/jwt';
 import { createTestAppWithPrograms } from '../helpers/createTestApp';
 
@@ -42,12 +42,24 @@ beforeAll(async () => {
     const exp = Math.floor(Date.now() / 1000) + 3600;
     accessToken = await sign({ event_id: EVENT_ID, exp }, JWT_SECRET);
     adminToken = await sign(
-        { id: 'admin-id', name: 'Admin', email: 'admin@test.com', role: 'admin', exp },
+        {
+            id: 'admin-id',
+            name: 'Admin',
+            email: 'admin@test.com',
+            role: 'admin',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
     userToken = await sign(
-        { id: 'user-id', name: 'User', email: 'user@test.com', role: 'user', exp },
+        {
+            id: 'user-id',
+            name: 'User',
+            email: 'user@test.com',
+            role: 'user',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
@@ -64,9 +76,7 @@ function createMockProgramRepository(
             .fn<IProgramRepository['findById']>()
             .mockImplementation(() => Promise.resolve(program1)),
         search: jest
-            .fn<
-                (keyword: string, eventId: string) => Promise<Program[]>
-            >()
+            .fn<(keyword: string, eventId: string) => Promise<Program[]>>()
             .mockResolvedValue([]),
         create: jest
             .fn<IProgramRepository['create']>()
@@ -193,7 +203,7 @@ describe('GET /api/programs', () => {
         expect(res.status).toBe(401);
     });
 
-    it('role=user の auth_token では 401 が返ること', async () => {
+    it('部署スタッフのセッションでアクセスできること', async () => {
         const app = createTestAppWithPrograms(createMockProgramRepository());
 
         const res = await app.request(
@@ -207,7 +217,7 @@ describe('GET /api/programs', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(200);
     });
 
     it('access_token の event_id と x-event-id が不一致のとき 401 が返ること', async () => {
@@ -340,22 +350,19 @@ describe('POST /api/programs', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithPrograms(createMockProgramRepository());
 
-        const res = await app.request(
-            '/api/programs',
-            {
-                method: 'POST',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(validProgramBody),
+        const res = await app.request('/api/programs', {
+            method: 'POST',
+            headers: {
+                'x-event-id': EVENT_ID,
+                'Content-Type': 'application/json',
             },
-        );
+            body: JSON.stringify(validProgramBody),
+        });
 
         expect(res.status).toBe(401);
     });
 
-    it('role=user の auth_token では 403 が返ること', async () => {
+    it('部署スタッフのセッションでアクセスできること', async () => {
         const app = createTestAppWithPrograms(createMockProgramRepository());
 
         const res = await app.request(
@@ -372,40 +379,43 @@ describe('POST /api/programs', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(201);
     });
 });
 
 // ─── PUT /api/programs/:id ────────────────────────────────────────────────────
 
 describe('PUT /api/programs/:id', () => {
-    it('admin トークンと正しいボディで 200 と更新済み program が返ること', async () => {
-        const updated = { ...program1, name: '変更後企画' };
-        const repo = createMockProgramRepository({
-            update: jest
-                .fn<IProgramRepository['update']>()
-                .mockImplementation(() => Promise.resolve(updated)),
-        });
-        const app = createTestAppWithPrograms(repo);
+    it.each(['admin', 'user'])(
+        'admin トークンと正しいボディで 200 と更新済み program が返ること（ロール: %s）',
+        async (role) => {
+            const updated = { ...program1, name: '変更後企画' };
+            const repo = createMockProgramRepository({
+                update: jest
+                    .fn<IProgramRepository['update']>()
+                    .mockImplementation(() => Promise.resolve(updated)),
+            });
+            const app = createTestAppWithPrograms(repo);
 
-        const res = await app.request(
-            `/api/programs/${PROGRAM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                    Cookie: `auth_token=${adminToken}`,
+            const res = await app.request(
+                `/api/programs/${PROGRAM_ID}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        'Content-Type': 'application/json',
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
+                    body: JSON.stringify({ name: '変更後企画' }),
                 },
-                body: JSON.stringify({ name: '変更後企画' }),
-            },
-            mockEnv,
-        );
+                mockEnv,
+            );
 
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as { program: Program };
-        expect(body.program.name).toBe('変更後企画');
-    });
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { program: Program };
+            expect(body.program.name).toBe('変更後企画');
+        },
+    );
 
     it('企画が存在しない場合は 404 が返ること', async () => {
         const repo = createMockProgramRepository({
@@ -455,17 +465,14 @@ describe('PUT /api/programs/:id', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithPrograms(createMockProgramRepository());
 
-        const res = await app.request(
-            `/api/programs/${PROGRAM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ name: '変更' }),
+        const res = await app.request(`/api/programs/${PROGRAM_ID}`, {
+            method: 'PUT',
+            headers: {
+                'x-event-id': EVENT_ID,
+                'Content-Type': 'application/json',
             },
-        );
+            body: JSON.stringify({ name: '変更' }),
+        });
 
         expect(res.status).toBe(401);
     });
@@ -474,30 +481,33 @@ describe('PUT /api/programs/:id', () => {
 // ─── DELETE /api/programs/:id ─────────────────────────────────────────────────
 
 describe('DELETE /api/programs/:id', () => {
-    it('admin トークンで 200 と削除した id が返ること', async () => {
-        const repo = createMockProgramRepository({
-            delete: jest
-                .fn<IProgramRepository['delete']>()
-                .mockImplementation(() => Promise.resolve(true)),
-        });
-        const app = createTestAppWithPrograms(repo);
+    it.each(['admin', 'user'])(
+        'admin トークンで 200 と削除した id が返ること（ロール: %s）',
+        async (role) => {
+            const repo = createMockProgramRepository({
+                delete: jest
+                    .fn<IProgramRepository['delete']>()
+                    .mockImplementation(() => Promise.resolve(true)),
+            });
+            const app = createTestAppWithPrograms(repo);
 
-        const res = await app.request(
-            `/api/programs/${PROGRAM_ID}`,
-            {
-                method: 'DELETE',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    Cookie: `auth_token=${adminToken}`,
+            const res = await app.request(
+                `/api/programs/${PROGRAM_ID}`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
                 },
-            },
-            mockEnv,
-        );
+                mockEnv,
+            );
 
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as { id: string };
-        expect(body.id).toBe(PROGRAM_ID);
-    });
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { id: string };
+            expect(body.id).toBe(PROGRAM_ID);
+        },
+    );
 
     it('企画が存在しない場合は 404 が返ること', async () => {
         const repo = createMockProgramRepository({
@@ -543,13 +553,10 @@ describe('DELETE /api/programs/:id', () => {
     it('認証なしのとき 401 が返ること', async () => {
         const app = createTestAppWithPrograms(createMockProgramRepository());
 
-        const res = await app.request(
-            `/api/programs/${PROGRAM_ID}`,
-            {
-                method: 'DELETE',
-                headers: { 'x-event-id': EVENT_ID },
-            },
-        );
+        const res = await app.request(`/api/programs/${PROGRAM_ID}`, {
+            method: 'DELETE',
+            headers: { 'x-event-id': EVENT_ID },
+        });
 
         expect(res.status).toBe(401);
     });

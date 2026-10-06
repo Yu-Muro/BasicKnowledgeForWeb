@@ -1,9 +1,9 @@
-import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import type { Env } from '@backend/src/db/connection';
 import type {
     IOtherItemRepository,
     OtherItem,
 } from '@backend/src/infrastructure/repositories/other-item/IOtherItemRepository';
+import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { sign } from 'hono/jwt';
 import { createTestAppWithOtherItems } from '../helpers/createTestApp';
 
@@ -41,12 +41,24 @@ beforeAll(async () => {
     const exp = Math.floor(Date.now() / 1000) + 3600;
     accessToken = await sign({ event_id: EVENT_ID, exp }, JWT_SECRET);
     adminToken = await sign(
-        { id: 'admin-id', name: 'Admin', email: 'admin@test.com', role: 'admin', exp },
+        {
+            id: 'admin-id',
+            name: 'Admin',
+            email: 'admin@test.com',
+            role: 'admin',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
     userToken = await sign(
-        { id: 'user-id', name: 'User', email: 'user@test.com', role: 'user', exp },
+        {
+            id: 'user-id',
+            name: 'User',
+            email: 'user@test.com',
+            role: 'user',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
@@ -60,9 +72,7 @@ function createMockOtherItemRepository(
             .fn<(eventId: string) => Promise<OtherItem[]>>()
             .mockResolvedValue([]),
         search: jest
-            .fn<
-                (keyword: string, eventId: string) => Promise<OtherItem[]>
-            >()
+            .fn<(keyword: string, eventId: string) => Promise<OtherItem[]>>()
             .mockResolvedValue([]),
         create: jest
             .fn<IOtherItemRepository['create']>()
@@ -180,7 +190,9 @@ describe('GET /api/others', () => {
     });
 
     it('認証なしのとき 401 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
+        );
 
         const res = await app.request('/api/others', {
             headers: { 'x-event-id': EVENT_ID },
@@ -189,8 +201,10 @@ describe('GET /api/others', () => {
         expect(res.status).toBe(401);
     });
 
-    it('role=user の auth_token では 401 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
+    it('部署スタッフのセッションでアクセスできること', async () => {
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
+        );
 
         const res = await app.request(
             '/api/others',
@@ -203,11 +217,13 @@ describe('GET /api/others', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(200);
     });
 
     it('access_token の event_id と x-event-id が不一致のとき 401 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
+        );
 
         const res = await app.request(
             '/api/others',
@@ -224,7 +240,9 @@ describe('GET /api/others', () => {
     });
 
     it('x-event-id ヘッダーが未指定のとき 400 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
+        );
 
         const res = await app.request(
             '/api/others',
@@ -236,7 +254,9 @@ describe('GET /api/others', () => {
     });
 
     it('x-event-id が UUID でないとき 400 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
+        );
 
         const res = await app.request(
             '/api/others',
@@ -253,7 +273,9 @@ describe('GET /api/others', () => {
     });
 
     it('0 件のとき空配列が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
+        );
 
         const res = await app.request(
             '/api/others',
@@ -312,7 +334,9 @@ describe('POST /api/others', () => {
     });
 
     it('必須フィールドが欠けている場合は 400 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
+        );
 
         const res = await app.request(
             '/api/others',
@@ -332,7 +356,9 @@ describe('POST /api/others', () => {
     });
 
     it('body の event_id と x-event-id が不一致のとき 400 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
+        );
 
         const res = await app.request(
             '/api/others',
@@ -352,25 +378,26 @@ describe('POST /api/others', () => {
     });
 
     it('認証なしのとき 401 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
-
-        const res = await app.request(
-            '/api/others',
-            {
-                method: 'POST',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(validOtherItemBody),
-            },
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
         );
+
+        const res = await app.request('/api/others', {
+            method: 'POST',
+            headers: {
+                'x-event-id': EVENT_ID,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(validOtherItemBody),
+        });
 
         expect(res.status).toBe(401);
     });
 
-    it('role=user の auth_token では 403 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
+    it('部署スタッフのセッションでアクセスできること', async () => {
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
+        );
 
         const res = await app.request(
             '/api/others',
@@ -386,40 +413,43 @@ describe('POST /api/others', () => {
             mockEnv,
         );
 
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(201);
     });
 });
 
 // ─── PUT /api/others/:id ──────────────────────────────────────────────────────
 
 describe('PUT /api/others/:id', () => {
-    it('admin トークンと正しいボディで 200 と更新済み item が返ること', async () => {
-        const updated = { ...otherItem1, title: '変更後タイトル' };
-        const repo = createMockOtherItemRepository({
-            update: jest
-                .fn<IOtherItemRepository['update']>()
-                .mockImplementation(() => Promise.resolve(updated)),
-        });
-        const app = createTestAppWithOtherItems(repo);
+    it.each(['admin', 'user'])(
+        'admin トークンと正しいボディで 200 と更新済み item が返ること（ロール: %s）',
+        async (role) => {
+            const updated = { ...otherItem1, title: '変更後タイトル' };
+            const repo = createMockOtherItemRepository({
+                update: jest
+                    .fn<IOtherItemRepository['update']>()
+                    .mockImplementation(() => Promise.resolve(updated)),
+            });
+            const app = createTestAppWithOtherItems(repo);
 
-        const res = await app.request(
-            `/api/others/${OTHER_ITEM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                    Cookie: `auth_token=${adminToken}`,
+            const res = await app.request(
+                `/api/others/${OTHER_ITEM_ID}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        'Content-Type': 'application/json',
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
+                    body: JSON.stringify({ title: '変更後タイトル' }),
                 },
-                body: JSON.stringify({ title: '変更後タイトル' }),
-            },
-            mockEnv,
-        );
+                mockEnv,
+            );
 
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as { item: OtherItem };
-        expect(body.item.title).toBe('変更後タイトル');
-    });
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { item: OtherItem };
+            expect(body.item.title).toBe('変更後タイトル');
+        },
+    );
 
     it('アイテムが存在しない場合は 404 が返ること', async () => {
         const repo = createMockOtherItemRepository({
@@ -447,7 +477,9 @@ describe('PUT /api/others/:id', () => {
     });
 
     it('不正な UUID のとき 400 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
+        );
 
         const res = await app.request(
             '/api/others/not-a-uuid',
@@ -467,19 +499,18 @@ describe('PUT /api/others/:id', () => {
     });
 
     it('認証なしのとき 401 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
-
-        const res = await app.request(
-            `/api/others/${OTHER_ITEM_ID}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ title: '変更' }),
-            },
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
         );
+
+        const res = await app.request(`/api/others/${OTHER_ITEM_ID}`, {
+            method: 'PUT',
+            headers: {
+                'x-event-id': EVENT_ID,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ title: '変更' }),
+        });
 
         expect(res.status).toBe(401);
     });
@@ -488,30 +519,33 @@ describe('PUT /api/others/:id', () => {
 // ─── DELETE /api/others/:id ───────────────────────────────────────────────────
 
 describe('DELETE /api/others/:id', () => {
-    it('admin トークンで 200 と削除した id が返ること', async () => {
-        const repo = createMockOtherItemRepository({
-            delete: jest
-                .fn<IOtherItemRepository['delete']>()
-                .mockImplementation(() => Promise.resolve(true)),
-        });
-        const app = createTestAppWithOtherItems(repo);
+    it.each(['admin', 'user'])(
+        'admin トークンで 200 と削除した id が返ること（ロール: %s）',
+        async (role) => {
+            const repo = createMockOtherItemRepository({
+                delete: jest
+                    .fn<IOtherItemRepository['delete']>()
+                    .mockImplementation(() => Promise.resolve(true)),
+            });
+            const app = createTestAppWithOtherItems(repo);
 
-        const res = await app.request(
-            `/api/others/${OTHER_ITEM_ID}`,
-            {
-                method: 'DELETE',
-                headers: {
-                    'x-event-id': EVENT_ID,
-                    Cookie: `auth_token=${adminToken}`,
+            const res = await app.request(
+                `/api/others/${OTHER_ITEM_ID}`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        'x-event-id': EVENT_ID,
+                        Cookie: `auth_token=${role === 'admin' ? adminToken : userToken}`,
+                    },
                 },
-            },
-            mockEnv,
-        );
+                mockEnv,
+            );
 
-        expect(res.status).toBe(200);
-        const body = (await res.json()) as { id: string };
-        expect(body.id).toBe(OTHER_ITEM_ID);
-    });
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { id: string };
+            expect(body.id).toBe(OTHER_ITEM_ID);
+        },
+    );
 
     it('アイテムが存在しない場合は 404 が返ること', async () => {
         const repo = createMockOtherItemRepository({
@@ -537,7 +571,9 @@ describe('DELETE /api/others/:id', () => {
     });
 
     it('不正な UUID のとき 400 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
+        );
 
         const res = await app.request(
             '/api/others/not-a-uuid',
@@ -555,15 +591,14 @@ describe('DELETE /api/others/:id', () => {
     });
 
     it('認証なしのとき 401 が返ること', async () => {
-        const app = createTestAppWithOtherItems(createMockOtherItemRepository());
-
-        const res = await app.request(
-            `/api/others/${OTHER_ITEM_ID}`,
-            {
-                method: 'DELETE',
-                headers: { 'x-event-id': EVENT_ID },
-            },
+        const app = createTestAppWithOtherItems(
+            createMockOtherItemRepository(),
         );
+
+        const res = await app.request(`/api/others/${OTHER_ITEM_ID}`, {
+            method: 'DELETE',
+            headers: { 'x-event-id': EVENT_ID },
+        });
 
         expect(res.status).toBe(401);
     });
