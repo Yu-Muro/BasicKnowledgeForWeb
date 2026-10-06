@@ -96,7 +96,7 @@ export default async function RoomsPage({
         fetchDepartments(eventId, authToken, accessToken, role),
     ]);
 
-    if (role === 'admin') {
+    if (['admin', 'user'].includes(role)) {
         return (
             <RoomAdminPanel
                 rooms={rooms}

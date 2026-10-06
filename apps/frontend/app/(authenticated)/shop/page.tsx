@@ -111,7 +111,7 @@ export default async function ShopPage({
         role,
     );
 
-    if (role === 'admin') {
+    if (['admin', 'user'].includes(role)) {
         return <ShopItemAdminPanel items={rawItems} eventId={eventId} />;
     }
 

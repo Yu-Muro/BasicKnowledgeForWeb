@@ -35,7 +35,7 @@ async function verifyAuthToken(token: string): Promise<AuthPayload | null> {
     }
 }
 
-// コンテンツページ: access_token または auth_token(admin) が必要
+// コンテンツページ: access_token またはスタッフ・管理者のセッション が必要
 const CONTENT_PATHS = [
     '/',
     '/timetable',
@@ -46,11 +46,11 @@ const CONTENT_PATHS = [
     '/search',
 ];
 
-// 管理者ダッシュボード（要ログイン）
+// ログイン済みスタッフ・管理者の設定画面
 const USER_AUTH_PATHS = ['/dashboard'];
 
 // 管理者専用ルート
-const ADMIN_PATHS = ['/admin'];
+const ADMIN_PATHS = ['/admin', '/departments'];
 
 // 公開ページ（認証不要）
 const PUBLIC_PATHS = ['/login', '/register', '/access'];
@@ -63,7 +63,7 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith('/login')) {
         if (authToken) {
             const auth = await verifyAuthToken(authToken);
-            if (auth?.role === 'admin') {
+            if (auth && ['admin', 'user'].includes(auth.role)) {
                 debugLog('redirecting /login -> /dashboard (admin token)', {
                     role: auth.role,
                 });
@@ -83,7 +83,7 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith('/access')) {
         if (authToken) {
             const auth = await verifyAuthToken(authToken);
-            if (auth?.role === 'admin') {
+            if (auth && ['admin', 'user'].includes(auth.role)) {
                 debugLog('redirecting /access -> / (admin token)', {
                     role: auth.role,
                 });
@@ -137,7 +137,7 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(new URL('/login', request.url));
         }
         const auth = await verifyAuthToken(authToken);
-        if (auth?.role !== 'admin') {
+        if (!auth || !['admin', 'user'].includes(auth.role)) {
             debugLog('redirect:/login dashboard auth failed', {
                 pathname,
                 hasAuthToken: true,
@@ -159,7 +159,7 @@ export async function middleware(request: NextRequest) {
         // admin はユーザー認証で通過
         if (authToken) {
             const auth = await verifyAuthToken(authToken);
-            if (auth?.role === 'admin') {
+            if (auth && ['admin', 'user'].includes(auth.role)) {
                 debugLog('allow content with admin token', {
                     pathname,
                     role: auth.role,

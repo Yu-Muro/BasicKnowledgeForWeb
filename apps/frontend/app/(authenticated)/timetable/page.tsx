@@ -104,7 +104,7 @@ export default async function TimetablePage({
     ]);
     const availableDepartments = mergeDepartments(items, departments);
 
-    if (role === 'admin') {
+    if (['admin', 'user'].includes(role)) {
         return (
             <TimetableAdminPanel
                 items={items}

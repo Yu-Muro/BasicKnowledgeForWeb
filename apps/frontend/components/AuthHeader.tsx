@@ -5,13 +5,7 @@ import { ThemeToggle } from '@frontend/components/ThemeToggle';
 import { AlignRight, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type AccessCode = { id: string; eventName: string };
 
@@ -33,13 +27,9 @@ const NAV_ITEMS = [
     { href: '/search', label: '検索' },
 ] as const;
 
-export function buildNavigationHref(
-    href: string,
-    rawSearchParams: string,
-) {
+export function buildNavigationHref(href: string, rawSearchParams: string) {
     const sourceParams = new URLSearchParams(rawSearchParams);
-    const selectedEventId =
-        sourceParams.get('event_id')?.trim() ?? '';
+    const selectedEventId = sourceParams.get('event_id')?.trim() ?? '';
     const searchQuery = sourceParams.get('q')?.trim() ?? '';
     const params = new URLSearchParams();
 
@@ -69,7 +59,7 @@ export function AuthHeader({
     const [drawerOpen, setDrawerOpen] = useState(false);
     const drawerRef = useRef<HTMLDivElement>(null);
 
-    const isPrivileged = role === 'admin';
+    const isPrivileged = ['admin', 'user'].includes(role);
 
     const paramsString = useMemo(
         () => searchParams?.toString() ?? '',
@@ -88,10 +78,7 @@ export function AuthHeader({
 
     const navItems = useMemo(() => {
         if (!isPrivileged) return NAV_ITEMS;
-        return [
-            ...NAV_ITEMS,
-            { href: '/dashboard', label: 'ダッシュボード' },
-        ];
+        return [...NAV_ITEMS, { href: '/dashboard', label: 'ダッシュボード' }];
     }, [isPrivileged]);
 
     // Escape key closes the drawer
@@ -112,6 +99,7 @@ export function AuthHeader({
     }, [drawerOpen]);
 
     // Close drawer on route change
+    // biome-ignore lint/correctness/useExhaustiveDependencies: pathnameの変更時にドロワーを閉じる
     useEffect(() => {
         setDrawerOpen(false);
     }, [pathname]);

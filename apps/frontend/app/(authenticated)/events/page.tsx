@@ -106,7 +106,7 @@ export default async function EventsPage({
 
     const programs = await fetchPrograms(eventId, authToken, accessToken, role);
 
-    if (role === 'admin') {
+    if (['admin', 'user'].includes(role)) {
         return <ProgramAdminPanel items={programs} eventId={eventId} />;
     }
 

@@ -78,8 +78,8 @@ export async function resolveAuth(
     const authToken = currentUser ? rawAuthToken : null;
     const accessToken = validAccessPayload ? rawAccessToken : null;
 
-    const role = currentUser?.role ?? 'user';
-    const isPrivileged = role === 'admin';
+    const role = currentUser?.role ?? 'viewer';
+    const isPrivileged = ['admin', 'user'].includes(role);
 
     const eventId = isPrivileged
         ? (searchParamEventId ?? null)
@@ -94,7 +94,7 @@ export function buildContentFetchHeaders(
     accessToken: string | null,
     role: string,
 ): HeadersInit {
-    const isPrivileged = role === 'admin';
+    const isPrivileged = ['admin', 'user'].includes(role);
     const headers: HeadersInit = {
         'x-event-id': eventId,
     };

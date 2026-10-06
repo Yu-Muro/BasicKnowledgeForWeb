@@ -67,7 +67,7 @@ export default async function HomePage({
     const eventName = eventId
         ? await fetchEventName(eventId, authToken, accessToken, role)
         : null;
-    const isPrivileged = role === 'admin';
+    const isPrivileged = ['admin', 'user'].includes(role);
 
     const eventQuery = event_id
         ? new URLSearchParams({ event_id }).toString()

@@ -8,7 +8,7 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue>({
-    role: 'user',
+    role: 'viewer',
     userEventId: null,
 });
 
