@@ -20,22 +20,25 @@ jest.mock('next/image', () => ({
     ),
 }));
 
-const navigation =
-    require('next/navigation') as jest.Mocked<typeof import('next/navigation')>;
+const navigation = require('next/navigation') as jest.Mocked<
+    typeof import('next/navigation')
+>;
 const mockUseSearchParams = navigation.useSearchParams;
 const mockUseRouter = navigation.useRouter;
 const mockUsePathname = navigation.usePathname;
 
 const authContext = require('@frontend/app/(authenticated)/auth-context') as {
-    useAuthContext: jest.MockedFunction<() => {
-        role: string;
-        userEventId: string | null;
-    }>;
+    useAuthContext: jest.MockedFunction<
+        () => {
+            role: string;
+            userEventId: string | null;
+        }
+    >;
 };
 const mockUseAuthContext = authContext.useAuthContext;
 
-const SearchPage =
-    require('@frontend/app/(authenticated)/search/page').default as typeof import('@frontend/app/(authenticated)/search/page').default;
+const SearchPage = require('@frontend/app/(authenticated)/search/page')
+    .default as typeof import('@frontend/app/(authenticated)/search/page').default;
 
 const mockRouterReplace = jest.fn();
 
@@ -52,7 +55,10 @@ describe('SearchPage', () => {
         mockUseSearchParams.mockReturnValue(new URLSearchParams());
         mockUseRouter.mockReturnValue({ replace: mockRouterReplace });
         mockUsePathname.mockReturnValue('/search');
-        mockUseAuthContext.mockReturnValue({ role: 'user', userEventId: 'event-1' });
+        mockUseAuthContext.mockReturnValue({
+            role: 'viewer',
+            userEventId: 'event-1',
+        });
         global.fetch = jest.fn();
         mockRouterReplace.mockReset();
     });

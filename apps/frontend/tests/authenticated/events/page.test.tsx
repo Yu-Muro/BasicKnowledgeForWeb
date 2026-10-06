@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    jest,
+} from '@jest/globals';
 import { render, screen } from '@testing-library/react';
 
 jest.mock('next/navigation', () => ({
@@ -33,8 +40,8 @@ jest.mock('next/image', () => ({
 
 const serverAuth =
     require('@frontend/app/lib/serverAuth') as typeof import('@frontend/app/lib/serverAuth');
-const EventsPage =
-    require('@frontend/app/(authenticated)/events/page').default as typeof import('@frontend/app/(authenticated)/events/page').default;
+const EventsPage = require('@frontend/app/(authenticated)/events/page')
+    .default as typeof import('@frontend/app/(authenticated)/events/page').default;
 
 const mockResolveAuth = jest.mocked(serverAuth.resolveAuth);
 const mockBuildHeaders = jest.mocked(serverAuth.buildContentFetchHeaders);
@@ -43,13 +50,13 @@ const NO_AUTH: serverAuth.ResolvedAuth = {
     eventId: null,
     authToken: null,
     accessToken: null,
-    role: 'user',
+    role: 'viewer',
 };
 const WITH_AUTH: serverAuth.ResolvedAuth = {
     eventId: 'event-1',
     authToken: null,
     accessToken: 'token',
-    role: 'user',
+    role: 'viewer',
 };
 
 const MOCK_PROGRAMS = [
@@ -100,9 +107,11 @@ describe('EventsPage', () => {
 
     it('企画がないとき空メッセージを表示する', async () => {
         mockResolveAuth.mockResolvedValue(WITH_AUTH);
-        global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
-            new Response(JSON.stringify({ programs: [] }), { status: 200 }),
-        );
+        global.fetch = jest
+            .fn<typeof fetch>()
+            .mockResolvedValue(
+                new Response(JSON.stringify({ programs: [] }), { status: 200 }),
+            );
 
         const element = await EventsPage({
             searchParams: Promise.resolve({ event_id: 'event-1' }),
@@ -202,28 +211,33 @@ describe('EventsPage', () => {
         expect(screen.getByText('日時未定')).toBeInTheDocument();
     });
 
-    it('admin ロールの場合、管理パネルを表示する', async () => {
-        const adminAuth: serverAuth.ResolvedAuth = {
-            eventId: 'event-1',
-            authToken: 'auth-token',
-            accessToken: null,
-            role: 'admin',
-        };
-        mockResolveAuth.mockResolvedValue(adminAuth);
-        global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
-            new Response(JSON.stringify({ programs: MOCK_PROGRAMS }), {
-                status: 200,
-            }),
-        );
+    it.each(['admin', 'user'])(
+        '%s ロールの場合、編集パネルを表示する',
+        async (role) => {
+            const adminAuth: serverAuth.ResolvedAuth = {
+                eventId: 'event-1',
+                authToken: 'auth-token',
+                accessToken: null,
+                role,
+            };
+            mockResolveAuth.mockResolvedValue(adminAuth);
+            global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
+                new Response(JSON.stringify({ programs: MOCK_PROGRAMS }), {
+                    status: 200,
+                }),
+            );
 
-        const element = await EventsPage({
-            searchParams: Promise.resolve({ event_id: 'event-1' }),
-        });
-        render(element);
+            const element = await EventsPage({
+                searchParams: Promise.resolve({ event_id: 'event-1' }),
+            });
+            render(element);
 
-        expect(
-            screen.getByRole('button', { name: '+ 追加' }),
-        ).toBeInTheDocument();
-        expect(screen.getAllByRole('button', { name: '編集' })).toHaveLength(2);
-    });
+            expect(
+                screen.getByRole('button', { name: '+ 追加' }),
+            ).toBeInTheDocument();
+            expect(
+                screen.getAllByRole('button', { name: '編集' }),
+            ).toHaveLength(2);
+        },
+    );
 });

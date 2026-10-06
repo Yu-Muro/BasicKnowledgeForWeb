@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    jest,
+} from '@jest/globals';
 import { render, screen, within } from '@testing-library/react';
 
 jest.mock('@frontend/app/lib/serverAuth', () => ({
@@ -26,8 +33,8 @@ jest.mock('next/image', () => ({
 
 const serverAuth =
     require('@frontend/app/lib/serverAuth') as typeof import('@frontend/app/lib/serverAuth');
-const ShopPage =
-    require('@frontend/app/(authenticated)/shop/page').default as typeof import('@frontend/app/(authenticated)/shop/page').default;
+const ShopPage = require('@frontend/app/(authenticated)/shop/page')
+    .default as typeof import('@frontend/app/(authenticated)/shop/page').default;
 
 const mockResolveAuth = jest.mocked(serverAuth.resolveAuth);
 const mockBuildHeaders = jest.mocked(serverAuth.buildContentFetchHeaders);
@@ -36,13 +43,13 @@ const NO_AUTH: serverAuth.ResolvedAuth = {
     eventId: null,
     authToken: null,
     accessToken: null,
-    role: 'user',
+    role: 'viewer',
 };
 const WITH_AUTH: serverAuth.ResolvedAuth = {
     eventId: 'event-1',
     authToken: null,
     accessToken: 'token',
-    role: 'user',
+    role: 'viewer',
 };
 
 const MOCK_ITEMS = [
@@ -96,9 +103,11 @@ describe('ShopPage', () => {
 
     it('販売物がないとき空メッセージを表示する', async () => {
         mockResolveAuth.mockResolvedValue(WITH_AUTH);
-        global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
-            new Response(JSON.stringify({ items: [] }), { status: 200 }),
-        );
+        global.fetch = jest
+            .fn<typeof fetch>()
+            .mockResolvedValue(
+                new Response(JSON.stringify({ items: [] }), { status: 200 }),
+            );
 
         const element = await ShopPage({
             searchParams: Promise.resolve({ event_id: 'event-1' }),
@@ -233,34 +242,43 @@ describe('ShopPage', () => {
         render(element);
 
         expect(
-            screen.getByText('データ不備: 商品画像が登録されていないアイテムがあります。'),
+            screen.getByText(
+                'データ不備: 商品画像が登録されていないアイテムがあります。',
+            ),
         ).toBeInTheDocument();
         expect(screen.getAllByText('No Image')).toHaveLength(2);
     });
 
-    it('admin ロールの場合、管理パネルを表示する', async () => {
-        const adminAuth: serverAuth.ResolvedAuth = {
-            eventId: 'event-1',
-            authToken: 'auth-token',
-            accessToken: null,
-            role: 'admin',
-        };
-        mockResolveAuth.mockResolvedValue(adminAuth);
-        global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
-            new Response(JSON.stringify({ items: MOCK_ITEMS }), {
-                status: 200,
-            }),
-        );
+    it.each(['admin', 'user'])(
+        '%s ロールの場合、編集パネルを表示する',
+        async (role) => {
+            const adminAuth: serverAuth.ResolvedAuth = {
+                eventId: 'event-1',
+                authToken: 'auth-token',
+                accessToken: null,
+                role,
+            };
+            mockResolveAuth.mockResolvedValue(adminAuth);
+            global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
+                new Response(JSON.stringify({ items: MOCK_ITEMS }), {
+                    status: 200,
+                }),
+            );
 
-        const element = await ShopPage({
-            searchParams: Promise.resolve({ event_id: 'event-1' }),
-        });
-        render(element);
+            const element = await ShopPage({
+                searchParams: Promise.resolve({ event_id: 'event-1' }),
+            });
+            render(element);
 
-        expect(
-            screen.getByRole('button', { name: '+ 追加' }),
-        ).toBeInTheDocument();
-        expect(screen.getAllByRole('button', { name: '編集' })).toHaveLength(6);
-        expect(screen.getAllByRole('button', { name: '削除' })).toHaveLength(6);
-    });
+            expect(
+                screen.getByRole('button', { name: '+ 追加' }),
+            ).toBeInTheDocument();
+            expect(
+                screen.getAllByRole('button', { name: '編集' }),
+            ).toHaveLength(6);
+            expect(
+                screen.getAllByRole('button', { name: '削除' }),
+            ).toHaveLength(6);
+        },
+    );
 });

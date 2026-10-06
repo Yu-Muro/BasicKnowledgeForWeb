@@ -80,7 +80,7 @@ describe('公開ページ', () => {
         expect(res.headers.get('location')).toContain('/dashboard');
     });
 
-    it('user ロールの auth_token では /login に留まること', async () => {
+    it('部署スタッフは/dashboardへ移動すること', async () => {
         mockVerify.mockResolvedValue({
             id: 'user-id',
             role: 'user',
@@ -89,7 +89,7 @@ describe('公開ページ', () => {
         const res = await middleware(
             createRequest('/login', { auth_token: 'user.token' }),
         );
-        expect(res.headers.get('location')).toBeNull();
+        expect(res.headers.get('location')).toContain('/dashboard');
     });
 
     it('有効な access_token がある場合 /access から / にリダイレクトされること', async () => {
@@ -110,7 +110,7 @@ describe('公開ページ', () => {
         expect(res.headers.get('location')).toContain('/');
     });
 
-    it('user ロールの auth_token では /access に留まること', async () => {
+    it('部署スタッフは/へ移動すること', async () => {
         mockVerify.mockResolvedValue({
             id: 'user-id',
             role: 'user',
@@ -119,7 +119,7 @@ describe('公開ページ', () => {
         const res = await middleware(
             createRequest('/access', { auth_token: 'user.token' }),
         );
-        expect(res.headers.get('location')).toBeNull();
+        expect(res.headers.get('location')).toContain('/');
     });
 });
 
@@ -173,7 +173,7 @@ describe('/dashboard 保護', () => {
         expect(res.headers.get('location')).toContain('/login');
     });
 
-    it('user ロールのトークンは /login にリダイレクトされること', async () => {
+    it('部署スタッフはダッシュボードにアクセスできること', async () => {
         mockVerify.mockResolvedValue({
             id: 'user-id',
             role: 'user',
@@ -182,8 +182,8 @@ describe('/dashboard 保護', () => {
         const res = await middleware(
             createRequest('/dashboard', { auth_token: 'user.token' }),
         );
-        expect(res.status).toBe(307);
-        expect(res.headers.get('location')).toContain('/login');
+        expect(res.status).toBe(200);
+        expect(res.headers.get('location')).toBeNull();
     });
 });
 
@@ -298,4 +298,14 @@ it('管理者セッションはBackendで検証しJWTとして検証しない', 
             cache: 'no-store',
         }),
     );
+});
+
+
+it.each(['/', '/timetable', '/rooms', '/events', '/shop', '/others', '/search'])('部署スタッフはアクセスコードなしで%sを利用できる', async (path) => {
+    const res = await middleware(createRequest(path, { auth_token: 'user.token' }));
+    expect(res.headers.get('location')).toBeNull();
+});
+it('部署管理画面への部署スタッフの直接アクセスを拒否する', async () => {
+    const res = await middleware(createRequest('/departments', { auth_token: 'user.token' }));
+    expect(res.headers.get('location')).toContain('/login');
 });

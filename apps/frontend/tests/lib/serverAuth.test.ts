@@ -30,21 +30,21 @@ beforeEach(() => {
     jest.resetAllMocks();
 });
 describe('現在のロールと所属を使った認証情報', () => {
-    it('古い管理者トークンでも現在の一般ユーザー権限と部署を使う', async () => {
+    it('古い管理者トークンでも現在の部署スタッフ権限と部署を使う', async () => {
         const auth = 'opaque-session';
         setCookies({ auth_token: auth });
         mockFetch.mockResolvedValue(new Response(JSON.stringify(me)));
         const result = await resolveAuth('event-1');
         expect(result.role).toBe('user');
         expect(result.user?.departmentId).toBe('dept-2');
-        expect(result.eventId).toBeNull();
+        expect(result.eventId).toBe('event-1');
     });
     it('削除されたユーザーは有効な古いトークンでも未認証になる', async () => {
         setCookies({ auth_token: jwt({ ...me, role: 'admin' }) });
         mockFetch.mockResolvedValue(new Response('{}', { status: 401 }));
         const result = await resolveAuth();
         expect(result.authToken).toBeNull();
-        expect(result.role).toBe('user');
+        expect(result.role).toBe('viewer');
     });
     it('所属未設定を拒否した場合はログイン済みとして扱わない', async () => {
         setCookies({ auth_token: jwt(me) });
@@ -64,7 +64,7 @@ describe('現在のロールと所属を使った認証情報', () => {
     it('APIに接続できない場合に古い管理者権限へ戻さない', async () => {
         setCookies({ auth_token: jwt({ ...me, role: 'admin' }) });
         mockFetch.mockRejectedValue(new Error('offline'));
-        expect((await resolveAuth()).role).toBe('user');
+        expect((await resolveAuth()).role).toBe('viewer');
     });
 });
 
