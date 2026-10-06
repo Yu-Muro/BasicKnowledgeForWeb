@@ -3,7 +3,6 @@ import { logoutAction } from '@frontend/app/actions/auth';
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import {
     type AccessPayload,
-    type AuthPayload,
     decodeJwtPayload,
     resolveAuth,
 } from '@frontend/app/lib/serverAuth';
@@ -56,14 +55,11 @@ export default async function AuthenticatedLayout({
 }) {
     const { authToken, accessToken, role, user } = await resolveAuth();
 
-    const authPayload = authToken
-        ? decodeJwtPayload<AuthPayload>(authToken)
-        : null;
     const accessPayload = accessToken
         ? decodeJwtPayload<AccessPayload>(accessToken)
         : null;
 
-    const userName = user?.name ?? authPayload?.name ?? null;
+    const userName = user?.name ?? null;
     const userEventId = accessPayload?.event_id ?? null;
 
     const isPrivileged = role === 'admin';

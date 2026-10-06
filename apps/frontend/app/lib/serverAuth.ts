@@ -56,20 +56,15 @@ export async function resolveAuth(
     const rawAuthToken = cookieStore.get('auth_token')?.value ?? null;
     const rawAccessToken = cookieStore.get('access_token')?.value ?? null;
 
-    const authPayload = rawAuthToken
-        ? decodeJwtPayload<AuthPayload>(rawAuthToken)
-        : null;
     const accessPayload = rawAccessToken
         ? decodeJwtPayload<AccessPayload>(rawAccessToken)
         : null;
 
-    const validAuthPayload =
-        authPayload && !isTokenExpired(authPayload) ? authPayload : null;
     const validAccessPayload =
         accessPayload && !isTokenExpired(accessPayload) ? accessPayload : null;
 
     let currentUser: AuthPayload | null = null;
-    if (validAuthPayload && rawAuthToken) {
+    if (rawAuthToken) {
         try {
             const res = await fetchFromBackend('/api/auth/me', {
                 headers: { Cookie: `auth_token=${rawAuthToken}` },

@@ -1,9 +1,5 @@
 import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
-import {
-    type AuthPayload,
-    decodeJwtPayload,
-    resolveAuth,
-} from '@frontend/app/lib/serverAuth';
+import { resolveAuth } from '@frontend/app/lib/serverAuth';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import PasswordChangeForm from './PasswordChangeForm';
@@ -80,7 +76,7 @@ export default async function DashboardPage({
         redirect('/login');
     }
 
-    const me = currentUser ?? decodeJwtPayload<AuthPayload>(authToken!);
+    const me = currentUser;
     if (!me) {
         redirect('/login');
     }
