@@ -6,7 +6,7 @@ import type {
 export class DeleteUserUseCase implements IDeleteUserUseCase {
     constructor(private readonly repository: IUserRepository) {}
     async execute(id: string, actorId: string): Promise<DeleteUserResult> {
-        if (id === actorId)
+        if (id.toLowerCase() === actorId.toLowerCase())
             return {
                 success: false,
                 error: '自分自身は削除できません',
