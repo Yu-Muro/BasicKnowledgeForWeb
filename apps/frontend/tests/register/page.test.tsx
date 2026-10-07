@@ -22,7 +22,10 @@ describe('RegisterPage', () => {
         render(<RegisterPage />);
 
         await screen.findByRole('option', { name: '企画部' });
-        await user.selectOptions(screen.getByLabelText('所属部署'), '60000000-0000-4000-8000-000000000001');
+        await user.selectOptions(
+            screen.getByLabelText('所属部署'),
+            '60000000-0000-4000-8000-000000000001',
+        );
         await user.click(screen.getByRole('button', { name: '登録する' }));
 
         await waitFor(() => {
@@ -47,7 +50,10 @@ describe('RegisterPage', () => {
             'different456',
         );
         await screen.findByRole('option', { name: '企画部' });
-        await user.selectOptions(screen.getByLabelText('所属部署'), '60000000-0000-4000-8000-000000000001');
+        await user.selectOptions(
+            screen.getByLabelText('所属部署'),
+            '60000000-0000-4000-8000-000000000001',
+        );
         await user.click(screen.getByRole('button', { name: '登録する' }));
 
         await waitFor(() => {
@@ -72,7 +78,10 @@ describe('RegisterPage', () => {
             'password123',
         );
         await screen.findByRole('option', { name: '企画部' });
-        await user.selectOptions(screen.getByLabelText('所属部署'), '60000000-0000-4000-8000-000000000001');
+        await user.selectOptions(
+            screen.getByLabelText('所属部署'),
+            '60000000-0000-4000-8000-000000000001',
+        );
         await user.click(screen.getByRole('button', { name: '登録する' }));
 
         await waitFor(() => {
@@ -98,7 +107,10 @@ describe('RegisterPage', () => {
             'password123',
         );
         await screen.findByRole('option', { name: '企画部' });
-        await user.selectOptions(screen.getByLabelText('所属部署'), '60000000-0000-4000-8000-000000000001');
+        await user.selectOptions(
+            screen.getByLabelText('所属部署'),
+            '60000000-0000-4000-8000-000000000001',
+        );
         await user.click(screen.getByRole('button', { name: '登録する' }));
 
         await waitFor(() => {
@@ -125,7 +137,10 @@ describe('RegisterPage', () => {
             'password123',
         );
         await screen.findByRole('option', { name: '企画部' });
-        await user.selectOptions(screen.getByLabelText('所属部署'), '60000000-0000-4000-8000-000000000001');
+        await user.selectOptions(
+            screen.getByLabelText('所属部署'),
+            '60000000-0000-4000-8000-000000000001',
+        );
         await user.click(screen.getByRole('button', { name: '登録する' }));
 
         await waitFor(() => {
