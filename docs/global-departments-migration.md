@@ -41,3 +41,9 @@
 認証ではパスの除外一覧を使わず、`authMiddleware` が `ValidateSessionUseCase` に現在のユーザー状態の判定を委ねる。会期閲覧は `contentAccessMiddleware` の会期トークン経路を先に判定するため、古いユーザーCookieやHEADリクエストに影響されない。Server Componentの認証取得はReactのリクエスト単位の `cache()` で共有し、別リクエストへ持ち越さない。
 
 キャッシュ方針は [Cloudflareの公式資料](https://developers.cloudflare.com/hyperdrive/concepts/query-caching/) に基づく。確認時点ではdevで有効、prodで無効だったため、公開ワークフローで両環境の無効化を保証する。
+
+DBクライアントはリクエスト内で1つだけ遅延生成し、認証・書き込みゲート・各リポジトリへ共有する。リクエスト終了時にpg Poolを閉じる。移行完了を確認したWorkerインスタンスは以後のmetadata照会を省く。未完了・DBエラーは記憶せず次の要求で再確認する。DBスキーマを旧版へ戻す場合はWorkerも再公開し、完了状態をリセットする。
+
+互換拡張の `session_version` はCockroachDBの `int4` を明示し、最終スキーマ・snapshotと一致させる。DB検証では `information_schema.columns.udt_name` も確認する。
+
+認証サービスの一時的な503と無効なセッションの401を区別する。管理画面では再試行を案内し、有効な会期閲覧はユーザー認証の一時障害から独立して継続する。

@@ -644,7 +644,7 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
 
 | シークレット | 用途 |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` | デプロイワークフロー |
+| `CLOUDFLARE_API_TOKEN` | デプロイワークフロー。Hyperdriveのキャッシュ無効化にAccount / Hyperdrive / Edit権限が必要 |
 | `CLOUDFLARE_ACCOUNT_ID` | デプロイワークフロー |
 | `DATABASE_URL` | デプロイワークフロー（db:migrate） |
 | `RENOVATE_APP_PRIVATE_KEY` | Renovate 専用 GitHub App の秘密鍵（PEM）。リポジトリへコミットせず、Actions Secret に登録します |
@@ -758,7 +758,7 @@ Feature テストでは `app.request(path, { headers }, mockEnv)` の第3引数�
 - 新規登録時は本人が部署を選択する。既存ユーザーの所属指定と登録後の部署変更は管理者のみ可能。
 - 一般ユーザーへロール変更する際は管理者が部署を指定する。一般ユーザーから管理者への昇格時は部署指定がなければ所属を解除する。管理者のロール再保存では所属を維持する。
 - 既存ユーザーの未設定所属は移行期間のみ許容し、設定まではログイン・ユーザー認証セッションを拒否する。
-- ルートの `createAuthenticationContext` は判定用ユースケースを注入する。認証ミドルウェアの `ValidateSessionUseCase` が現在のロール・所属・削除状態をDBで確認する。公開ルートで認証判定は行わない。フロントのmiddlewareと`resolveAuth`も`/api/auth/me`で現在状態を確認し、Server Component内ではリクエスト単位で共有する。
+- ルートの `createAuthenticationContext` は判定用ユースケースを注入する。認証ミドルウェアの `ValidateSessionUseCase` が現在のロール・所属・削除状態をDBで確認する。公開ルートで認証判定は行わない。フロントのmiddlewareと`resolveAuth`も`/api/auth/me`で現在状態を確認し、Server Component内ではリクエスト単位で共有する。`/me`の401だけを未認証として扱い、403は利用条件の確認、503や接続失敗は再試行のエラー画面を表示し、ログイン画面へ転送しない。有効な会期トークンがあればコンテンツと共通レイアウトは会期閲覧だけにフォールバックできる。管理画面ではフォールバックしない。
 - Hyperdriveのクエリキャッシュは認証状態の即時反映のためdev/prodとも無効化する。部署統合前は部署参照を変更する書き込みを503で一時停止し、閲覧は継続する。
 - 移行手順は `docs/global-departments-migration.md` を参照する。
 
@@ -809,7 +809,7 @@ use case の返り値は必ず `{ success: true; data: T } | { success: false; e
 
 ### Cloudflare Workers の制約
 
-- モジュールレベルのグローバル状態は同一 Worker インスタンス内でリクエストをまたいで残るため注意する。DB 接続はリクエストごとに作成する設計（接続プールは Hyperdrive が管理）。
+- モジュールレベルのグローバル状態は同一 Worker インスタンス内でリクエストをまたいで残るため注意する。DBクライアントはリクエストごとに遅延生成し、`c.get('databaseClient')` のproviderを各repository factoryへ渡して認証・移行ゲート・本処理で共有する。pg Poolの`max`は1で、リクエスト終了時に`end()`する（DB側の接続プールはHyperdriveが管理）。移行完了フラグだけはWorkerの認証context内で共有し、一度完了を確認した後はmetadataを再照会しない。未完了・照会失敗はキャッシュしない。
 - Workers 用 tsconfig に `bun-types` を含めると `@cloudflare/workers-types` と `Response` / `Body` が競合する。production tsconfig は `@cloudflare/workers-types` のみを使用。
 - `nodejs_compat` フラグを有効化しているため、Node.js 組み込み（`crypto`, `buffer` など）が利用可能。
 
