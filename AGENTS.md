@@ -278,6 +278,7 @@ users table:
   created_at  timestamp    auto-populated
   updated_at  timestamp    auto-populated
   deleted_at  timestamp    nullable (soft delete)
+  session_version int      not null, default 0（復元時に加算）
 
 access_codes table:
   id          uuid        primary key
@@ -763,7 +764,7 @@ Feature テストでは `app.request(path, { headers }, mockEnv)` の第3引数�
 
 ### Soft Delete
 
-`users` は管理者による論理削除に対応する。削除時は所属部署を解除する。現在の仕様では削除済みユーザーのメールアドレスを再利用しないため、`findByEmail` は削除済みレコードも返す。自分自身の削除は禁止する。削除済みユーザーは一覧に返さず、ログインと発行済み `auth_token` によるAPIアクセスも拒否する。
+`users` は管理者による論理削除に対応する。削除時は所属部署を解除する。現在の仕様では削除済みユーザーのメールアドレスを再利用しないため、`findByEmail` は削除済みレコードも返す。自分自身の削除は禁止する。通常一覧に削除済みユーザーを返さず、ログインと発行済み `auth_token` によるAPIアクセスも拒否する。管理者専用の `GET /api/users/deleted` と `POST /api/users/:id/restore` で復元できる。一般ユーザーの復元には有効な部署を必須とし、管理者は所属任意。復元はロール・ID・メール・パスワードを保持して `session_version` を原子的に加算し、削除前のトークンを再び有効にしない。
 
 現時点で `deleted_at` を持つのは `users` テーブルのみ。
 今後ほかのテーブルへ広げる場合は次を適用する:
