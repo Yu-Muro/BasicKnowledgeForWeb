@@ -1,5 +1,9 @@
 'use client';
 
+import {
+    MAX_PASSWORD_LENGTH,
+    PASSWORD_TOO_LONG_MESSAGE,
+} from '@backend/src/infrastructure/validators/passwordPolicy';
 import { changePasswordAction } from '@frontend/app/actions/dashboard';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -22,6 +26,10 @@ export default function PasswordChangeForm() {
         }
         if (newPassword.length < 8) {
             setError('新しいパスワードは8文字以上で入力してください');
+            return;
+        }
+        if (newPassword.length > MAX_PASSWORD_LENGTH) {
+            setError(PASSWORD_TOO_LONG_MESSAGE);
             return;
         }
         if (newPassword !== confirmPassword) {

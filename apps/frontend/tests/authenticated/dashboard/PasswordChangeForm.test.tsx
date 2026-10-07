@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import {
+    act,
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 jest.mock('@frontend/app/actions/dashboard', () => ({
@@ -37,6 +43,41 @@ beforeEach(() => {
 });
 
 describe('PasswordChangeForm', () => {
+    it.each([128, 129])(
+        '%s文字の新しいパスワードで認証と同じ上限を適用する',
+        async (length) => {
+            mockChangePassword.mockResolvedValue({
+                success: false,
+                error: 'test-response',
+            });
+            render(<PasswordChangeForm />);
+            fireEvent.change(screen.getByLabelText('現在のパスワード'), {
+                target: { value: 'current-password' },
+            });
+            fireEvent.change(screen.getByLabelText('新しいパスワード'), {
+                target: { value: 'A'.repeat(length) },
+            });
+            fireEvent.change(screen.getByLabelText('確認'), {
+                target: { value: 'A'.repeat(length) },
+            });
+            await act(async () => {
+                fireEvent.click(
+                    screen.getByRole('button', { name: '変更する' }),
+                );
+            });
+            if (length === 128) {
+                expect(mockChangePassword).toHaveBeenCalledWith({
+                    currentPassword: 'current-password',
+                    newPassword: 'A'.repeat(128),
+                });
+            } else {
+                expect(mockChangePassword).not.toHaveBeenCalled();
+                expect(screen.getByRole('alert')).toHaveTextContent(
+                    'パスワードは128文字以内で入力してください',
+                );
+            }
+        },
+    );
     it('入力フォームを表示する', () => {
         render(<PasswordChangeForm />);
 
