@@ -23,20 +23,30 @@ import { Hono } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
 import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
+import type { DatabaseProvider } from './requestDatabase';
 
-type UserRepositoryFactory = (env: Env) => IUserRepository;
+type UserRepositoryFactory = (
+    env: Env,
+    database?: DatabaseProvider,
+) => IUserRepository;
 
 export function createUserRoutes(
-    repositoryFactory: UserRepositoryFactory = (env) =>
-        new UserRepository(createDatabaseClient(env)),
-    departmentFactory: (env: Env) => IDepartmentRepository = (env) =>
-        new DepartmentRepository(createDatabaseClient(env)),
+    repositoryFactory: UserRepositoryFactory = (env, database) =>
+        new UserRepository(database?.() ?? createDatabaseClient(env)),
+    departmentFactory: (
+        env: Env,
+        database?: DatabaseProvider,
+    ) => IDepartmentRepository = (env, database) =>
+        new DepartmentRepository(database?.() ?? createDatabaseClient(env)),
 ) {
     return (
         new Hono<{ Bindings: Env }>()
             // GET /api/users - ユーザー一覧取得（admin のみ）
             .get('/users', authMiddleware, roleGuard(['admin']), async (c) => {
-                const repository = repositoryFactory(c.env);
+                const repository = repositoryFactory(
+                    c.env,
+                    c.get('databaseClient'),
+                );
                 const useCase = new GetUsersUseCase(repository);
                 return getUsers(c, useCase);
             })
@@ -47,7 +57,9 @@ export function createUserRoutes(
                 async (c) =>
                     getUsers(
                         c,
-                        new GetUsersUseCase(repositoryFactory(c.env)),
+                        new GetUsersUseCase(
+                            repositoryFactory(c.env, c.get('databaseClient')),
+                        ),
                         true,
                     ),
             )
@@ -60,8 +72,8 @@ export function createUserRoutes(
                     restoreUser(
                         c,
                         new RestoreUserUseCase(
-                            repositoryFactory(c.env),
-                            departmentFactory(c.env),
+                            repositoryFactory(c.env, c.get('databaseClient')),
+                            departmentFactory(c.env, c.get('databaseClient')),
                         ),
                     ),
             )
@@ -73,7 +85,9 @@ export function createUserRoutes(
                 async (c) =>
                     deleteUser(
                         c,
-                        new DeleteUserUseCase(repositoryFactory(c.env)),
+                        new DeleteUserUseCase(
+                            repositoryFactory(c.env, c.get('databaseClient')),
+                        ),
                     ),
             )
             .put(
@@ -85,8 +99,8 @@ export function createUserRoutes(
                     updateUserDepartment(
                         c,
                         new UpdateUserDepartmentUseCase(
-                            repositoryFactory(c.env),
-                            departmentFactory(c.env),
+                            repositoryFactory(c.env, c.get('databaseClient')),
+                            departmentFactory(c.env, c.get('databaseClient')),
                         ),
                     ),
             )
@@ -103,10 +117,13 @@ export function createUserRoutes(
                 }),
                 departmentWriteMiddleware,
                 async (c) => {
-                    const repository = repositoryFactory(c.env);
+                    const repository = repositoryFactory(
+                        c.env,
+                        c.get('databaseClient'),
+                    );
                     const useCase = new CreateUserUseCase(
                         repository,
-                        departmentFactory(c.env),
+                        departmentFactory(c.env, c.get('databaseClient')),
                     );
                     return createUser(c, useCase);
                 },
@@ -118,10 +135,13 @@ export function createUserRoutes(
                 roleGuard(['admin']),
                 departmentWriteMiddleware,
                 async (c) => {
-                    const repository = repositoryFactory(c.env);
+                    const repository = repositoryFactory(
+                        c.env,
+                        c.get('databaseClient'),
+                    );
                     const useCase = new UpdateUserRoleUseCase(
                         repository,
-                        departmentFactory(c.env),
+                        departmentFactory(c.env, c.get('databaseClient')),
                     );
                     return updateUserRole(c, useCase);
                 },

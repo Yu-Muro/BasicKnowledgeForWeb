@@ -10,7 +10,11 @@ export function hasDatabaseError(error: unknown, code: string): boolean {
             message?: string;
             cause?: unknown;
         };
-        if (value.code === code || value.message?.includes(`SQLSTATE ${code}`))
+        if (
+            value.code === code ||
+            value.message?.includes(`SQLSTATE ${code}`) ||
+            (code === '23503' && value.message?.includes('foreign key'))
+        )
             return true;
         current = value.cause;
     }

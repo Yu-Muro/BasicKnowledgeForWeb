@@ -21,20 +21,27 @@ import {
 import { contentAccessMiddleware } from '../middleware/contentAccessMiddleware';
 import { roleGuard } from '../middleware/roleGuard';
 import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
+import type { DatabaseProvider } from './requestDatabase';
 
-type AccessCodeRepositoryFactory = (env: Env) => IAccessCodeRepository;
+type AccessCodeRepositoryFactory = (
+    env: Env,
+    database?: DatabaseProvider,
+) => IAccessCodeRepository;
 
 const ADMIN_ROLES = ['admin'];
 
 export function createAccessCodeRoutes(
-    repositoryFactory: AccessCodeRepositoryFactory = (env) =>
-        new AccessCodeRepository(createDatabaseClient(env)),
+    repositoryFactory: AccessCodeRepositoryFactory = (env, database) =>
+        new AccessCodeRepository(database?.() ?? createDatabaseClient(env)),
 ) {
     return (
         new Hono<{ Bindings: Env; Variables: AuthVariables }>()
             // GET /api/access-codes/:id — contentAccessMiddleware（user: access_token、admin/dev: auth_token）
             .get('/access-codes/:id', contentAccessMiddleware, async (c) => {
-                const repository = repositoryFactory(c.env);
+                const repository = repositoryFactory(
+                    c.env,
+                    c.get('databaseClient'),
+                );
                 const useCase = new GetAccessCodeUseCase(repository);
                 return getAccessCode(c, useCase);
             })
@@ -42,7 +49,10 @@ export function createAccessCodeRoutes(
             .post('/access-codes/verify', async (c) => {
                 const limited = await publicAuthRateLimitGuard(c, 'verify');
                 if (limited) return limited;
-                const repository = repositoryFactory(c.env);
+                const repository = repositoryFactory(
+                    c.env,
+                    c.get('databaseClient'),
+                );
                 const useCase = new VerifyAccessCodeUseCase(repository);
                 return verifyAccessCode(c, useCase);
             })
@@ -52,7 +62,10 @@ export function createAccessCodeRoutes(
                 authMiddleware,
                 roleGuard(ADMIN_ROLES),
                 async (c) => {
-                    const repository = repositoryFactory(c.env);
+                    const repository = repositoryFactory(
+                        c.env,
+                        c.get('databaseClient'),
+                    );
                     const useCase = new GetAccessCodesUseCase(repository);
                     return getAccessCodes(c, useCase);
                 },
@@ -63,7 +76,10 @@ export function createAccessCodeRoutes(
                 authMiddleware,
                 roleGuard(ADMIN_ROLES),
                 async (c) => {
-                    const repository = repositoryFactory(c.env);
+                    const repository = repositoryFactory(
+                        c.env,
+                        c.get('databaseClient'),
+                    );
                     const useCase = new CreateAccessCodeUseCase(repository);
                     return createAccessCode(c, useCase);
                 },
@@ -74,7 +90,10 @@ export function createAccessCodeRoutes(
                 authMiddleware,
                 roleGuard(ADMIN_ROLES),
                 async (c) => {
-                    const repository = repositoryFactory(c.env);
+                    const repository = repositoryFactory(
+                        c.env,
+                        c.get('databaseClient'),
+                    );
                     const useCase = new DeleteAccessCodeUseCase(repository);
                     return deleteAccessCode(c, useCase);
                 },

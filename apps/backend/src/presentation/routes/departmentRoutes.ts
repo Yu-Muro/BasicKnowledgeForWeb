@@ -16,18 +16,22 @@ import { UpdateDepartmentUseCase } from '@backend/src/use-cases/department/Updat
 import { Hono } from 'hono';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
 import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
+import type { DatabaseProvider } from './requestDatabase';
 
-type DepartmentRepositoryFactory = (env: Env) => IDepartmentRepository;
+type DepartmentRepositoryFactory = (
+    env: Env,
+    database?: DatabaseProvider,
+) => IDepartmentRepository;
 
 export function createDepartmentRoutes(
-    repositoryFactory: DepartmentRepositoryFactory = (env) =>
-        new DepartmentRepository(createDatabaseClient(env)),
+    repositoryFactory: DepartmentRepositoryFactory = (env, database) =>
+        new DepartmentRepository(database?.() ?? createDatabaseClient(env)),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];
 
     app.get('/departments', async (c) => {
-        const repository = repositoryFactory(c.env);
+        const repository = repositoryFactory(c.env, c.get('databaseClient'));
         const useCase = new GetDepartmentsUseCase(repository);
         return getDepartments(c, useCase);
     });
@@ -38,7 +42,10 @@ export function createDepartmentRoutes(
         roleGuard(ADMIN_ROLES),
         departmentWriteMiddleware,
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new CreateDepartmentUseCase(repository);
             return createDepartment(c, useCase);
         },
@@ -50,7 +57,10 @@ export function createDepartmentRoutes(
         roleGuard(ADMIN_ROLES),
         departmentWriteMiddleware,
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new UpdateDepartmentUseCase(repository);
             return updateDepartment(c, useCase);
         },
@@ -62,7 +72,10 @@ export function createDepartmentRoutes(
         roleGuard(ADMIN_ROLES),
         departmentWriteMiddleware,
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new DeleteDepartmentUseCase(repository);
             return deleteDepartment(c, useCase);
         },

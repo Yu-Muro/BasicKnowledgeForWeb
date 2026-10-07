@@ -7,27 +7,51 @@ import { ValidateSessionUseCase } from '@backend/src/use-cases/auth/ValidateSess
 import { CheckDepartmentWritesUseCase } from '@backend/src/use-cases/department/CheckDepartmentWritesUseCase';
 import { createMiddleware } from 'hono/factory';
 import type { AuthVariables } from '../middleware/authMiddleware';
+import type { DatabaseClient, RepositoryFactory } from './requestDatabase';
 // Composition root only: public routes never trigger authentication or DB reads.
 export function createAuthenticationContext(
-    users: (env: Env) => IUserRepository = (env) =>
-        new UserRepository(createDatabaseClient(env)),
-    migrations: (env: Env) => IMigrationStateRepository = (env) =>
-        new MigrationStateRepository(createDatabaseClient(env)),
+    users: RepositoryFactory<IUserRepository> = (env, database) =>
+        new UserRepository(database?.() ?? createDatabaseClient(env)),
+    migrations?: RepositoryFactory<IMigrationStateRepository>,
+    databaseFactory = createDatabaseClient,
 ) {
+    // Completion only moves forward, scoped to this worker's auth context.
+    const completion = { complete: false };
+    const migrationFactory: RepositoryFactory<IMigrationStateRepository> =
+        migrations ??
+        ((env, database) =>
+            new MigrationStateRepository(
+                database?.() ?? createDatabaseClient(env),
+                completion,
+            ));
     return createMiddleware<{ Bindings: Env; Variables: AuthVariables }>(
         async (c, next) => {
+            let client: DatabaseClient | undefined;
+            const database = () => (client ??= databaseFactory(c.env));
+            c.set('databaseClient', database);
             c.set('jwtSecret', c.env.JWT_SECRET);
             c.set('sessionValidator', {
                 execute: (claims) =>
-                    new ValidateSessionUseCase(users(c.env)).execute(claims),
+                    new ValidateSessionUseCase(users(c.env, database)).execute(
+                        claims,
+                    ),
             });
             c.set('departmentWriteCheck', {
                 execute: () =>
                     new CheckDepartmentWritesUseCase(
-                        migrations(c.env),
+                        migrationFactory(c.env, database),
                     ).execute(),
             });
-            await next();
+            try {
+                await next();
+            } finally {
+                if (client)
+                    await client.$client
+                        .end()
+                        .catch(() =>
+                            console.error('DB接続の解放に失敗しました'),
+                        );
+            }
         },
     );
 }

@@ -13,20 +13,6 @@ export class UpdateDepartmentUseCase implements IUpdateDepartmentUseCase {
         input: UpdateDepartmentInput,
     ): Promise<UpdateDepartmentResult> {
         try {
-            if (
-                input.payload.name &&
-                (await this.departmentRepository.findAll()).some(
-                    (department) =>
-                        department.id !== input.id &&
-                        department.name === input.payload.name,
-                )
-            )
-                return {
-                    success: false,
-                    error: '同じ名前の部署が既に存在します',
-                    status: 409,
-                };
-
             const data = await this.departmentRepository.update(
                 input.id,
                 input.payload,
