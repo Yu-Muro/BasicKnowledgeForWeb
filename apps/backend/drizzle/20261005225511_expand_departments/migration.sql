@@ -14,3 +14,7 @@ ALTER TABLE "timetable_item_departments" DROP CONSTRAINT IF EXISTS "timetable_it
 ALTER TABLE "timetable_item_departments" ADD CONSTRAINT "timetable_item_departments_department_id_departments_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id") ON DELETE RESTRICT;--> statement-breakpoint
 ALTER TABLE "users" DROP CONSTRAINT IF EXISTS "users_department_id_departments_id_fkey";--> statement-breakpoint
 ALTER TABLE "users" ADD CONSTRAINT "users_department_id_departments_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id") ON DELETE RESTRICT;
+
+--> statement-breakpoint
+-- 復元後の旧セッション拒否に必要。後続migrationでも冪等に記録する。
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "session_version" integer DEFAULT 0 NOT NULL;
