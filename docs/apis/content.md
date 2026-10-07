@@ -280,3 +280,6 @@
   - `apps/backend/src/presentation/controllers/*Controller.ts`（各ドメイン）
 - Validator:
   - `apps/backend/src/infrastructure/validators/*Validator.ts`（各ドメイン）
+
+## 部署統合中の変更制限
+部署・部屋・タイムテーブルを変更するAPIは、部署統合の完了まで `503` と `Retry-After: 30` を返す。GET・HEADによる閲覧は継続できる。部署の作成・改名で同名部署がある場合は、競合として `409` を返す。

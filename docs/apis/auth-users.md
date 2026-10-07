@@ -129,7 +129,7 @@
 ```
 - 備考:
   - `role` は `user` または `admin`
-  - `user` に変更する場合は `departmentId` が必須。`admin` への変更は所属を解除する。
+  - `user` に変更する場合は `departmentId` が必須。`user` から `admin` への昇格は部署を指定しなければ所属を解除する。管理者のロール再保存では現在の所属を維持し、所属を指定した場合はその部署の存在を検証して更新する。
 - 成功:
   - `200`
   - Body: `{ "message": "ロールを変更しました" }`
@@ -152,7 +152,7 @@
 
 - 認証・権限: `auth_token(admin)`。
 - 成功: `200` / `{ "message": "ユーザーを削除しました" }`。
-- `deleted_at` に削除日時を設定する論理削除。既存のメールアドレスは再利用しない。
+- `deleted_at` に削除日時を設定し、所属部署も解除する論理削除。既存のメールアドレスは再利用しない。
 - 自分自身の削除は `400`、存在しない・削除済みユーザーは `404`。
 - 削除後はログインできず、発行済み `auth_token` によるAPIアクセスも `401`。
 
@@ -175,3 +175,5 @@
   - `apps/backend/src/infrastructure/validators/authValidator.ts`
   - `apps/backend/src/infrastructure/validators/userValidator.ts`
   - `apps/backend/src/infrastructure/validators/userRoleValidator.ts`
+
+部署統合が未完了の間、ユーザー登録・削除・ロール変更・所属変更は `503` と `Retry-After: 30` を返す。統合後に再試行できる。ユーザー一覧の取得とログインは継続できる。

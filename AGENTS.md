@@ -600,8 +600,8 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
 | ワークフロー | トリガー | ジョブ |
 |---|---|---|
 | `pull-request.yml` | PR → `main` or `develop` | lint-and-test-backend, verify-migration-backend, lint-and-test-frontend |
-| `deploy-dev.yml` | push → `develop` | 互換DB拡張 → backend deploy → 部署統合DB移行 → frontend deploy (env: dev) |
-| `deploy-prod.yml` | push → `main` | 互換DB拡張 → backend deploy → 部署統合DB移行 → frontend deploy (env: prod) |
+| `deploy-dev.yml` | push → `develop` | キャッシュ無効化 → 互換DB拡張 → backend deploy → frontend deploy → 部署統合DB移行 (env: dev) |
+| `deploy-prod.yml` | push → `main` | キャッシュ無効化 → 互換DB拡張 → backend deploy → frontend deploy → 部署統合DB移行 (env: prod) |
 | `security-scan.yml` | PR 作成/更新時 | AikidoSec, Betterleaks, anti-trojan-source |
 | `renovate.yml` | 毎日 07:00 JST / 手動実行 | Renovate（セルフホスト）で依存更新 PR を作成。実際に PR を作るかは `renovate.json` の `schedule` が判定 |
 
@@ -755,18 +755,19 @@ Feature テストでは `app.request(path, { headers }, mockEnv)` の第3引数�
 
 - `admin` を除くユーザーは全会期共通の部署へ所属する。公開登録で `admin` を指定することはできない。
 - 新規登録時は本人が部署を選択する。既存ユーザーの所属指定と登録後の部署変更は管理者のみ可能。
-- 一般ユーザーへロール変更する際は管理者が部署を指定する。管理者への変更時は所属を解除する。
+- 一般ユーザーへロール変更する際は管理者が部署を指定する。一般ユーザーから管理者への昇格時は部署指定がなければ所属を解除する。管理者のロール再保存では所属を維持する。
 - 既存ユーザーの未設定所属は移行期間のみ許容し、設定まではログイン・ユーザー認証セッションを拒否する。
-- API入口の `createSessionValidation` は現在のロール・所属・削除状態をDBで確認する。フロントのmiddlewareと`resolveAuth`も`/api/auth/me`で現在状態を確認する。
+- ルートの `createAuthenticationContext` は判定用ユースケースを注入する。認証ミドルウェアの `ValidateSessionUseCase` が現在のロール・所属・削除状態をDBで確認する。公開ルートで認証判定は行わない。フロントのmiddlewareと`resolveAuth`も`/api/auth/me`で現在状態を確認し、Server Component内ではリクエスト単位で共有する。
+- Hyperdriveのクエリキャッシュは認証状態の即時反映のためdev/prodとも無効化する。部署統合前は部署参照を変更する書き込みを503で一時停止し、閲覧は継続する。
 - 移行手順は `docs/global-departments-migration.md` を参照する。
 
 ### Soft Delete
 
-`users` は管理者による論理削除に対応する。自分自身の削除は禁止する。削除済みユーザーは一覧に返さず、ログインと発行済み `auth_token` によるAPIアクセスも拒否する。
+`users` は管理者による論理削除に対応する。削除時は所属部署を解除する。現在の仕様では削除済みユーザーのメールアドレスを再利用しないため、`findByEmail` は削除済みレコードも返す。自分自身の削除は禁止する。削除済みユーザーは一覧に返さず、ログインと発行済み `auth_token` によるAPIアクセスも拒否する。
 
 現時点で `deleted_at` を持つのは `users` テーブルのみ。
 今後ほかのテーブルへ広げる場合は次を適用する:
-- `findAll` / `findByEmail` などの取得クエリに `.where(isNull(table.deletedAt))` を追加する
+- 一覧・通常のID検索では `.where(isNull(table.deletedAt))` を追加する。ユーザーのメール検索は、登録時の重複判定と削除済みアカウントのログイン拒否に利用するため例外として削除済みも含める
 - 削除エンドポイントは `DELETE` ではなく `UPDATE ... SET deleted_at = now()` を使う
 - soft delete 済みレコードを API レスポンスに含めない
 
