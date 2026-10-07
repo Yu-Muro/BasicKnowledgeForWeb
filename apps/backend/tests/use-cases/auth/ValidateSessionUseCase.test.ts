@@ -56,11 +56,25 @@ describe('ValidateSessionUseCase', () => {
             ).execute(user),
         ).toMatchObject({ success: false, status: 503 });
     });
-    it.each([undefined, 0])('復元後は削除前のトークンを拒否する (%s)', async (sessionVersion) => {
-        expect(await new ValidateSessionUseCase(userRepository({ findById: async () => ({ ...user, sessionVersion: 1 }) })).execute({ ...user, sessionVersion })).toMatchObject({ success: false, status: 401 });
-    });
+    it.each([undefined, 0])(
+        '復元後は削除前のトークンを拒否する (%s)',
+        async (sessionVersion) => {
+            expect(
+                await new ValidateSessionUseCase(
+                    userRepository({
+                        findById: async () => ({ ...user, sessionVersion: 1 }),
+                    }),
+                ).execute({ ...user, sessionVersion }),
+            ).toMatchObject({ success: false, status: 401 });
+        },
+    );
     it('復元後に再ログインしたトークンを受け入れる', async () => {
-        expect(await new ValidateSessionUseCase(userRepository({ findById: async () => ({ ...user, sessionVersion: 1 }) })).execute({ ...user, sessionVersion: 1 })).toMatchObject({ success: true });
+        expect(
+            await new ValidateSessionUseCase(
+                userRepository({
+                    findById: async () => ({ ...user, sessionVersion: 1 }),
+                }),
+            ).execute({ ...user, sessionVersion: 1 }),
+        ).toMatchObject({ success: true });
     });
-
 });

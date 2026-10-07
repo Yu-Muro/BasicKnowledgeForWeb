@@ -448,43 +448,174 @@ describe('ルートごとの認証と移行中の書き込み', () => {
     });
 });
 
-it('認証リポジトリの構築失敗もJSONの503にする',async()=>{
- const application=new Hono<{Bindings:Env}>();
- application.use('/api/*',createAuthenticationContext(()=>{throw new Error('configuration');}));
- application.route('/api',createAuthRoutes(()=>repository()));
- const res=await application.request('/api/auth/me',{headers:{Cookie:await cookie()}},env);
- expect(res.status).toBe(503);expect(await res.json()).toMatchObject({error:'認証情報の確認に失敗しました'});
+it('認証リポジトリの構築失敗もJSONの503にする', async () => {
+    const application = new Hono<{ Bindings: Env }>();
+    application.use(
+        '/api/*',
+        createAuthenticationContext(() => {
+            throw new Error('configuration');
+        }),
+    );
+    application.route(
+        '/api',
+        createAuthRoutes(() => repository()),
+    );
+    const res = await application.request(
+        '/api/auth/me',
+        { headers: { Cookie: await cookie() } },
+        env,
+    );
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({
+        error: '認証情報の確認に失敗しました',
+    });
 });
 
- describe('削除済みユーザーの復元', () => {
-  it.each(['admin', 'user'])('削除済み一覧は管理者のみ閲覧できる (%s)', async role => {
-   const findAll = jest.fn<IUserRepository['findAll']>().mockResolvedValue([{ ...admin, deletedAt: new Date() }]);
-   const repo = repository({ findAll, findById: async () => ({ ...admin, role, departmentId: department.id }) });
-   const res = await app(repo).request('/api/users/deleted', { headers: { Cookie: await cookie(role) } }, env);
-   expect(res.status).toBe(role === 'admin' ? 200 : 403);
-   if(role === 'admin') { expect(findAll).toHaveBeenCalledWith(true); expect(((await res.json()) as { users: object[] }).users[0]).not.toHaveProperty('password'); }
-   else expect(findAll).not.toHaveBeenCalled();
-  });
-  it.each([['admin', false, 200], ['user', false, 403], ['admin', true, 503]] as const)('復元の権限と移行中の制限 %s/%s', async(role,pending,status) => {
-   const restore = jest.fn<IUserRepository['restore']>().mockResolvedValue({ ...admin, id: target, role: 'user', departmentId: department.id, sessionVersion: 1 });
-   const repo = repository({ restore, findById: async lookup => lookup === id ? { ...admin, role, departmentId: department.id } : { ...admin, id:target, role:'user', deletedAt: new Date() } });
-   const res = await app(repo,pending).request(`/api/users/${target}/restore`, { method:'POST', headers:{ Cookie: await cookie(role), 'Content-Type':'application/json' }, body: JSON.stringify({ departmentId: department.id }) },env);
-   expect(res.status).toBe(status);
-   if(status===200) expect(restore).toHaveBeenCalledWith(target,department.id); else expect(restore).not.toHaveBeenCalled();
-  });
-  it('復元後の再ログインだけを許可しメールアドレス再登録は拒否する', async () => {
-   const { hash } = await import('bcryptjs');
-   const restored = { ...admin, id:target, sessionVersion:1, password:await hash('password123',1) };
-   const repo = repository({ findById: async() => restored, findByEmail: async() => restored });
-   const api = app(repo);
-   const oldToken = await sign({ id:target, role:'admin', exp:Math.floor(Date.now()/1000)+3600 },env.JWT_SECRET);
-   expect((await api.request('/api/users',{headers:{Cookie:`auth_token=${oldToken}`}},env)).status).toBe(401);
-   const login = await api.request('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:restored.email,password:'password123'})},env);
-   expect(login.status).toBe(200);
-   const token = login.headers.get('set-cookie')!.split(';')[0];
-   expect((await api.request('/api/users',{headers:{Cookie:token}},env)).status).toBe(200);
-   const deletedRepo = repository({ findByEmail: async() => ({ ...restored, deletedAt:new Date() }) });
-   const registration = await app(deletedRepo).request('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'スタッフ',email:restored.email,password:'password123',departmentId:department.id})},env);
-   expect(registration.status).toBe(400);
-  });
- });
+describe('削除済みユーザーの復元', () => {
+    it.each(['admin', 'user'])(
+        '削除済み一覧は管理者のみ閲覧できる (%s)',
+        async (role) => {
+            const findAll = jest
+                .fn<IUserRepository['findAll']>()
+                .mockResolvedValue([{ ...admin, deletedAt: new Date() }]);
+            const repo = repository({
+                findAll,
+                findById: async () => ({
+                    ...admin,
+                    role,
+                    departmentId: department.id,
+                }),
+            });
+            const res = await app(repo).request(
+                '/api/users/deleted',
+                { headers: { Cookie: await cookie(role) } },
+                env,
+            );
+            expect(res.status).toBe(role === 'admin' ? 200 : 403);
+            if (role === 'admin') {
+                expect(findAll).toHaveBeenCalledWith(true);
+                expect(
+                    ((await res.json()) as { users: object[] }).users[0],
+                ).not.toHaveProperty('password');
+            } else expect(findAll).not.toHaveBeenCalled();
+        },
+    );
+    it.each([
+        ['admin', false, 200],
+        ['user', false, 403],
+        ['admin', true, 503],
+    ] as const)(
+        '復元の権限と移行中の制限 %s/%s',
+        async (role, pending, status) => {
+            const restore = jest
+                .fn<IUserRepository['restore']>()
+                .mockResolvedValue({
+                    ...admin,
+                    id: target,
+                    role: 'user',
+                    departmentId: department.id,
+                    sessionVersion: 1,
+                });
+            const repo = repository({
+                restore,
+                findById: async (lookup) =>
+                    lookup === id
+                        ? { ...admin, role, departmentId: department.id }
+                        : {
+                              ...admin,
+                              id: target,
+                              role: 'user',
+                              deletedAt: new Date(),
+                          },
+            });
+            const res = await app(repo, pending).request(
+                `/api/users/${target}/restore`,
+                {
+                    method: 'POST',
+                    headers: {
+                        Cookie: await cookie(role),
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ departmentId: department.id }),
+                },
+                env,
+            );
+            expect(res.status).toBe(status);
+            if (status === 200)
+                expect(restore).toHaveBeenCalledWith(target, department.id);
+            else expect(restore).not.toHaveBeenCalled();
+        },
+    );
+    it('復元後の再ログインだけを許可しメールアドレス再登録は拒否する', async () => {
+        const { hash } = await import('bcryptjs');
+        const restored = {
+            ...admin,
+            id: target,
+            sessionVersion: 1,
+            password: await hash('password123', 1),
+        };
+        const repo = repository({
+            findById: async () => restored,
+            findByEmail: async () => restored,
+        });
+        const api = app(repo);
+        const oldToken = await sign(
+            {
+                id: target,
+                role: 'admin',
+                exp: Math.floor(Date.now() / 1000) + 3600,
+            },
+            env.JWT_SECRET,
+        );
+        expect(
+            (
+                await api.request(
+                    '/api/users',
+                    { headers: { Cookie: `auth_token=${oldToken}` } },
+                    env,
+                )
+            ).status,
+        ).toBe(401);
+        const login = await api.request(
+            '/api/auth/login',
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: restored.email,
+                    password: 'password123',
+                }),
+            },
+            env,
+        );
+        expect(login.status).toBe(200);
+        const token = login.headers.get('set-cookie')!.split(';')[0];
+        expect(
+            (
+                await api.request(
+                    '/api/users',
+                    { headers: { Cookie: token } },
+                    env,
+                )
+            ).status,
+        ).toBe(200);
+        const deletedRepo = repository({
+            findByEmail: async () => ({ ...restored, deletedAt: new Date() }),
+        });
+        const registration = await app(deletedRepo).request(
+            '/api/users',
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: 'スタッフ',
+                    email: restored.email,
+                    password: 'password123',
+                    departmentId: department.id,
+                }),
+            },
+            env,
+        );
+        expect(registration.status).toBe(400);
+    });
+});
