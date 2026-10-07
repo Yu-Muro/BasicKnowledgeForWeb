@@ -43,6 +43,7 @@ export default function RegisterPage() {
                 const body = (await res.json()) as {
                     departments: { id: string; name: string }[];
                 };
+                if (!Array.isArray(body.departments)) throw new Error();
                 if (active) setDepartments(body.departments);
             } catch {
                 if (active)
@@ -72,28 +73,34 @@ export default function RegisterPage() {
 
     const onSubmit = async (data: RegisterFormValues) => {
         setServerError(null);
-        const res = await client.api.users.$post({
-            json: {
-                name: data.name,
-                email: data.email,
-                password: data.password,
-                departmentId: data.departmentId,
-            },
-        });
-        const body = await res.json();
+        try {
+            const res = await client.api.users.$post({
+                json: {
+                    name: data.name,
+                    email: data.email,
+                    password: data.password,
+                    departmentId: data.departmentId,
+                },
+            });
+            const body = await res.json();
 
-        if (res.ok) {
-            reset();
-            setSuccessMessage('登録が完了しました！');
-            return;
-        }
-
-        if ('error' in body) {
-            if (body.error === 'このメールアドレスは既に使用されています') {
-                setError('email', { message: body.error });
-            } else {
-                setServerError(body.error);
+            if (res.ok) {
+                reset();
+                setSuccessMessage('登録が完了しました！');
+                return;
             }
+
+            if ('error' in body) {
+                if (body.error === 'このメールアドレスは既に使用されています') {
+                    setError('email', { message: body.error });
+                } else {
+                    setServerError(body.error);
+                }
+            }
+        } catch {
+            setServerError(
+                '登録結果を確認できませんでした。時間をおいて再試行してください',
+            );
         }
     };
 

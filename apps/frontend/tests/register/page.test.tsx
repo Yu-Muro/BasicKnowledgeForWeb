@@ -1,6 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import RegisterPage from '@frontend/app/register/page';
+import { http, HttpResponse } from 'msw';
+import { server } from '../mocks/server';
+import { jest } from '@jest/globals';
 
 describe('RegisterPage', () => {
     it('フォームフィールドが正しくレンダリングされること', () => {
@@ -149,5 +152,79 @@ describe('RegisterPage', () => {
                 screen.getByText('ユーザーの作成に失敗しました'),
             ).toBeInTheDocument();
         });
+    });
+});
+
+describe('登録通信のエラー処理', () => {
+    it.each(['network', 'html'])(
+        '%s 応答時は例外を画面に出さず再試行を案内する',
+        async (failure) => {
+            server.use(
+                http.post(
+                    'http://localhost:8080/api/users',
+                    () =>
+                        new HttpResponse('<html>offline</html>', {
+                            status: 503,
+                        }),
+                ),
+            );
+            render(<RegisterPage />);
+            const actor = userEvent.setup();
+            await screen.findByRole('option', { name: '企画部' });
+            await actor.type(screen.getByLabelText('名前'), '山田太郎');
+            await actor.type(
+                screen.getByLabelText('メールアドレス'),
+                'new@example.com',
+            );
+            await actor.type(
+                screen.getByLabelText('パスワード'),
+                'password123',
+            );
+            await actor.type(
+                screen.getByLabelText('パスワード（確認用）'),
+                'password123',
+            );
+            await actor.selectOptions(
+                screen.getByLabelText('所属部署'),
+                '60000000-0000-4000-8000-000000000001',
+            );
+            const failedFetch =
+                failure === 'network'
+                    ? jest
+                          .spyOn(globalThis, 'fetch')
+                          .mockRejectedValueOnce(
+                              new TypeError('Network failure'),
+                          )
+                    : undefined;
+            try {
+                await actor.click(
+                    screen.getByRole('button', { name: '登録する' }),
+                );
+                expect(
+                    await screen.findByText(
+                        '登録結果を確認できませんでした。時間をおいて再試行してください',
+                    ),
+                ).toBeInTheDocument();
+            } finally {
+                failedFetch?.mockRestore();
+            }
+            expect(
+                screen.getByRole('button', { name: '登録する' }),
+            ).toBeEnabled();
+        },
+    );
+    it('部署応答の形式が不正でもフォームを壊さない', async () => {
+        server.use(
+            http.get('http://localhost:8080/api/departments', () =>
+                HttpResponse.json({}),
+            ),
+        );
+        render(<RegisterPage />);
+        expect(
+            await screen.findByText(
+                '部署一覧を取得できませんでした。ページを再読み込みしてください',
+            ),
+        ).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: '登録する' })).toBeDisabled();
     });
 });
