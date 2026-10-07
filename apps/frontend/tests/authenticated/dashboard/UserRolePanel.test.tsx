@@ -195,3 +195,13 @@ describe('所属部署とユーザー削除', () => {
         for (const button of screen.getAllByRole('button', { name: '削除' })) expect(button).toBeDisabled();
     });
 });
+
+describe('部署一覧とユーザー所属が一致しない場合',()=>{
+ it('空白や未設定表示にせず、不明な部署を表示する',()=>{
+  render(<UserRolePanel departments={[]} currentUserId='admin-1' initialUsers={[{...MOCK_USERS[0],departmentId:'missing-department'}]} />);
+  expect(screen.getAllByText('不明な部署')).toHaveLength(2);
+  const selectors=screen.getAllByRole('combobox',{name:`${MOCK_USERS[0].name}の部署`});
+  for(const selector of selectors) expect(selector).toHaveValue('missing-department');
+  for(const button of screen.getAllByRole('button',{name:'部署を保存'})) expect(button).toBeDisabled();
+ });
+});
