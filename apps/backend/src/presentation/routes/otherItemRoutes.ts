@@ -17,6 +17,7 @@ import { GetOtherItemsUseCase } from '@backend/src/use-cases/other-item/GetOther
 import { UpdateOtherItemUseCase } from '@backend/src/use-cases/other-item/UpdateOtherItemUseCase';
 import { UploadOtherItemImageUseCase } from '@backend/src/use-cases/other-item/UploadOtherItemImageUseCase';
 import { Hono } from 'hono';
+import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
 
 type OtherItemRepositoryFactory = (env: Env) => IOtherItemRepository;
@@ -36,6 +37,7 @@ export function createOtherItemRoutes(
 
     app.post(
         '/others',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
@@ -50,6 +52,7 @@ export function createOtherItemRoutes(
 
     app.put(
         '/others/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
@@ -64,6 +67,7 @@ export function createOtherItemRoutes(
 
     app.delete(
         '/others/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
@@ -75,6 +79,7 @@ export function createOtherItemRoutes(
 
     app.post(
         '/others/upload',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {

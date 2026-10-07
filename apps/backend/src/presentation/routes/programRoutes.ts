@@ -17,6 +17,7 @@ import { GetProgramsUseCase } from '@backend/src/use-cases/program/GetProgramsUs
 import { UpdateProgramUseCase } from '@backend/src/use-cases/program/UpdateProgramUseCase';
 import { UploadProgramImageUseCase } from '@backend/src/use-cases/program/UploadProgramImageUseCase';
 import { Hono } from 'hono';
+import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
 
 type ProgramRepositoryFactory = (env: Env) => IProgramRepository;
@@ -36,6 +37,7 @@ export function createProgramRoutes(
 
     app.post(
         '/programs',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
@@ -50,6 +52,7 @@ export function createProgramRoutes(
 
     app.put(
         '/programs/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
@@ -64,6 +67,7 @@ export function createProgramRoutes(
 
     app.delete(
         '/programs/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
@@ -75,6 +79,7 @@ export function createProgramRoutes(
 
     app.post(
         '/programs/upload',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {

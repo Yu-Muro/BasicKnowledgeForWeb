@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { Env } from './db/connection';
 import { createAccessCodeRoutes } from './presentation/routes/accessCodeRoutes';
+import { createAuthenticationContext } from './presentation/routes/authenticationContext';
 import { createAuthRoutes } from './presentation/routes/authRoutes';
 import { createDepartmentRoutes } from './presentation/routes/departmentRoutes';
 import { createHealthRoutes } from './presentation/routes/healthRoutes';
@@ -10,7 +11,6 @@ import { createOtherItemRoutes } from './presentation/routes/otherItemRoutes';
 import { createProgramRoutes } from './presentation/routes/programRoutes';
 import { createRoomRoutes } from './presentation/routes/roomRoutes';
 import { createSearchRoutes } from './presentation/routes/searchRoutes';
-import { createSessionValidation } from './presentation/routes/sessionValidation';
 import { createShopItemRoutes } from './presentation/routes/shopItemRoutes';
 import { createTimetableRoutes } from './presentation/routes/timetableRoutes';
 import { createUserRoutes } from './presentation/routes/userRoutes';
@@ -48,7 +48,7 @@ app.get('/assets/*', async (c) => {
     });
 });
 
-app.use('/api/*', createSessionValidation());
+app.use('/api/*', createAuthenticationContext());
 
 const appWithRoutes = app
     .route('/api', createHealthRoutes())

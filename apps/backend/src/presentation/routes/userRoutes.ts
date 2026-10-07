@@ -18,6 +18,7 @@ import { GetUsersUseCase } from '@backend/src/use-cases/user/GetUsersUseCase';
 import { UpdateUserDepartmentUseCase } from '@backend/src/use-cases/user/UpdateUserDepartmentUseCase';
 import { UpdateUserRoleUseCase } from '@backend/src/use-cases/user/UpdateUserRoleUseCase';
 import { Hono } from 'hono';
+import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
 
 type UserRepositoryFactory = (env: Env) => IUserRepository;
 
@@ -39,6 +40,7 @@ export function createUserRoutes(
                 '/users/:id',
                 authMiddleware,
                 roleGuard(['admin']),
+                departmentWriteMiddleware,
                 async (c) =>
                     deleteUser(
                         c,
@@ -49,6 +51,7 @@ export function createUserRoutes(
                 '/users/:id/department',
                 authMiddleware,
                 roleGuard(['admin']),
+                departmentWriteMiddleware,
                 async (c) =>
                     updateUserDepartment(
                         c,
@@ -59,7 +62,7 @@ export function createUserRoutes(
                     ),
             )
             // POST /api/users - ユーザー作成
-            .post('/users', async (c) => {
+            .post('/users', departmentWriteMiddleware, async (c) => {
                 const repository = repositoryFactory(c.env);
                 const useCase = new CreateUserUseCase(
                     repository,
@@ -72,6 +75,7 @@ export function createUserRoutes(
                 '/users/:id/role',
                 authMiddleware,
                 roleGuard(['admin']),
+                departmentWriteMiddleware,
                 async (c) => {
                     const repository = repositoryFactory(c.env);
                     const useCase = new UpdateUserRoleUseCase(

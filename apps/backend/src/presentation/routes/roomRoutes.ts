@@ -15,7 +15,9 @@ import { DeleteRoomUseCase } from '@backend/src/use-cases/room/DeleteRoomUseCase
 import { GetRoomsUseCase } from '@backend/src/use-cases/room/GetRoomsUseCase';
 import { UpdateRoomUseCase } from '@backend/src/use-cases/room/UpdateRoomUseCase';
 import { Hono } from 'hono';
+import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
+import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
 
 type RoomRepositoryFactory = (env: Env) => IRoomRepository;
 
@@ -34,8 +36,10 @@ export function createRoomRoutes(
 
     app.post(
         '/rooms',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new CreateRoomUseCase(repository);
@@ -45,8 +49,10 @@ export function createRoomRoutes(
 
     app.put(
         '/rooms/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new UpdateRoomUseCase(repository);
@@ -56,8 +62,10 @@ export function createRoomRoutes(
 
     app.delete(
         '/rooms/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new DeleteRoomUseCase(repository);

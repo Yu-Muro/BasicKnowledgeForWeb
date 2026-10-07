@@ -17,6 +17,7 @@ import { GetShopItemsUseCase } from '@backend/src/use-cases/shop-item/GetShopIte
 import { UpdateShopItemUseCase } from '@backend/src/use-cases/shop-item/UpdateShopItemUseCase';
 import { UploadShopItemImageUseCase } from '@backend/src/use-cases/shop-item/UploadShopItemImageUseCase';
 import { Hono } from 'hono';
+import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
 
 type ShopItemRepositoryFactory = (env: Env) => IShopItemRepository;
@@ -36,6 +37,7 @@ export function createShopItemRoutes(
 
     app.post(
         '/shop-items',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
@@ -50,6 +52,7 @@ export function createShopItemRoutes(
 
     app.put(
         '/shop-items/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
@@ -64,6 +67,7 @@ export function createShopItemRoutes(
 
     app.delete(
         '/shop-items/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
@@ -75,6 +79,7 @@ export function createShopItemRoutes(
 
     app.post(
         '/shop-items/upload',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {

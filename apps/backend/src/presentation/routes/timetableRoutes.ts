@@ -15,7 +15,9 @@ import { DeleteTimetableItemUseCase } from '@backend/src/use-cases/timetable/Del
 import { GetTimetableItemsUseCase } from '@backend/src/use-cases/timetable/GetTimetableItemsUseCase';
 import { UpdateTimetableItemUseCase } from '@backend/src/use-cases/timetable/UpdateTimetableItemUseCase';
 import { Hono } from 'hono';
+import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
+import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
 
 type TimetableRepositoryFactory = (env: Env) => ITimetableRepository;
 
@@ -34,8 +36,10 @@ export function createTimetableRoutes(
 
     app.post(
         '/timetable',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new CreateTimetableItemUseCase(repository);
@@ -45,8 +49,10 @@ export function createTimetableRoutes(
 
     app.put(
         '/timetable/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new UpdateTimetableItemUseCase(repository);
@@ -56,8 +62,10 @@ export function createTimetableRoutes(
 
     app.delete(
         '/timetable/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new DeleteTimetableItemUseCase(repository);

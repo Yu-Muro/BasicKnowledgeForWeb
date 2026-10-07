@@ -15,6 +15,7 @@ import { GetDepartmentsUseCase } from '@backend/src/use-cases/department/GetDepa
 import { UpdateDepartmentUseCase } from '@backend/src/use-cases/department/UpdateDepartmentUseCase';
 import { Hono } from 'hono';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
+import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
 
 type DepartmentRepositoryFactory = (env: Env) => IDepartmentRepository;
 
@@ -35,6 +36,7 @@ export function createDepartmentRoutes(
         '/departments',
         authMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new CreateDepartmentUseCase(repository);
@@ -46,6 +48,7 @@ export function createDepartmentRoutes(
         '/departments/:id',
         authMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new UpdateDepartmentUseCase(repository);
@@ -57,6 +60,7 @@ export function createDepartmentRoutes(
         '/departments/:id',
         authMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
             const repository = repositoryFactory(c.env);
             const useCase = new DeleteDepartmentUseCase(repository);
