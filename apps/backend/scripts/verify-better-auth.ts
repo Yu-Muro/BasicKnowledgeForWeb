@@ -231,10 +231,22 @@ try {
     );
     assert.equal(content.status, 200);
     const registeredEmail = `new-${userId}@example.com`;
+    const boundaryPassword = 'A'.repeat(128);
+    assert.equal(
+        (
+            await request('/api/users', 'POST', '', {
+                name: '長さ超過',
+                email: registeredEmail,
+                password: 'A'.repeat(129),
+                departmentId,
+            })
+        ).status,
+        400,
+    );
     const registered = await request('/api/users', 'POST', '', {
         name: '新規検証',
         email: registeredEmail.toUpperCase(),
-        password,
+        password: boundaryPassword,
         departmentId,
     });
     assert.equal(registered.status, 201, await registered.clone().text());
@@ -243,11 +255,48 @@ try {
     };
     registeredIds.push(newUser.user.id);
     assert.equal(newUser.user.email, registeredEmail);
+    const boundaryLogin = await request('/api/auth/login', 'POST', '', {
+        email: registeredEmail,
+        password: boundaryPassword,
+    });
+    assert.equal(boundaryLogin.status, 200);
+    const boundaryCookie = cookies(boundaryLogin);
+    const rejectedChange = await request(
+        '/api/auth/password',
+        'PUT',
+        boundaryCookie,
+        { currentPassword: boundaryPassword, newPassword: 'Z'.repeat(129) },
+    );
+    assert.equal(rejectedChange.status, 400);
+    assert.equal(
+        (await request('/api/auth/me', 'GET', boundaryCookie)).status,
+        200,
+    );
     assert.equal(
         (
             await request('/api/auth/login', 'POST', '', {
                 email: registeredEmail,
-                password,
+                password: boundaryPassword,
+            })
+        ).status,
+        200,
+    );
+    const boundaryChange = await request(
+        '/api/auth/password',
+        'PUT',
+        boundaryCookie,
+        { currentPassword: boundaryPassword, newPassword: 'Z'.repeat(128) },
+    );
+    assert.equal(boundaryChange.status, 200);
+    assert.equal(
+        (await request('/api/auth/me', 'GET', boundaryCookie)).status,
+        401,
+    );
+    assert.equal(
+        (
+            await request('/api/auth/login', 'POST', '', {
+                email: registeredEmail,
+                password: 'Z'.repeat(128),
             })
         ).status,
         200,
