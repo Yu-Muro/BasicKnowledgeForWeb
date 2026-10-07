@@ -3,7 +3,7 @@ import { users } from '@backend/src/db/schema';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { IUserRepository, NewUser, User } from './IUserRepository';
 
-type DatabaseClient = ReturnType<typeof createDatabaseClient>;
+type DatabaseClient = Omit<ReturnType<typeof createDatabaseClient>, '$client'>;
 
 export class UserRepository implements IUserRepository {
     constructor(private readonly db: DatabaseClient) {}
@@ -71,7 +71,7 @@ export class UserRepository implements IUserRepository {
         const now = new Date();
         const rows = await this.db
             .update(users)
-            .set({ deletedAt: now, updatedAt: now })
+            .set({ deletedAt: now, updatedAt: now, departmentId: null })
             .where(and(eq(users.id, id), isNull(users.deletedAt)))
             .returning({ id: users.id });
         return rows.length > 0;

@@ -1,4 +1,5 @@
 import type { IDepartmentRepository } from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
+import { hasDatabaseError } from '../databaseErrors';
 import type {
     IUpdateDepartmentUseCase,
     UpdateDepartmentInput,
@@ -12,6 +13,20 @@ export class UpdateDepartmentUseCase implements IUpdateDepartmentUseCase {
         input: UpdateDepartmentInput,
     ): Promise<UpdateDepartmentResult> {
         try {
+            if (
+                input.payload.name &&
+                (await this.departmentRepository.findAll()).some(
+                    (department) =>
+                        department.id !== input.id &&
+                        department.name === input.payload.name,
+                )
+            )
+                return {
+                    success: false,
+                    error: '同じ名前の部署が既に存在します',
+                    status: 409,
+                };
+
             const data = await this.departmentRepository.update(
                 input.id,
                 input.payload,
@@ -24,7 +39,13 @@ export class UpdateDepartmentUseCase implements IUpdateDepartmentUseCase {
                 };
             }
             return { success: true, data };
-        } catch {
+        } catch (error) {
+            if (hasDatabaseError(error, '23505'))
+                return {
+                    success: false,
+                    error: '同じ名前の部署が既に存在します',
+                    status: 409,
+                };
             return {
                 success: false,
                 error: '部署の更新中にエラーが発生しました',
