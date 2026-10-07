@@ -12,6 +12,7 @@ export const user: User = {
     createdAt: null,
     updatedAt: null,
     deletedAt: null,
+    sessionVersion: 0,
 };
 export function userRepository(
     overrides: Partial<IUserRepository> = {},
@@ -23,6 +24,7 @@ export function userRepository(
         create: async () => user,
         updateRole: async () => user,
         updateDepartment: async () => user,
+        restore: async () => null,
         softDelete: async () => true,
         updatePassword: async () => {},
         ...overrides,

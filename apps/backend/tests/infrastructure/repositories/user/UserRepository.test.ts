@@ -17,6 +17,7 @@ const mockUser: User = {
     updatedAt: new Date('2024-01-01'),
     departmentId: '60000000-0000-4000-8000-000000000001',
     deletedAt: null,
+    sessionVersion: 0,
 };
 
 describe('UserRepository', () => {
@@ -291,4 +292,16 @@ describe('削除・所属更新のクエリ', () => {
             ),
         ).toBeNull();
     });
+    it('復元は削除済み行だけを更新しセッション世代を進める', async () => {
+        const { db, set, where } = updateChain([mockUser]);
+        expect(await new UserRepository(db).restore(mockUser.id, mockUser.departmentId)).toEqual(mockUser);
+        expect(set).toHaveBeenCalledWith(expect.objectContaining({ deletedAt: null, departmentId: mockUser.departmentId }));
+        const condition = new CockroachDialect().sqlToQuery(where.mock.calls[0][0] as SQL);
+        expect(condition.sql).toContain('"deleted_at" is not null');
+        expect(condition.params).toContain(mockUser.id);
+        const values = set.mock.calls[0][0] as { sessionVersion: SQL };
+        expect(new CockroachDialect().sqlToQuery(values.sessionVersion).sql).toContain('"session_version" + 1');
+        expect(await new UserRepository(updateChain([]).db).restore(mockUser.id, null)).toBeNull();
+    });
+
 });

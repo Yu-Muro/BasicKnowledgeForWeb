@@ -20,6 +20,7 @@ const mockUser: User = {
     updatedAt: new Date('2024-01-01'),
     departmentId: '60000000-0000-4000-8000-000000000001',
     deletedAt: null,
+    sessionVersion: 0,
 };
 
 // ---- getUsers ----
