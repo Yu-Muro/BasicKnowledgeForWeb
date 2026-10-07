@@ -30,6 +30,18 @@ async function verifyAuthToken(token: string): Promise<AuthPayload | null> {
     return { ...auth, role: user.role };
 }
 
+// Public entry points remain available even when account lookup is blocked.
+async function verifyPublicAuthToken(
+    token: string,
+): Promise<AuthPayload | null> {
+    try {
+        return await verifyAuthToken(token);
+    } catch (error) {
+        if (error instanceof AuthLookupError) return null;
+        throw error;
+    }
+}
+
 // コンテンツページ: access_token または auth_token(admin) が必要
 const CONTENT_PATHS = [
     '/',
@@ -57,7 +69,7 @@ async function protectRoute(request: NextRequest) {
 
     if (pathname.startsWith('/login')) {
         if (authToken) {
-            const auth = await verifyAuthToken(authToken);
+            const auth = await verifyPublicAuthToken(authToken);
             if (auth?.role === 'admin') {
                 debugLog('redirecting /login -> /dashboard (admin token)', {
                     role: auth.role,
@@ -79,7 +91,7 @@ async function protectRoute(request: NextRequest) {
         if (accessToken && (await verifyToken<AccessPayload>(accessToken)))
             return NextResponse.redirect(new URL('/', request.url));
         if (authToken) {
-            const auth = await verifyAuthToken(authToken);
+            const auth = await verifyPublicAuthToken(authToken);
             if (auth?.role === 'admin') {
                 debugLog('redirecting /access -> / (admin token)', {
                     role: auth.role,

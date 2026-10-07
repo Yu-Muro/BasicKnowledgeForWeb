@@ -323,3 +323,24 @@ describe('認証の一時障害と会期閲覧', () => {
         expect(mockBackendFetch).not.toHaveBeenCalled();
     });
 });
+
+describe('公開画面のアカウント確認は入力経路を阻害しない', () => {
+    it.each(
+        ['/login', '/access'].flatMap((path) =>
+            [403, 503, 'offline'].map((status) => ({ path, status })),
+        ),
+    )('$path / $status でも入力画面を表示する', async ({ path, status }) => {
+        mockVerify.mockResolvedValue(adminPayload);
+        if (status === 'offline')
+            mockBackendFetch.mockRejectedValue(new Error('offline'));
+        else
+            mockBackendFetch.mockResolvedValue(
+                new Response('{}', { status: Number(status) }),
+            );
+        const response = await middleware(
+            createRequest(path, { auth_token: 'old.token' }),
+        );
+        expect(response.status).toBe(200);
+        expect(response.headers.get('location')).toBeNull();
+    });
+});
