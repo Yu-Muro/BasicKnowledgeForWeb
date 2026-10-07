@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { cache } from 'react';
-import { fetchFromBackend } from './backendFetch';
+import { AuthLookupError, fetchCurrentUser } from './authLookup';
 
 export type AuthPayload = {
     id: string;
@@ -68,15 +68,15 @@ const resolveSession = cache(async () => {
         accessPayload && !isTokenExpired(accessPayload) ? accessPayload : null;
 
     let currentUser: AuthPayload | null = null;
+    let authError: AuthLookupError | null = null;
     if (validAuthPayload && rawAuthToken) {
         try {
-            const res = await fetchFromBackend('/api/auth/me', {
-                headers: { Cookie: `auth_token=${rawAuthToken}` },
-                cache: 'no-store',
-            });
-            if (res.ok) currentUser = (await res.json()) as AuthPayload;
-        } catch {
-            currentUser = null;
+            currentUser = await fetchCurrentUser(rawAuthToken);
+        } catch (error) {
+            authError =
+                error instanceof AuthLookupError
+                    ? error
+                    : new AuthLookupError();
         }
     }
     const authToken = currentUser ? rawAuthToken : null;
@@ -89,14 +89,18 @@ const resolveSession = cache(async () => {
         role,
         user: currentUser,
         accessPayload: validAccessPayload,
+        authError,
     };
 });
 
 export async function resolveAuth(
     searchParamEventId?: string,
+    options: { allowAccessFallback?: boolean } = {},
 ): Promise<ResolvedAuth> {
-    const { authToken, accessToken, role, user, accessPayload } =
+    const { authToken, accessToken, role, user, accessPayload, authError } =
         await resolveSession();
+    if (authError && !(options.allowAccessFallback && accessToken))
+        throw authError;
     const eventId =
         role === 'admin'
             ? (searchParamEventId ?? null)

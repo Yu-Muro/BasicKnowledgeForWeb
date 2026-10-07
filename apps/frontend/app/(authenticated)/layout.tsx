@@ -54,7 +54,10 @@ export default async function AuthenticatedLayout({
 }: {
     children: ReactNode;
 }) {
-    const { authToken, accessToken, role, user } = await resolveAuth();
+    const { authToken, accessToken, role, user } = await resolveAuth(
+        undefined,
+        { allowAccessFallback: true },
+    );
 
     const authPayload = authToken
         ? decodeJwtPayload<AuthPayload>(authToken)
