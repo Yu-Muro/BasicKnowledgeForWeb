@@ -5,7 +5,6 @@ import {
     updateUserDepartmentAction,
     updateUserRoleAction,
 } from '@frontend/app/actions/dashboard';
-import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 
@@ -33,19 +32,6 @@ function buildSelectedRoles(users: User[]): Record<string, 'user' | 'admin'> {
         string,
         'user' | 'admin'
     >;
-}
-
-async function fetchUsersFromApi(): Promise<User[] | null> {
-    try {
-        const res = await fetchFromBackend('/api/users', {
-            credentials: 'include',
-        });
-        if (!res.ok) return null;
-        const body = (await res.json()) as { users?: User[] };
-        return Array.isArray(body.users) ? body.users : null;
-    } catch {
-        return null;
-    }
 }
 
 export default function UserRolePanel({
@@ -114,13 +100,31 @@ export default function UserRolePanel({
                     return;
                 }
                 // スナップショットが遅延していても、更新したユーザーのロール表示は確実に反映する。
-                const nextUsers = result.data.map((user) =>
-                    user.id === userId ? { ...user, role: newRole } : user,
+                const sourceUsers = (result.data ?? users).map((user) =>
+                    user.id === userId
+                        ? {
+                              ...user,
+                              role: newRole,
+                              departmentId:
+                                  newRole === 'user'
+                                      ? selectedDepartments[userId]
+                                      : currentRole === 'admin'
+                                        ? user.departmentId
+                                        : null,
+                          }
+                        : user,
                 );
-                const refreshed = await fetchUsersFromApi();
-                const sourceUsers = refreshed ?? nextUsers;
                 setUsers(sourceUsers);
                 setSelectedRoles(buildSelectedRoles(sourceUsers));
+                setSelectedDepartments(
+                    Object.fromEntries(
+                        sourceUsers.map((user) => [
+                            user.id,
+                            user.departmentId ?? '',
+                        ]),
+                    ),
+                );
+                setError(result.warning ?? null);
                 setInfoMessage('ユーザーのロールを更新しました');
                 router.refresh();
             }
@@ -146,7 +150,17 @@ export default function UserRolePanel({
                 setError(result.error);
                 return;
             }
-            setUsers(result.data);
+            const nextUsers = (result.data ?? users).map((user) =>
+                user.id === userId ? { ...user, departmentId } : user,
+            );
+            setUsers(nextUsers);
+            setSelectedRoles(buildSelectedRoles(nextUsers));
+            setSelectedDepartments(
+                Object.fromEntries(
+                    nextUsers.map((user) => [user.id, user.departmentId ?? '']),
+                ),
+            );
+            setError(result.warning ?? null);
             setInfoMessage('所属部署を更新しました');
             router.refresh();
         });
@@ -163,7 +177,10 @@ export default function UserRolePanel({
                 setError(result.error);
                 return;
             }
-            setUsers(result.data.filter((entry) => entry.id !== user.id));
+            setUsers(
+                (result.data ?? users).filter((entry) => entry.id !== user.id),
+            );
+            setError(result.warning ?? null);
             setInfoMessage('ユーザーを削除しました');
             router.refresh();
         });
@@ -256,6 +273,16 @@ export default function UserRolePanel({
                 </p>
             )}
 
+            {error && infoMessage && (
+                <button
+                    type='button'
+                    onClick={() => router.refresh()}
+                    className='mb-4 rounded border px-3 py-2 text-sm'
+                >
+                    一覧を再取得
+                </button>
+            )}
+
             {/* Desktop table */}
             <div className='hidden overflow-x-auto rounded-lg border border-border md:block'>
                 <table
@@ -294,6 +321,7 @@ export default function UserRolePanel({
                                     <select
                                         aria-label={`${user.name}のロール`}
                                         value={selectedRoles[user.id]}
+                                        disabled={!!pendingId}
                                         onChange={(e) =>
                                             setSelectedRoles((prev) => ({
                                                 ...prev,
@@ -348,6 +376,7 @@ export default function UserRolePanel({
                             <select
                                 aria-label={`${user.name}のロール`}
                                 value={selectedRoles[user.id]}
+                                disabled={!!pendingId}
                                 onChange={(e) =>
                                     setSelectedRoles((prev) => ({
                                         ...prev,

@@ -10,7 +10,7 @@ import { cookies } from 'next/headers';
 type Department = { id: string; name: string };
 
 type ActionResult =
-    | { success: true; data: Department[] }
+    | { success: true; data?: Department[]; warning?: string }
     | { success: false; error: string };
 
 async function getAuthToken(): Promise<string | null> {
@@ -47,11 +47,7 @@ export async function createDepartmentAction(data: {
                 error: body.error ?? '登録に失敗しました',
             };
         }
-        const snapshot = await fetchDepartmentsSnapshot(authToken);
-        if (!snapshot.success) {
-            return snapshot;
-        }
-        return snapshot;
+        return successfulDepartmentMutation(authToken);
     } catch (err) {
         logActionError(
             'createDepartmentAction',
@@ -93,11 +89,7 @@ export async function updateDepartmentAction(
                 error: body.error ?? '更新に失敗しました',
             };
         }
-        const snapshot = await fetchDepartmentsSnapshot(authToken);
-        if (!snapshot.success) {
-            return snapshot;
-        }
-        return snapshot;
+        return successfulDepartmentMutation(authToken);
     } catch (err) {
         logActionError(
             'updateDepartmentAction',
@@ -136,11 +128,7 @@ export async function deleteDepartmentAction(
                 error: body.error ?? '削除に失敗しました',
             };
         }
-        const snapshot = await fetchDepartmentsSnapshot(authToken);
-        if (!snapshot.success) {
-            return snapshot;
-        }
-        return snapshot;
+        return successfulDepartmentMutation(authToken);
     } catch (err) {
         logActionError(
             'deleteDepartmentAction',
@@ -152,6 +140,19 @@ export async function deleteDepartmentAction(
     }
 }
 
+async function successfulDepartmentMutation(
+    authToken: string,
+): Promise<ActionResult> {
+    const snapshot = await fetchDepartmentsSnapshot(authToken);
+    return snapshot.success
+        ? snapshot
+        : {
+              success: true,
+              warning:
+                  '変更は完了しましたが、最新の部署一覧を取得できませんでした。一覧を再取得してください。',
+          };
+}
+
 async function fetchDepartmentsSnapshot(
     authToken: string,
 ): Promise<ActionResult> {
@@ -161,6 +162,7 @@ async function fetchDepartmentsSnapshot(
             headers: {
                 Cookie: `auth_token=${authToken}`,
             },
+            cache: 'no-store',
         });
         logAction(
             'fetchDepartmentsSnapshot',

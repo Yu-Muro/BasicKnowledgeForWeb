@@ -5,7 +5,6 @@ import {
     deleteDepartmentAction,
     updateDepartmentAction,
 } from '@frontend/app/actions/departments';
-import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import { AdminFormContainer } from '@frontend/components/AdminFormContainer';
 import { Button } from '@frontend/components/ui/button';
 import { Input } from '@frontend/components/ui/input';
@@ -17,19 +16,6 @@ type Department = {
     id: string;
     name: string;
 };
-
-async function fetchDepartmentsFromApi(): Promise<Department[] | null> {
-    try {
-        const res = await fetchFromBackend('/api/departments', {
-            credentials: 'include',
-        });
-        if (!res.ok) return null;
-        const body = (await res.json()) as { departments?: Department[] };
-        return Array.isArray(body.departments) ? body.departments : null;
-    } catch {
-        return null;
-    }
-}
 
 type Props = { departments: Department[] };
 
@@ -73,6 +59,7 @@ export default function DepartmentAdminPanel({ departments }: Props) {
     };
 
     const handleSubmit = () => {
+        if (isPending) return;
         const trimmed = name.trim();
         if (!trimmed) {
             setError('部署名は必須です');
@@ -97,14 +84,24 @@ export default function DepartmentAdminPanel({ departments }: Props) {
                     ? '部署を追加しました'
                     : '部署を更新しました',
             );
-            const refreshed = await fetchDepartmentsFromApi();
-            setDepartmentList(refreshed ?? result.data);
-            router.refresh();
+            setDepartmentList(
+                result.data ??
+                    departmentList.map((item) =>
+                        item.id === editingItem?.id
+                            ? { ...item, name: trimmed }
+                            : item,
+                    ),
+            );
             closeForm();
+            setError(result.warning ?? null);
+            router.refresh();
         });
     };
 
     const handleDelete = (item: Department) => {
+        if (isPending) return;
+        setError(null);
+        setInfoMessage(null);
         if (!confirm(`「${item.name}」を削除しますか？`)) return;
         startTransition(async () => {
             const result = await deleteDepartmentAction(item.id);
@@ -113,8 +110,12 @@ export default function DepartmentAdminPanel({ departments }: Props) {
                 return;
             }
             setInfoMessage('部署を削除しました');
-            const refreshed = await fetchDepartmentsFromApi();
-            setDepartmentList(refreshed ?? result.data);
+            setDepartmentList(
+                (result.data ?? departmentList).filter(
+                    (entry) => entry.id !== item.id,
+                ),
+            );
+            setError(result.warning ?? null);
             router.refresh();
         });
     };
@@ -154,6 +155,12 @@ export default function DepartmentAdminPanel({ departments }: Props) {
                 >
                     {error}
                 </p>
+            )}
+
+            {error && infoMessage && (
+                <Button variant='outline' onClick={() => router.refresh()}>
+                    一覧を再取得
+                </Button>
             )}
 
             {formMode !== 'idle' && (

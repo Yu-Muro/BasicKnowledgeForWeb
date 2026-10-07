@@ -20,7 +20,7 @@ type UserEntry = {
     departmentId?: string | null;
 };
 type UserRoleResult =
-    | { success: true; data: UserEntry[] }
+    | { success: true; data?: UserEntry[]; warning?: string }
     | { success: false; error: string };
 
 async function getAuthToken(): Promise<string | null> {
@@ -108,11 +108,7 @@ export async function updateUserRoleAction(
             (await cookies()).delete('auth_token');
             return { success: true, data: [] };
         }
-        const snapshot = await fetchUsersSnapshot(authToken);
-        if (!snapshot.success) {
-            return snapshot;
-        }
-        return snapshot;
+        return successfulUserMutation(authToken);
     } catch (err) {
         logActionError(
             'updateUserRoleAction',
@@ -124,11 +120,25 @@ export async function updateUserRoleAction(
     }
 }
 
+async function successfulUserMutation(
+    authToken: string,
+): Promise<UserRoleResult> {
+    const snapshot = await fetchUsersSnapshot(authToken);
+    return snapshot.success
+        ? snapshot
+        : {
+              success: true,
+              warning:
+                  '変更は完了しましたが、最新ユーザー一覧を取得できませんでした。一覧を再取得してください。',
+          };
+}
+
 async function fetchUsersSnapshot(authToken: string): Promise<UserRoleResult> {
     const endpoint = '/api/users';
     try {
         const res = await fetchFromBackend(endpoint, {
             headers: { Cookie: `auth_token=${authToken}` },
+            cache: 'no-store',
         });
         logAction(
             'fetchUsersSnapshot',
@@ -209,7 +219,7 @@ async function manageUser(
                 error: body.error ?? 'ユーザーの更新に失敗しました',
             };
         }
-        return fetchUsersSnapshot(authToken);
+        return successfulUserMutation(authToken);
     } catch {
         return { success: false, error: 'ユーザーの更新に失敗しました' };
     }
