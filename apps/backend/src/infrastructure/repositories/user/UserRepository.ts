@@ -77,6 +77,7 @@ export class UserRepository implements IUserRepository {
     async restore(
         id: string,
         departmentId: string | null,
+        expectedSessionVersion: number,
     ): Promise<User | null> {
         const [row] = await this.db
             .update(users)
@@ -86,7 +87,13 @@ export class UserRepository implements IUserRepository {
                 updatedAt: new Date(),
                 sessionVersion: sql`${users.sessionVersion} + 1`,
             })
-            .where(and(eq(users.id, id), isNotNull(users.deletedAt)))
+            .where(
+                and(
+                    eq(users.id, id),
+                    isNotNull(users.deletedAt),
+                    eq(users.sessionVersion, expectedSessionVersion),
+                ),
+            )
             .returning();
         return row ?? null;
     }

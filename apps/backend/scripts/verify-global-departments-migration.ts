@@ -208,13 +208,25 @@ try {
     const restored = await new UserRepository(db).restore(
         orphanUser.rows[0].id,
         d1,
+        0,
     );
     assert.equal(restored?.sessionVersion, 1);
     assert.equal(restored?.departmentId, d1);
     assert.equal(restored?.deletedAt, null);
     assert.equal(restored?.email, 'delete@test.com');
     assert.equal(
-        await new UserRepository(db).restore(orphanUser.rows[0].id, d1),
+        await new UserRepository(db).restore(orphanUser.rows[0].id, d1, 0),
+        null,
+    );
+    // A delayed restore must not undo a later deletion or bypass the current role.
+    await new UserRepository(db).softDelete(orphanUser.rows[0].id);
+    assert.equal(
+        await new UserRepository(db).restore(orphanUser.rows[0].id, null, 0),
+        null,
+    );
+    assert.notEqual(
+        (await new UserRepository(db).findById(orphanUser.rows[0].id, true))
+            ?.deletedAt,
         null,
     );
     await assert.rejects(

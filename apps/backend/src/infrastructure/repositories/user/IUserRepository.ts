@@ -23,7 +23,11 @@ export interface IUserRepository {
         departmentId?: string | null,
     ): Promise<User | null>;
     updateDepartment(id: string, departmentId: string): Promise<User | null>;
-    restore(id: string, departmentId: string | null): Promise<User | null>;
+    restore(
+        id: string,
+        departmentId: string | null,
+        expectedSessionVersion: number,
+    ): Promise<User | null>;
     softDelete(id: string): Promise<boolean>;
     updatePassword(id: string, hashedPassword: string): Promise<void>;
 }

@@ -12,7 +12,11 @@ describe('RestoreUserUseCase', () => {
             userRepository({ findById: async () => deleted, restore }),
             departmentRepository,
         ).execute(user.id, user.departmentId!);
-        expect(restore).toHaveBeenCalledWith(user.id, user.departmentId);
+        expect(restore).toHaveBeenCalledWith(
+            user.id,
+            user.departmentId,
+            user.sessionVersion,
+        );
         expect(result).toMatchObject({
             success: true,
             data: { id: user.id, role: 'user' },
@@ -49,7 +53,11 @@ describe('RestoreUserUseCase', () => {
                 departmentRepository,
             ).execute(user.id),
         ).toMatchObject({ success: true });
-        expect(restore).toHaveBeenCalledWith(user.id, null);
+        expect(restore).toHaveBeenCalledWith(
+            user.id,
+            null,
+            user.sessionVersion,
+        );
     });
     it.each([
         [null, 404],

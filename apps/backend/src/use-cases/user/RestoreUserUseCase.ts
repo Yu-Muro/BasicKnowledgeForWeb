@@ -42,7 +42,11 @@ export class RestoreUserUseCase implements IRestoreUserUseCase {
                     error: '有効な部署を指定してください',
                     status: 400,
                 };
-            const restored = await this.users.restore(id, departmentId ?? null);
+            const restored = await this.users.restore(
+                id,
+                departmentId ?? null,
+                user.sessionVersion,
+            );
             if (!restored)
                 return {
                     success: false,

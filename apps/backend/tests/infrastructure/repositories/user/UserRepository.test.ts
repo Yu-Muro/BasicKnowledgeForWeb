@@ -28,13 +28,11 @@ describe('UserRepository', () => {
                 .mockImplementation(() => Promise.resolve([mockUser]));
             const db = {
                 select: jest.fn().mockReturnValue({
-                    from: jest
-                        .fn()
-                        .mockReturnValue({
-                            where: jest
-                                .fn()
-                                .mockReturnValue({ orderBy: orderByMock }),
-                        }),
+                    from: jest.fn().mockReturnValue({
+                        where: jest
+                            .fn()
+                            .mockReturnValue({ orderBy: orderByMock }),
+                    }),
                 }),
             } as unknown as DatabaseClient;
             const repository = new UserRepository(db);
@@ -294,14 +292,36 @@ describe('削除・所属更新のクエリ', () => {
     });
     it('復元は削除済み行だけを更新しセッション世代を進める', async () => {
         const { db, set, where } = updateChain([mockUser]);
-        expect(await new UserRepository(db).restore(mockUser.id, mockUser.departmentId)).toEqual(mockUser);
-        expect(set).toHaveBeenCalledWith(expect.objectContaining({ deletedAt: null, departmentId: mockUser.departmentId }));
-        const condition = new CockroachDialect().sqlToQuery(where.mock.calls[0][0] as SQL);
+        expect(
+            await new UserRepository(db).restore(
+                mockUser.id,
+                mockUser.departmentId,
+                0,
+            ),
+        ).toEqual(mockUser);
+        expect(set).toHaveBeenCalledWith(
+            expect.objectContaining({
+                deletedAt: null,
+                departmentId: mockUser.departmentId,
+            }),
+        );
+        const condition = new CockroachDialect().sqlToQuery(
+            where.mock.calls[0][0] as SQL,
+        );
         expect(condition.sql).toContain('"deleted_at" is not null');
+        expect(condition.sql).toContain('"session_version" =');
+        expect(condition.params).toContain(0);
         expect(condition.params).toContain(mockUser.id);
         const values = set.mock.calls[0][0] as { sessionVersion: SQL };
-        expect(new CockroachDialect().sqlToQuery(values.sessionVersion).sql).toContain('"session_version" + 1');
-        expect(await new UserRepository(updateChain([]).db).restore(mockUser.id, null)).toBeNull();
+        expect(
+            new CockroachDialect().sqlToQuery(values.sessionVersion).sql,
+        ).toContain('"session_version" + 1');
+        expect(
+            await new UserRepository(updateChain([]).db).restore(
+                mockUser.id,
+                null,
+                0,
+            ),
+        ).toBeNull();
     });
-
 });

@@ -542,7 +542,7 @@ describe('削除済みユーザーの復元', () => {
             );
             expect(res.status).toBe(status);
             if (status === 200)
-                expect(restore).toHaveBeenCalledWith(target, department.id);
+                expect(restore).toHaveBeenCalledWith(target, department.id, 0);
             else expect(restore).not.toHaveBeenCalled();
         },
     );
