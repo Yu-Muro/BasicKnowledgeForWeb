@@ -172,9 +172,9 @@ export default function UserRolePanel({
         <div className='flex flex-col gap-2'>
             <span className='text-muted-foreground text-xs'>
                 {user.departmentId
-                    ? departments.find(
+                    ? (departments.find(
                           (department) => department.id === user.departmentId,
-                      )?.name
+                      )?.name ?? '不明な部署')
                     : user.role === 'admin'
                       ? '所属任意'
                       : '所属未設定'}
@@ -192,6 +192,15 @@ export default function UserRolePanel({
                 className='rounded border border-input bg-background px-2 py-1 text-sm'
             >
                 <option value=''>部署を選択</option>
+                {selectedDepartments[user.id] &&
+                    !departments.some(
+                        (department) =>
+                            department.id === selectedDepartments[user.id],
+                    ) && (
+                        <option value={selectedDepartments[user.id]} disabled>
+                            不明な部署（一覧を再取得してください）
+                        </option>
+                    )}
                 {departments.map((department) => (
                     <option key={department.id} value={department.id}>
                         {department.name}
@@ -201,7 +210,13 @@ export default function UserRolePanel({
             <button
                 type='button'
                 onClick={() => handleDepartmentChange(user.id)}
-                disabled={!!pendingId || !selectedDepartments[user.id]}
+                disabled={
+                    !!pendingId ||
+                    !departments.some(
+                        (department) =>
+                            department.id === selectedDepartments[user.id],
+                    )
+                }
                 className='rounded border border-input px-3 py-1 text-xs disabled:opacity-50'
             >
                 部署を保存

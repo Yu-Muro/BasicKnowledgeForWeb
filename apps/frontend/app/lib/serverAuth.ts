@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { cache } from 'react';
 import { fetchFromBackend } from './backendFetch';
 
 export type AuthPayload = {
@@ -49,9 +50,7 @@ export type ResolvedAuth = {
     user?: AuthPayload | null;
 };
 
-export async function resolveAuth(
-    searchParamEventId?: string,
-): Promise<ResolvedAuth> {
+const resolveSession = cache(async () => {
     const cookieStore = await cookies();
     const rawAuthToken = cookieStore.get('auth_token')?.value ?? null;
     const rawAccessToken = cookieStore.get('access_token')?.value ?? null;
@@ -84,13 +83,25 @@ export async function resolveAuth(
     const accessToken = validAccessPayload ? rawAccessToken : null;
 
     const role = currentUser?.role ?? 'user';
-    const isPrivileged = role === 'admin';
+    return {
+        authToken,
+        accessToken,
+        role,
+        user: currentUser,
+        accessPayload: validAccessPayload,
+    };
+});
 
-    const eventId = isPrivileged
-        ? (searchParamEventId ?? null)
-        : (validAccessPayload?.event_id ?? null);
-
-    return { eventId, authToken, accessToken, role, user: currentUser };
+export async function resolveAuth(
+    searchParamEventId?: string,
+): Promise<ResolvedAuth> {
+    const { authToken, accessToken, role, user, accessPayload } =
+        await resolveSession();
+    const eventId =
+        role === 'admin'
+            ? (searchParamEventId ?? null)
+            : (accessPayload?.event_id ?? null);
+    return { eventId, authToken, accessToken, role, user };
 }
 
 export function buildContentFetchHeaders(

@@ -86,8 +86,10 @@ export default async function DashboardPage({
     }
 
     const isAdmin = role === 'admin';
-    const users = isAdmin ? await fetchUsers(authToken!) : [];
-    const departments = await fetchDepartments();
+    const [users, departments] = await Promise.all([
+        isAdmin ? fetchUsers(authToken!) : Promise.resolve([]),
+        fetchDepartments(),
+    ]);
 
     return (
         <div className='space-y-8'>
@@ -128,7 +130,11 @@ export default async function DashboardPage({
                                     (department) =>
                                         department.id === me.departmentId,
                                 )?.name ??
-                                    (isAdmin ? '所属任意' : '所属未設定')}
+                                    (me.departmentId
+                                        ? '不明な部署'
+                                        : isAdmin
+                                          ? '所属任意'
+                                          : '所属未設定')}
                             </dd>
                         </div>
                         <div className='flex flex-col gap-1 sm:flex-row sm:gap-4'>
