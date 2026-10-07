@@ -17,4 +17,4 @@ ALTER TABLE "users" ADD CONSTRAINT "users_department_id_departments_id_fkey" FOR
 
 --> statement-breakpoint
 -- 復元後の旧セッション拒否に必要。後続migrationでも冪等に記録する。
-ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "session_version" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "session_version" int4 DEFAULT 0 NOT NULL;

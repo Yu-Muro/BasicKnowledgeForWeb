@@ -82,6 +82,10 @@ try {
         cwd: process.cwd(),
         env: { ...process.env, DATABASE_URL: temporaryUrl.toString() },
     });
+    const type = await client.query(
+        "SELECT udt_name FROM information_schema.columns WHERE table_schema='public' AND table_name='users' AND column_name='session_version'",
+    );
+    assert.equal(type.rows[0].udt_name, 'int4');
     // Deployment failure leaves the old event-scoped queries and references usable.
     assert.equal(
         (
@@ -201,13 +205,24 @@ try {
     await client.query('DELETE FROM departments WHERE id=$1', [
         orphanDepartment,
     ]);
-    const restored = await new UserRepository(db).restore(orphanUser.rows[0].id, d1);
+    const restored = await new UserRepository(db).restore(
+        orphanUser.rows[0].id,
+        d1,
+    );
     assert.equal(restored?.sessionVersion, 1);
     assert.equal(restored?.departmentId, d1);
     assert.equal(restored?.deletedAt, null);
     assert.equal(restored?.email, 'delete@test.com');
-    assert.equal(await new UserRepository(db).restore(orphanUser.rows[0].id, d1), null);
-    await assert.rejects(client.query("INSERT INTO users(name,email,password) VALUES ('再登録','delete@test.com','hash')"), /duplicate/);
+    assert.equal(
+        await new UserRepository(db).restore(orphanUser.rows[0].id, d1),
+        null,
+    );
+    await assert.rejects(
+        client.query(
+            "INSERT INTO users(name,email,password) VALUES ('再登録','delete@test.com','hash')",
+        ),
+        /duplicate/,
+    );
     console.log(
         'PASS: 互換拡張、旧版・新版の読み書き、段階適用、 既存データ移行、重複タグ統合、部屋参照保持、ユーザー所属、再適用',
     );
