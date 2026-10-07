@@ -40,7 +40,6 @@ const OTHER_EVENT_ID = '00000000-0000-4000-8000-000000000002';
 
 const baseDepartment: Department = {
     id: '60000000-0000-4000-8000-000000000001',
-    eventId: EVENT_ID,
     name: '企画部',
     createdAt: new Date('2025-01-01T00:00:00.000Z'),
     updatedAt: new Date('2025-01-01T00:00:00.000Z'),
@@ -191,13 +190,11 @@ function mockShopItemRepository(overrides: Partial<IShopItemRepository> = {}) {
 
 function mockDepartmentRepository(overrides: Partial<IDepartmentRepository> = {}) {
     return {
-        findByEventId: jest.fn(),
+        findAll: jest.fn<IDepartmentRepository['findAll']>().mockResolvedValue([]),
         create: jest
             .fn<IDepartmentRepository['create']>()
             .mockImplementation(() => Promise.resolve(baseDepartment)),
-        createBulk: jest
-            .fn<IDepartmentRepository['createBulk']>()
-            .mockImplementation(() => Promise.resolve([baseDepartment])),
+        findById: jest.fn(),
         update: jest
             .fn<IDepartmentRepository['update']>()
             .mockImplementation(() => Promise.resolve(baseDepartment)),
@@ -773,23 +770,22 @@ describe('Other item use cases', () => {
 describe('Department use cases', () => {
     it('GetDepartmentsUseCase forwards eventId to repository', async () => {
         const repo = mockDepartmentRepository({
-            findByEventId: jest
-                .fn<IDepartmentRepository['findByEventId']>()
+            findAll: jest
+                .fn<IDepartmentRepository['findAll']>()
                 .mockImplementation(() => Promise.resolve([baseDepartment])),
         });
         const useCase = new GetDepartmentsUseCase(repo);
-        const result = await useCase.execute(EVENT_ID);
+        const result = await useCase.execute();
         expect(result.success).toBe(true);
         if (result.success) expect(result.data).toHaveLength(1);
-        expect(repo.findByEventId).toHaveBeenCalledWith(EVENT_ID);
+        expect(repo.findAll).toHaveBeenCalledWith();
     });
 
     it('CreateDepartmentUseCase forwards name and eventId to repository', async () => {
         const repo = mockDepartmentRepository();
         const useCase = new CreateDepartmentUseCase(repo);
-        await useCase.execute({ eventId: EVENT_ID, name: '企画部' });
+        await useCase.execute({ name: '企画部' });
         expect(repo.create).toHaveBeenCalledWith({
-            eventId: EVENT_ID,
             name: '企画部',
         });
     });
@@ -803,7 +799,6 @@ describe('Department use cases', () => {
         const useCase = new UpdateDepartmentUseCase(repo);
         const result = await useCase.execute({
             id: baseDepartment.id,
-            eventId: EVENT_ID,
             payload: { name: '変更' },
         });
         expectFailure(result);
@@ -818,7 +813,7 @@ describe('Department use cases', () => {
                 .mockImplementation(() => Promise.resolve(false)),
         });
         const useCase = new DeleteDepartmentUseCase(repo);
-        const result = await useCase.execute({ id: baseDepartment.id, eventId: EVENT_ID });
+        const result = await useCase.execute({ id: baseDepartment.id });
         expectFailure(result);
         expect(result.status).toBe(404);
     });
@@ -832,11 +827,11 @@ describe('Department use cases', () => {
                 ),
         });
         const useCase = new DeleteDepartmentUseCase(repo);
-        const result = await useCase.execute({ id: baseDepartment.id, eventId: OTHER_EVENT_ID });
+        const result = await useCase.execute({ id: baseDepartment.id,  });
         expectFailure(result);
         expect(result.status).toBe(409);
         expect(result.error).toBe(
-            'この部署は部屋割りまたはタイムテーブルで使用されているため削除できません',
+            'この部署はユーザー・部屋割り・タイムテーブルで使用されているため削除できません',
         );
     });
 });

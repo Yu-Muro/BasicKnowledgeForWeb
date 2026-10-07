@@ -22,7 +22,9 @@ const mockUser: User = {
     role: 'user',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
+    departmentId: '60000000-0000-4000-8000-000000000001',
     deletedAt: null,
+    sessionVersion: 0,
 };
 
 let adminToken: string;
@@ -31,12 +33,24 @@ let userToken: string;
 beforeAll(async () => {
     const exp = Math.floor(Date.now() / 1000) + 3600;
     adminToken = await sign(
-        { id: 'admin-id', name: 'Admin', email: 'admin@test.com', role: 'admin', exp },
+        {
+            id: 'admin-id',
+            name: 'Admin',
+            email: 'admin@test.com',
+            role: 'admin',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
     userToken = await sign(
-        { id: 'user-id', name: 'User', email: 'user@test.com', role: 'user', exp },
+        {
+            id: 'user-id',
+            name: 'User',
+            email: 'user@test.com',
+            role: 'user',
+            exp,
+        },
         JWT_SECRET,
         'HS256',
     );
@@ -60,6 +74,9 @@ function createMockUserRepository(
         updatePassword: jest
             .fn<(id: string, hashedPassword: string) => Promise<void>>()
             .mockResolvedValue(undefined),
+        updateDepartment: async () => null,
+        restore: async () => null,
+        softDelete: async () => false,
         ...overrides,
     };
 }
@@ -80,7 +97,7 @@ describe('GET /api/users', () => {
             { headers: { Cookie: `auth_token=${adminToken}` } },
             mockEnv,
         );
-        const body = await res.json() as { users: UserPublic[] };
+        const body = (await res.json()) as { users: UserPublic[] };
 
         expect(res.status).toBe(200);
         expect(body.users).toHaveLength(1);
@@ -119,7 +136,7 @@ describe('GET /api/users', () => {
             { headers: { Cookie: `auth_token=${adminToken}` } },
             mockEnv,
         );
-        const body = await res.json() as { users: UserPublic[] };
+        const body = (await res.json()) as { users: UserPublic[] };
 
         expect(res.status).toBe(200);
         expect(body.users).toEqual([]);
@@ -133,6 +150,7 @@ describe('POST /api/users', () => {
         name: '新規ユーザー',
         email: 'new@example.com',
         password: 'password123',
+        departmentId: '60000000-0000-4000-8000-000000000001',
     };
 
     it('正常なデータでユーザーを作成し、201を返す', async () => {
@@ -156,7 +174,7 @@ describe('POST /api/users', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(validUserBody),
         });
-        const body = await res.json() as { user: Omit<User, 'password'> };
+        const body = (await res.json()) as { user: Omit<User, 'password'> };
 
         expect(res.status).toBe(201);
         expect(body.user.email).toBe('new@example.com');
@@ -188,7 +206,7 @@ describe('POST /api/users', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...validUserBody, email: 'invalid-email' }),
         });
-        const body = await res.json() as { error: string };
+        const body = (await res.json()) as { error: string };
 
         expect(res.status).toBe(400);
         expect(body.error).toBe('バリデーションエラー');
@@ -307,4 +325,24 @@ describe('PUT /api/users/:id/role', () => {
 
         expect(res.status).toBe(400);
     });
+});
+
+describe('登録リクエストのJSON検証', () => {
+    it.each(['{broken', 'null'])(
+        '不正な本文 %s は400で拒否する',
+        async (body) => {
+            const repo = createMockUserRepository();
+            const response = await createTestAppWithUsers(repo).request(
+                '/api/users',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body,
+                },
+                mockEnv,
+            );
+            expect(response.status).toBe(400);
+            expect(repo.create).not.toHaveBeenCalled();
+        },
+    );
 });

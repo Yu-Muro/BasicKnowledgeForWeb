@@ -15,12 +15,16 @@ import {
     authMiddleware,
 } from '../middleware/authMiddleware';
 import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
+import type { DatabaseProvider } from './requestDatabase';
 
-type UserRepositoryFactory = (env: Env) => IUserRepository;
+type UserRepositoryFactory = (
+    env: Env,
+    database?: DatabaseProvider,
+) => IUserRepository;
 
 export function createAuthRoutes(
-    repositoryFactory: UserRepositoryFactory = (env) =>
-        new UserRepository(createDatabaseClient(env)),
+    repositoryFactory: UserRepositoryFactory = (env, database) =>
+        new UserRepository(database?.() ?? createDatabaseClient(env)),
 ) {
     return (
         new Hono<{ Bindings: Env; Variables: AuthVariables }>()
@@ -28,7 +32,10 @@ export function createAuthRoutes(
             .post('/auth/login', async (c) => {
                 const limited = await publicAuthRateLimitGuard(c, 'login');
                 if (limited) return limited;
-                const repository = repositoryFactory(c.env);
+                const repository = repositoryFactory(
+                    c.env,
+                    c.get('databaseClient'),
+                );
                 const useCase = new LoginUseCase(repository);
                 return login(c, useCase);
             })
@@ -38,7 +45,10 @@ export function createAuthRoutes(
             .get('/auth/me', authMiddleware, (c) => me(c))
             // PUT /api/auth/password
             .put('/auth/password', authMiddleware, async (c) => {
-                const repository = repositoryFactory(c.env);
+                const repository = repositoryFactory(
+                    c.env,
+                    c.get('databaseClient'),
+                );
                 const useCase = new ChangePasswordUseCase(repository);
                 return changePassword(c, useCase);
             })

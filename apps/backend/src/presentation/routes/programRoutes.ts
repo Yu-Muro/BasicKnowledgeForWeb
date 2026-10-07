@@ -17,29 +17,38 @@ import { GetProgramsUseCase } from '@backend/src/use-cases/program/GetProgramsUs
 import { UpdateProgramUseCase } from '@backend/src/use-cases/program/UpdateProgramUseCase';
 import { UploadProgramImageUseCase } from '@backend/src/use-cases/program/UploadProgramImageUseCase';
 import { Hono } from 'hono';
+import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
+import type { DatabaseProvider } from './requestDatabase';
 
-type ProgramRepositoryFactory = (env: Env) => IProgramRepository;
+type ProgramRepositoryFactory = (
+    env: Env,
+    database?: DatabaseProvider,
+) => IProgramRepository;
 
 export function createProgramRoutes(
-    repositoryFactory: ProgramRepositoryFactory = (env) =>
-        new ProgramRepository(createDatabaseClient(env)),
+    repositoryFactory: ProgramRepositoryFactory = (env, database) =>
+        new ProgramRepository(database?.() ?? createDatabaseClient(env)),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];
 
     app.get('/programs', contentAccessMiddleware, async (c) => {
-        const repository = repositoryFactory(c.env);
+        const repository = repositoryFactory(c.env, c.get('databaseClient'));
         const useCase = new GetProgramsUseCase(repository);
         return getPrograms(c, useCase);
     });
 
     app.post(
         '/programs',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new CreateProgramUseCase(
                 repository,
                 c.env.SHOP_ITEM_ASSET_BASE_URL,
@@ -50,10 +59,14 @@ export function createProgramRoutes(
 
     app.put(
         '/programs/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new UpdateProgramUseCase(
                 repository,
                 c.env.SHOP_ITEM_ASSET_BASE_URL,
@@ -64,10 +77,14 @@ export function createProgramRoutes(
 
     app.delete(
         '/programs/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new DeleteProgramUseCase(repository);
             return deleteProgram(c, useCase);
         },
@@ -75,6 +92,7 @@ export function createProgramRoutes(
 
     app.post(
         '/programs/upload',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {

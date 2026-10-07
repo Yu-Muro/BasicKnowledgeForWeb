@@ -1,5 +1,6 @@
 import { verify } from 'hono/jwt';
 import { type NextRequest, NextResponse } from 'next/server';
+import { AuthLookupError, fetchCurrentUser } from './app/lib/authLookup';
 
 // JWT_SECRET は Edge Runtime では process.env から取得
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
@@ -21,8 +22,36 @@ async function verifyToken<T>(token: string): Promise<T | null> {
     }
 }
 
+async function verifyAuthToken(token: string): Promise<AuthPayload | null> {
+    const auth = await verifyToken<AuthPayload>(token);
+    if (!auth) return null;
+    const user = await fetchCurrentUser(token);
+    if (!user || user.id !== auth.id) return null;
+    return { ...auth, role: user.role };
+}
+
+// Public entry points remain available even when account lookup is blocked.
+async function verifyPublicAuthToken(
+    token: string,
+): Promise<AuthPayload | null> {
+    try {
+        return await verifyAuthToken(token);
+    } catch (error) {
+        if (error instanceof AuthLookupError) return null;
+        throw error;
+    }
+}
+
 // コンテンツページ: access_token または auth_token(admin) が必要
-const CONTENT_PATHS = ['/', '/timetable', '/rooms', '/events', '/shop', '/others', '/search'];
+const CONTENT_PATHS = [
+    '/',
+    '/timetable',
+    '/rooms',
+    '/events',
+    '/shop',
+    '/others',
+    '/search',
+];
 
 // 管理者ダッシュボード（要ログイン）
 const USER_AUTH_PATHS = ['/dashboard'];
@@ -33,19 +62,21 @@ const ADMIN_PATHS = ['/admin'];
 // 公開ページ（認証不要）
 const PUBLIC_PATHS = ['/login', '/register', '/access'];
 
-export async function middleware(request: NextRequest) {
+async function protectRoute(request: NextRequest) {
     const { pathname } = request.nextUrl;
     const authToken = request.cookies.get('auth_token')?.value;
     const accessToken = request.cookies.get('access_token')?.value;
 
     if (pathname.startsWith('/login')) {
         if (authToken) {
-            const auth = await verifyToken<AuthPayload>(authToken);
+            const auth = await verifyPublicAuthToken(authToken);
             if (auth?.role === 'admin') {
                 debugLog('redirecting /login -> /dashboard (admin token)', {
                     role: auth.role,
                 });
-                return NextResponse.redirect(new URL('/dashboard', request.url));
+                return NextResponse.redirect(
+                    new URL('/dashboard', request.url),
+                );
             }
             debugLog('auth_token present on /login but not admin', {
                 hasAuth: true,
@@ -57,19 +88,14 @@ export async function middleware(request: NextRequest) {
     }
 
     if (pathname.startsWith('/access')) {
+        if (accessToken && (await verifyToken<AccessPayload>(accessToken)))
+            return NextResponse.redirect(new URL('/', request.url));
         if (authToken) {
-            const auth = await verifyToken<AuthPayload>(authToken);
+            const auth = await verifyPublicAuthToken(authToken);
             if (auth?.role === 'admin') {
                 debugLog('redirecting /access -> / (admin token)', {
                     role: auth.role,
                 });
-                return NextResponse.redirect(new URL('/', request.url));
-            }
-        }
-        if (accessToken) {
-            const access = await verifyToken<AccessPayload>(accessToken);
-            if (access) {
-                debugLog('redirecting /access -> / (access token)', {});
                 return NextResponse.redirect(new URL('/', request.url));
             }
         }
@@ -90,8 +116,8 @@ export async function middleware(request: NextRequest) {
             debugLog('redirect:/login missing auth_token', { pathname });
             return NextResponse.redirect(new URL('/login', request.url));
         }
-        const auth = await verifyToken<AuthPayload>(authToken);
-        if (!auth || auth.role !== 'admin') {
+        const auth = await verifyAuthToken(authToken);
+        if (auth?.role !== 'admin') {
             debugLog('redirect:/login invalid admin token', {
                 pathname,
                 hasAuthToken: true,
@@ -112,8 +138,8 @@ export async function middleware(request: NextRequest) {
             });
             return NextResponse.redirect(new URL('/login', request.url));
         }
-        const auth = await verifyToken<AuthPayload>(authToken);
-        if (!auth || auth.role !== 'admin') {
+        const auth = await verifyAuthToken(authToken);
+        if (auth?.role !== 'admin') {
             debugLog('redirect:/login dashboard auth failed', {
                 pathname,
                 hasAuthToken: true,
@@ -127,24 +153,20 @@ export async function middleware(request: NextRequest) {
     }
 
     // --- コンテンツページ保護 ---
-    if (CONTENT_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    if (
+        CONTENT_PATHS.some(
+            (p) => pathname === p || pathname.startsWith(`${p}/`),
+        )
+    ) {
+        if (accessToken && (await verifyToken<AccessPayload>(accessToken)))
+            return NextResponse.next();
         // admin はユーザー認証で通過
         if (authToken) {
-            const auth = await verifyToken<AuthPayload>(authToken);
+            const auth = await verifyAuthToken(authToken);
             if (auth?.role === 'admin') {
                 debugLog('allow content with admin token', {
                     pathname,
                     role: auth.role,
-                });
-                return NextResponse.next();
-            }
-        }
-        // 一般ユーザーはアクセスコードで通過
-        if (accessToken) {
-            const access = await verifyToken<AccessPayload>(accessToken);
-            if (access) {
-                debugLog('allow content with access token', {
-                    pathname,
                 });
                 return NextResponse.next();
             }
@@ -158,6 +180,25 @@ export async function middleware(request: NextRequest) {
     }
 
     return NextResponse.next();
+}
+
+export async function middleware(request: NextRequest) {
+    try {
+        return await protectRoute(request);
+    } catch (error) {
+        if (!(error instanceof AuthLookupError)) throw error;
+        return new NextResponse(
+            `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>認証情報の確認</title></head><body><main><h1>認証情報を確認できませんでした</h1><p>${error.message}</p><p><a href="">もう一度試す</a></p></main></body></html>`,
+            {
+                status: error.status,
+                headers: {
+                    'Content-Type': 'text/html; charset=utf-8',
+                    'Cache-Control': 'no-store',
+                    ...(error.status === 503 ? { 'Retry-After': '30' } : {}),
+                },
+            },
+        );
+    }
 }
 
 export const config = {

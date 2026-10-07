@@ -1,7 +1,6 @@
 import type { Department } from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
 
 export type CreateDepartmentInput = {
-    eventId: string;
     name: string;
 };
 

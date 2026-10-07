@@ -1,6 +1,12 @@
+import { fetchFromBackend } from '@frontend/app/lib/backendFetch';
 import { NextRequest } from 'next/server';
 import { verify } from 'hono/jwt';
 import { middleware } from '@frontend/middleware';
+
+jest.mock('@frontend/app/lib/backendFetch', () => ({
+    fetchFromBackend: jest.fn(),
+}));
+const mockBackendFetch = jest.mocked(fetchFromBackend);
 
 // hono/jwt の verify をモック化し、JWT の実署名検証をテストから分離する
 jest.mock('hono/jwt', () => ({
@@ -35,6 +41,10 @@ const accessPayload = { event_id: 'event-1', exp: 9_999_999_999 };
 
 beforeEach(() => {
     mockVerify.mockReset();
+    mockBackendFetch.mockReset();
+    mockBackendFetch.mockImplementation(
+        async () => new Response(JSON.stringify(adminPayload)),
+    );
 });
 
 // ─── 公開ページ ───────────────────────────────────────────────────────────────
@@ -113,7 +123,9 @@ describe('/admin/* 保護', () => {
     it('admin ロールの auth_token があれば通過できること', async () => {
         mockVerify.mockResolvedValue(adminPayload);
         const res = await middleware(
-            createRequest('/admin/dashboard', { auth_token: 'valid.admin.token' }),
+            createRequest('/admin/dashboard', {
+                auth_token: 'valid.admin.token',
+            }),
         );
         expect(res.headers.get('location')).toBeNull();
     });
@@ -208,7 +220,9 @@ describe('コンテンツページ保護', () => {
 
 describe('fail-closed: verify エラー時はアクセス拒否', () => {
     it('/admin/* へのアクセスは verify エラーで /login にリダイレクトされること', async () => {
-        mockVerify.mockRejectedValue(new Error('signature verification failed'));
+        mockVerify.mockRejectedValue(
+            new Error('signature verification failed'),
+        );
         const res = await middleware(
             createRequest('/admin/dashboard', {
                 auth_token: 'tampered.token',
@@ -229,5 +243,104 @@ describe('fail-closed: verify エラー時はアクセス拒否', () => {
         );
         expect(res.status).toBe(307);
         expect(res.headers.get('location')).toContain('/access');
+    });
+});
+
+describe('現在のアカウント状態による保護', () => {
+    it('古い管理者トークンでも降格後は管理画面へ入れない', async () => {
+        mockVerify.mockResolvedValue(adminPayload);
+        mockBackendFetch.mockResolvedValue(
+            new Response(JSON.stringify({ ...adminPayload, role: 'user' })),
+        );
+        const res = await middleware(
+            createRequest('/admin/access-codes', {
+                auth_token: 'old.admin.token',
+            }),
+        );
+        expect(res.headers.get('location')).toContain('/login');
+    });
+    it('削除後は古い管理者トークンでログイン画面から転送されない', async () => {
+        mockVerify.mockResolvedValue(adminPayload);
+        mockBackendFetch.mockResolvedValue(new Response('{}', { status: 401 }));
+        const res = await middleware(
+            createRequest('/login', { auth_token: 'deleted.admin.token' }),
+        );
+        expect(res.headers.get('location')).toBeNull();
+    });
+    it('認証情報の確認が失敗した場合は管理画面へ入れない', async () => {
+        mockVerify.mockResolvedValue(adminPayload);
+        mockBackendFetch.mockRejectedValue(new Error('offline'));
+        const res = await middleware(
+            createRequest('/dashboard', { auth_token: 'old.admin.token' }),
+        );
+        expect(res.status).toBe(503);
+        expect(res.headers.get('location')).toBeNull();
+        expect(await res.text()).toContain('もう一度試す');
+    });
+});
+
+describe('認証の一時障害と会期閲覧', () => {
+    it.each(['/dashboard', '/admin/access-codes', '/rooms'])(
+        '%sで503ならログイン画面へ転送せず再試行を案内する',
+        async (path) => {
+            mockVerify.mockResolvedValue(adminPayload);
+            mockBackendFetch.mockResolvedValue(
+                new Response('{}', { status: 503 }),
+            );
+            const response = await middleware(
+                createRequest(path, { auth_token: 'admin.token' }),
+            );
+            expect(response.status).toBe(503);
+            expect(response.headers.get('location')).toBeNull();
+            expect(response.headers.get('Retry-After')).toBe('30');
+            expect(response.headers.get('Cache-Control')).toBe('no-store');
+            expect(await response.text()).toContain('再試行');
+        },
+    );
+    it('403は所属確認の案内を表示し未認証と混同しない', async () => {
+        mockVerify.mockResolvedValue(adminPayload);
+        mockBackendFetch.mockResolvedValue(new Response('{}', { status: 403 }));
+        const response = await middleware(
+            createRequest('/dashboard', { auth_token: 'admin.token' }),
+        );
+        expect(response.status).toBe(403);
+        expect(response.headers.get('location')).toBeNull();
+        expect(await response.text()).toContain('管理者に');
+    });
+    it('有効な会期トークンで閲覧できる場合は認証DBを照会しない', async () => {
+        mockVerify.mockImplementation(async (token) =>
+            token === 'access.token' ? accessPayload : adminPayload,
+        );
+        mockBackendFetch.mockRejectedValue(new Error('offline'));
+        const response = await middleware(
+            createRequest('/rooms', {
+                auth_token: 'admin.token',
+                access_token: 'access.token',
+            }),
+        );
+        expect(response.status).toBe(200);
+        expect(response.headers.get('location')).toBeNull();
+        expect(mockBackendFetch).not.toHaveBeenCalled();
+    });
+});
+
+describe('公開画面のアカウント確認は入力経路を阻害しない', () => {
+    it.each(
+        ['/login', '/access'].flatMap((path) =>
+            [403, 503, 'offline'].map((status) => ({ path, status })),
+        ),
+    )('$path / $status でも入力画面を表示する', async ({ path, status }) => {
+        mockVerify.mockResolvedValue(adminPayload);
+        if (status === 'offline')
+            mockBackendFetch.mockRejectedValue(new Error('offline'));
+        else
+            mockBackendFetch.mockResolvedValue(
+                new Response('{}', { status: Number(status) }),
+            );
+        const response = await middleware(
+            createRequest(path, { auth_token: 'old.token' }),
+        );
+        expect(response.status).toBe(200);
+        expect(response.headers.get('location')).toBeNull();
     });
 });

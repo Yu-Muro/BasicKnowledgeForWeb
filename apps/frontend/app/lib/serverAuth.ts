@@ -1,10 +1,13 @@
 import { cookies } from 'next/headers';
+import { cache } from 'react';
+import { AuthLookupError, fetchCurrentUser } from './authLookup';
 
 export type AuthPayload = {
     id: string;
     name: string;
     email: string;
     role: string;
+    departmentId?: string | null;
     exp?: number;
 };
 export type AccessPayload = { event_id: string; exp?: number };
@@ -44,11 +47,10 @@ export type ResolvedAuth = {
     authToken: string | null;
     accessToken: string | null;
     role: string;
+    user?: AuthPayload | null;
 };
 
-export async function resolveAuth(
-    searchParamEventId?: string,
-): Promise<ResolvedAuth> {
+const resolveSession = cache(async () => {
     const cookieStore = await cookies();
     const rawAuthToken = cookieStore.get('auth_token')?.value ?? null;
     const rawAccessToken = cookieStore.get('access_token')?.value ?? null;
@@ -65,17 +67,45 @@ export async function resolveAuth(
     const validAccessPayload =
         accessPayload && !isTokenExpired(accessPayload) ? accessPayload : null;
 
-    const authToken = validAuthPayload ? rawAuthToken : null;
+    let currentUser: AuthPayload | null = null;
+    let authError: AuthLookupError | null = null;
+    if (validAuthPayload && rawAuthToken) {
+        try {
+            currentUser = await fetchCurrentUser(rawAuthToken);
+        } catch (error) {
+            authError =
+                error instanceof AuthLookupError
+                    ? error
+                    : new AuthLookupError();
+        }
+    }
+    const authToken = currentUser ? rawAuthToken : null;
     const accessToken = validAccessPayload ? rawAccessToken : null;
 
-    const role = validAuthPayload?.role ?? 'user';
-    const isPrivileged = role === 'admin';
+    const role = currentUser?.role ?? 'user';
+    return {
+        authToken,
+        accessToken,
+        role,
+        user: currentUser,
+        accessPayload: validAccessPayload,
+        authError,
+    };
+});
 
-    const eventId = isPrivileged
-        ? (searchParamEventId ?? null)
-        : (validAccessPayload?.event_id ?? null);
-
-    return { eventId, authToken, accessToken, role };
+export async function resolveAuth(
+    searchParamEventId?: string,
+    options: { allowAccessFallback?: boolean } = {},
+): Promise<ResolvedAuth> {
+    const { authToken, accessToken, role, user, accessPayload, authError } =
+        await resolveSession();
+    if (authError && !(options.allowAccessFallback && accessToken))
+        throw authError;
+    const eventId =
+        role === 'admin'
+            ? (searchParamEventId ?? null)
+            : (accessPayload?.event_id ?? null);
+    return { eventId, authToken, accessToken, role, user };
 }
 
 export function buildContentFetchHeaders(

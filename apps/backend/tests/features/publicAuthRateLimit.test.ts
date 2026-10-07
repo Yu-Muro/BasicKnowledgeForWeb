@@ -6,13 +6,19 @@ import { createAuthRoutes } from '@backend/src/presentation/routes/authRoutes';
 import { createUserRoutes } from '@backend/src/presentation/routes/userRoutes';
 import { describe, expect, it, jest } from '@jest/globals';
 import { Hono } from 'hono';
+import { testAuthenticationContext } from '../helpers/authenticationContext';
+import { departmentRepository } from '../helpers/departmentRepository';
 
 function setup() {
     const userFactory = jest.fn<(env: Env) => IUserRepository>();
     const accessFactory = jest.fn<(env: Env) => IAccessCodeRepository>();
     const app = new Hono<{ Bindings: Env }>();
+    app.use('/api/*', testAuthenticationContext);
     app.route('/api', createAuthRoutes(userFactory));
-    app.route('/api', createUserRoutes(userFactory));
+    app.route(
+        '/api',
+        createUserRoutes(userFactory, () => departmentRepository),
+    );
     app.route('/api', createAccessCodeRoutes(accessFactory));
     return { app, userFactory, accessFactory };
 }

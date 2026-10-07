@@ -13,7 +13,7 @@ export class AuthenticateUserUseCase implements IAuthenticateUserUseCase {
     async execute(input: AuthenticateUserInput) {
         try {
             const user = await this.userRepository.findByEmail(input.email);
-            if (!user) {
+            if (!user || user.deletedAt) {
                 return {
                     success: false as const,
                     error: 'メールアドレスまたはパスワードが正しくありません',

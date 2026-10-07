@@ -4,11 +4,11 @@ import type { IGetUsersUseCase } from './IGetUsersUseCase';
 export class GetUsersUseCase implements IGetUsersUseCase {
     constructor(private readonly userRepository: IUserRepository) {}
 
-    async execute() {
+    async execute(deleted = false) {
         try {
-            const allUsers = await this.userRepository.findAll();
+            const allUsers = await this.userRepository.findAll(deleted);
             const usersPublic = allUsers.map(
-                ({ password: _pw, ...rest }) => rest,
+                ({ password: _pw, sessionVersion: _version, ...rest }) => rest,
             );
             return { success: true as const, data: usersPublic };
         } catch (error) {

@@ -17,29 +17,38 @@ import { GetOtherItemsUseCase } from '@backend/src/use-cases/other-item/GetOther
 import { UpdateOtherItemUseCase } from '@backend/src/use-cases/other-item/UpdateOtherItemUseCase';
 import { UploadOtherItemImageUseCase } from '@backend/src/use-cases/other-item/UploadOtherItemImageUseCase';
 import { Hono } from 'hono';
+import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
+import type { DatabaseProvider } from './requestDatabase';
 
-type OtherItemRepositoryFactory = (env: Env) => IOtherItemRepository;
+type OtherItemRepositoryFactory = (
+    env: Env,
+    database?: DatabaseProvider,
+) => IOtherItemRepository;
 
 export function createOtherItemRoutes(
-    repositoryFactory: OtherItemRepositoryFactory = (env) =>
-        new OtherItemRepository(createDatabaseClient(env)),
+    repositoryFactory: OtherItemRepositoryFactory = (env, database) =>
+        new OtherItemRepository(database?.() ?? createDatabaseClient(env)),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];
 
     app.get('/others', contentAccessMiddleware, async (c) => {
-        const repository = repositoryFactory(c.env);
+        const repository = repositoryFactory(c.env, c.get('databaseClient'));
         const useCase = new GetOtherItemsUseCase(repository);
         return getOtherItems(c, useCase);
     });
 
     app.post(
         '/others',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new CreateOtherItemUseCase(
                 repository,
                 c.env.SHOP_ITEM_ASSET_BASE_URL,
@@ -50,10 +59,14 @@ export function createOtherItemRoutes(
 
     app.put(
         '/others/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new UpdateOtherItemUseCase(
                 repository,
                 c.env.SHOP_ITEM_ASSET_BASE_URL,
@@ -64,10 +77,14 @@ export function createOtherItemRoutes(
 
     app.delete(
         '/others/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new DeleteOtherItemUseCase(repository);
             return deleteOtherItem(c, useCase);
         },
@@ -75,6 +92,7 @@ export function createOtherItemRoutes(
 
     app.post(
         '/others/upload',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {

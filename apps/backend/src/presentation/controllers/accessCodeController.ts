@@ -52,6 +52,11 @@ export async function getAccessCode(
     useCase: IGetAccessCodeUseCase,
 ) {
     const id = c.req.param('id') ?? '';
+    if (
+        c.get('user')?.role !== 'admin' &&
+        id.toLowerCase() !== c.req.header('x-event-id')?.toLowerCase()
+    )
+        return c.json({ error: 'Forbidden' }, 403);
     const result = await useCase.execute(id);
     if (!result.success) {
         return c.json({ error: result.error }, 404);

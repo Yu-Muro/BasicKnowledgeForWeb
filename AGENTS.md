@@ -274,9 +274,11 @@ users table:
   email       varchar(255) not null, unique
   password    text         not null
   role        varchar(50)  default 'user'
+  department_id uuid      FK → departments.id (RESTRICT), nullable（adminは所属任意、移行中以外のuserは必須）
   created_at  timestamp    auto-populated
   updated_at  timestamp    auto-populated
   deleted_at  timestamp    nullable (soft delete)
+  session_version int      not null, default 0（復元時に加算）
 
 access_codes table:
   id          uuid        primary key
@@ -289,11 +291,9 @@ access_codes table:
 
 departments table:
   id          uuid        primary key
-  event_id    uuid        FK → access_codes.id (RESTRICT)
-  name        varchar(255) not null
+  name        varchar(255) not null, unique（全会期共通）
   created_at  timestamp    auto-populated
   updated_at  timestamp    auto-populated
-  UNIQUE INDEX (event_id, id)  ← composite FK の参照元として必要
 
 timetable_items table:
   id          uuid        primary key
@@ -312,9 +312,9 @@ rooms table:
   building_name       varchar(255) not null
   floor               varchar(50)  not null
   room_name           varchar(255) not null
-  pre_day_manager_id  uuid        composite FK → departments(event_id, id) (RESTRICT), nullable
+  pre_day_manager_id  uuid        FK → departments.id (RESTRICT), nullable
   pre_day_purpose     varchar(255) nullable
-  day_manager_id      uuid        composite FK → departments(event_id, id) (RESTRICT), not null
+  day_manager_id      uuid        FK → departments.id (RESTRICT), not null
   day_purpose         varchar(255) not null
   notes               text         nullable
   created_at          timestamp    auto-populated
@@ -358,7 +358,7 @@ other_items table:
 ```
 
 **⚠️ CockroachDB — 複合外部キーと migration 順序**
-CockroachDB で複合 FK（例: `(event_id, manager_id) → departments(event_id, id)`）を追加するには、
+CockroachDB で複合 FK（例: `(event_id, timetable_item_id) → timetable_items(event_id, id)`）を追加するには、
 参照先の列の組み合わせに UNIQUE INDEX が先に存在していなければならない。
 migration ファイルでは `CREATE UNIQUE INDEX IF NOT EXISTS` を `ADD CONSTRAINT ... FOREIGN KEY` より前に記述すること。
 `IF NOT EXISTS` を付けることで migration の部分実行後の再試行でもエラーにならない。
@@ -601,8 +601,8 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
 | ワークフロー | トリガー | ジョブ |
 |---|---|---|
 | `pull-request.yml` | PR → `main` or `develop` | lint-and-test-backend, verify-migration-backend, lint-and-test-frontend |
-| `deploy-dev.yml` | push → `develop` | DB migrate → backend deploy → frontend deploy (env: dev) |
-| `deploy-prod.yml` | push → `main` | DB migrate → backend deploy → frontend deploy (env: prod) |
+| `deploy-dev.yml` | push → `develop` | キャッシュ無効化 → 互換DB拡張 → backend deploy → frontend deploy → 部署統合DB移行 (env: dev) |
+| `deploy-prod.yml` | push → `main` | キャッシュ無効化 → 互換DB拡張 → backend deploy → frontend deploy → 部署統合DB移行 (env: prod) |
 | `security-scan.yml` | PR 作成/更新時 | AikidoSec, Betterleaks, anti-trojan-source |
 | `renovate.yml` | 毎日 07:00 JST / 手動実行 | Renovate（セルフホスト）で依存更新 PR を作成。実際に PR を作るかは `renovate.json` の `schedule` が判定 |
 
@@ -644,7 +644,7 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
 
 | シークレット | 用途 |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` | デプロイワークフロー |
+| `CLOUDFLARE_API_TOKEN` | デプロイワークフロー。Hyperdriveのキャッシュ無効化にAccount / Hyperdrive / Edit権限が必要 |
 | `CLOUDFLARE_ACCOUNT_ID` | デプロイワークフロー |
 | `DATABASE_URL` | デプロイワークフロー（db:migrate） |
 | `RENOVATE_APP_PRIVATE_KEY` | Renovate 専用 GitHub App の秘密鍵（PEM）。リポジトリへコミットせず、Actions Secret に登録します |
@@ -727,7 +727,7 @@ JWT ベース認証を採用しており、トークンは 2 種類あります�
 
 ### コンテンツアクセスミドルウェア
 
-`contentAccessMiddleware` (`src/presentation/middleware/contentAccessMiddleware.ts`) は全コンテンツ GET API に適用する。
+`contentAccessMiddleware` (`src/presentation/middleware/contentAccessMiddleware.ts`) は会期コンテンツ GET API に適用する。全会期共通の `GET /api/departments` は登録時の候補取得にも使うため認証・会期指定不要。部署の変更操作は `authMiddleware` + `roleGuard(['admin'])` を使う。
 
 以下のいずれかを満たすリクエストのみ通過させる:
 
@@ -752,11 +752,23 @@ Feature テストでは `app.request(path, { headers }, mockEnv)` の第3引数�
 `access_token`（event一致）または `auth_token(admin)` のみ通過する。
 より細かい RBAC が必要な場合は use case 層に追加する。
 
-### Soft Delete（今後対応）
+### ユーザーの所属とセッション
+
+- `admin` を除くユーザーは全会期共通の部署へ所属する。公開登録で `admin` を指定することはできない。
+- 新規登録時は本人が部署を選択する。既存ユーザーの所属指定と登録後の部署変更は管理者のみ可能。
+- 一般ユーザーへロール変更する際は管理者が部署を指定する。一般ユーザーから管理者への昇格時は部署指定がなければ所属を解除する。管理者のロール再保存では所属を維持する。
+- 既存ユーザーの未設定所属は移行期間のみ許容し、設定まではログイン・ユーザー認証セッションを拒否する。
+- ルートの `createAuthenticationContext` は判定用ユースケースを注入する。認証ミドルウェアの `ValidateSessionUseCase` が現在のロール・所属・削除状態をDBで確認する。公開ルートで認証判定は行わない。フロントのmiddlewareと`resolveAuth`も`/api/auth/me`で現在状態を確認し、Server Component内ではリクエスト単位で共有する。`/me`の401だけを未認証として扱い、403は利用条件の確認、503や接続失敗は再試行のエラー画面を表示し、ログイン画面へ転送しない。有効な会期トークンがあればコンテンツと共通レイアウトは会期閲覧だけにフォールバックできる。管理画面ではフォールバックしない。
+- Hyperdriveのクエリキャッシュは認証状態の即時反映のためdev/prodとも無効化する。部署統合前は部署参照を変更する書き込みを503で一時停止し、閲覧は継続する。
+- 移行手順は `docs/global-departments-migration.md` を参照する。
+
+### Soft Delete
+
+`users` は管理者による論理削除に対応する。削除時は所属部署を解除する。現在の仕様では削除済みユーザーのメールアドレスを再利用しないため、`findByEmail` は削除済みレコードも返す。自分自身の削除は禁止する。通常一覧に削除済みユーザーを返さず、ログインと発行済み `auth_token` によるAPIアクセスも拒否する。管理者専用の `GET /api/users/deleted` と `POST /api/users/:id/restore` で復元できる。一般ユーザーの復元には有効な部署を必須とし、管理者は所属任意。復元はロール・ID・メール・パスワードを保持して `session_version` を原子的に加算し、削除前のトークンを再び有効にしない。
 
 現時点で `deleted_at` を持つのは `users` テーブルのみ。
 今後ほかのテーブルへ広げる場合は次を適用する:
-- `findAll` / `findByEmail` などの取得クエリに `.where(isNull(table.deletedAt))` を追加する
+- 一覧・通常のID検索では `.where(isNull(table.deletedAt))` を追加する。ユーザーのメール検索は、登録時の重複判定と削除済みアカウントのログイン拒否に利用するため例外として削除済みも含める
 - 削除エンドポイントは `DELETE` ではなく `UPDATE ... SET deleted_at = now()` を使う
 - soft delete 済みレコードを API レスポンスに含めない
 
@@ -797,7 +809,7 @@ use case の返り値は必ず `{ success: true; data: T } | { success: false; e
 
 ### Cloudflare Workers の制約
 
-- モジュールレベルのグローバル状態は同一 Worker インスタンス内でリクエストをまたいで残るため注意する。DB 接続はリクエストごとに作成する設計（接続プールは Hyperdrive が管理）。
+- モジュールレベルのグローバル状態は同一 Worker インスタンス内でリクエストをまたいで残るため注意する。DBクライアントはリクエストごとに遅延生成し、`c.get('databaseClient')` のproviderを各repository factoryへ渡して認証・移行ゲート・本処理で共有する。pg Poolの`max`は1で、リクエスト終了時に`end()`する（DB側の接続プールはHyperdriveが管理）。移行完了フラグだけはWorkerの認証context内で共有し、一度完了を確認した後はmetadataを再照会しない。未完了・照会失敗はキャッシュしない。
 - Workers 用 tsconfig に `bun-types` を含めると `@cloudflare/workers-types` と `Response` / `Body` が競合する。production tsconfig は `@cloudflare/workers-types` のみを使用。
 - `nodejs_compat` フラグを有効化しているため、Node.js 組み込み（`crypto`, `buffer` など）が利用可能。
 

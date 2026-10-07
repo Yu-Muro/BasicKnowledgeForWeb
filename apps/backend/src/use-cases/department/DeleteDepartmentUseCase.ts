@@ -1,14 +1,10 @@
 import type { IDepartmentRepository } from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
+import { hasDatabaseError } from '../databaseErrors';
 import type {
     DeleteDepartmentInput,
     DeleteDepartmentResult,
     IDeleteDepartmentUseCase,
 } from './IDeleteDepartmentUseCase';
-
-function isForeignKeyViolation(err: unknown): boolean {
-    const msg = err instanceof Error ? err.message : String(err);
-    return msg.includes('foreign key') || msg.includes('SQLSTATE 23503');
-}
 
 export class DeleteDepartmentUseCase implements IDeleteDepartmentUseCase {
     constructor(private readonly departmentRepository: IDepartmentRepository) {}
@@ -17,10 +13,7 @@ export class DeleteDepartmentUseCase implements IDeleteDepartmentUseCase {
         input: DeleteDepartmentInput,
     ): Promise<DeleteDepartmentResult> {
         try {
-            const deleted = await this.departmentRepository.delete(
-                input.id,
-                input.eventId,
-            );
+            const deleted = await this.departmentRepository.delete(input.id);
             if (!deleted) {
                 return {
                     success: false,
@@ -30,10 +23,10 @@ export class DeleteDepartmentUseCase implements IDeleteDepartmentUseCase {
             }
             return { success: true, data: { id: input.id } };
         } catch (err) {
-            if (isForeignKeyViolation(err)) {
+            if (hasDatabaseError(err, '23503')) {
                 return {
                     success: false,
-                    error: 'この部署は部屋割りまたはタイムテーブルで使用されているため削除できません',
+                    error: 'この部署はユーザー・部屋割り・タイムテーブルで使用されているため削除できません',
                     status: 409,
                 };
             }

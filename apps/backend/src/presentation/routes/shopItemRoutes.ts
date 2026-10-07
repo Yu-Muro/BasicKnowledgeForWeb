@@ -17,29 +17,38 @@ import { GetShopItemsUseCase } from '@backend/src/use-cases/shop-item/GetShopIte
 import { UpdateShopItemUseCase } from '@backend/src/use-cases/shop-item/UpdateShopItemUseCase';
 import { UploadShopItemImageUseCase } from '@backend/src/use-cases/shop-item/UploadShopItemImageUseCase';
 import { Hono } from 'hono';
+import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
+import type { DatabaseProvider } from './requestDatabase';
 
-type ShopItemRepositoryFactory = (env: Env) => IShopItemRepository;
+type ShopItemRepositoryFactory = (
+    env: Env,
+    database?: DatabaseProvider,
+) => IShopItemRepository;
 
 export function createShopItemRoutes(
-    repositoryFactory: ShopItemRepositoryFactory = (env) =>
-        new ShopItemRepository(createDatabaseClient(env)),
+    repositoryFactory: ShopItemRepositoryFactory = (env, database) =>
+        new ShopItemRepository(database?.() ?? createDatabaseClient(env)),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];
 
     app.get('/shop-items', contentAccessMiddleware, async (c) => {
-        const repository = repositoryFactory(c.env);
+        const repository = repositoryFactory(c.env, c.get('databaseClient'));
         const useCase = new GetShopItemsUseCase(repository);
         return getShopItems(c, useCase);
     });
 
     app.post(
         '/shop-items',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new CreateShopItemUseCase(
                 repository,
                 c.env.SHOP_ITEM_ASSET_BASE_URL,
@@ -50,10 +59,14 @@ export function createShopItemRoutes(
 
     app.put(
         '/shop-items/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new UpdateShopItemUseCase(
                 repository,
                 c.env.SHOP_ITEM_ASSET_BASE_URL,
@@ -64,10 +77,14 @@ export function createShopItemRoutes(
 
     app.delete(
         '/shop-items/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new DeleteShopItemUseCase(repository);
             return deleteShopItem(c, useCase);
         },
@@ -75,6 +92,7 @@ export function createShopItemRoutes(
 
     app.post(
         '/shop-items/upload',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
         async (c) => {

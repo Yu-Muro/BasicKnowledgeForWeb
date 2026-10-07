@@ -48,6 +48,7 @@ export function createDatabaseClient(env: Env) {
     return drizzle({
         connection: {
             connectionString: env.HYPERDRIVE.connectionString,
+            max: 1,
         },
     });
 }

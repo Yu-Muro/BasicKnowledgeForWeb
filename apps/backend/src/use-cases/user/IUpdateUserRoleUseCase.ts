@@ -1,6 +1,7 @@
 export interface UpdateUserRoleInput {
     id: string;
     role: string;
+    departmentId?: string;
 }
 
 export type UpdateUserRoleResult =

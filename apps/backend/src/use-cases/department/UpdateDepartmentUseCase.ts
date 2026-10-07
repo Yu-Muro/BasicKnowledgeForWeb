@@ -1,4 +1,5 @@
 import type { IDepartmentRepository } from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
+import { hasDatabaseError } from '../databaseErrors';
 import type {
     IUpdateDepartmentUseCase,
     UpdateDepartmentInput,
@@ -14,7 +15,6 @@ export class UpdateDepartmentUseCase implements IUpdateDepartmentUseCase {
         try {
             const data = await this.departmentRepository.update(
                 input.id,
-                input.eventId,
                 input.payload,
             );
             if (!data) {
@@ -25,7 +25,13 @@ export class UpdateDepartmentUseCase implements IUpdateDepartmentUseCase {
                 };
             }
             return { success: true, data };
-        } catch {
+        } catch (error) {
+            if (hasDatabaseError(error, '23505'))
+                return {
+                    success: false,
+                    error: '同じ名前の部署が既に存在します',
+                    status: 409,
+                };
             return {
                 success: false,
                 error: '部署の更新中にエラーが発生しました',

@@ -11,6 +11,8 @@
 
 ## 共通仕様
 
+部署APIは会期指定とコンテンツ認証の例外です。詳細は Departments 節を参照してください。
+
 ### 認証・権限
 
 - 閲覧（GET）:
@@ -201,30 +203,27 @@
 
 ## Departments
 
-### GET `/api/departments`
+部署は全会期で共通。`x-event-id` は不要。
 
-- 成功: `200`
-- Body: `{ "departments": Department[] }`
+### GET `/api/departments`
+- 認証不要（新規登録の部署候補にも使用）。
+- 成功: `200` / `{ "departments": Department[] }`。部署に `eventId` は含まれない。
 
 ### POST `/api/departments`
-
-- Body:
-```json
-{
-  "event_id": "uuid",
-  "name": "設営部"
-}
-```
-- 成功: `201` / `{ "department": { ... } }`
+- `auth_token(admin)` 必須。
+- Body: `{ "name": "設営部" }`。
+- 成功: `201` / `{ "department": { ... } }`。
 
 ### PUT `/api/departments/:id`
-
-- Body（部分更新可、1項目以上必須）
-- 成功: `200` / `{ "department": { ... } }`
+- `auth_token(admin)` 必須。
+- Body: `{ "name": "新名称" }`、空の更新は不可。
+- 成功: `200` / `{ "department": { ... } }`。
 
 ### DELETE `/api/departments/:id`
-
-- 成功: `200` / `{ "id": "uuid" }`
+- `auth_token(admin)` 必須。
+- 成功: `200` / `{ "id": "uuid" }`。
+- ユーザー・部屋割り・タイムテーブルが参照中の場合は `409`。
+- 会期コピーAPIは廃止。
 
 ## Others
 
@@ -281,3 +280,6 @@
   - `apps/backend/src/presentation/controllers/*Controller.ts`（各ドメイン）
 - Validator:
   - `apps/backend/src/infrastructure/validators/*Validator.ts`（各ドメイン）
+
+## 部署統合中の変更制限
+部署・部屋・タイムテーブルを変更するAPIは、部署統合の完了まで `503` と `Retry-After: 30` を返す。GET・HEADによる閲覧は継続できる。部署の作成・改名で同名部署がある場合は、競合として `409` を返す。

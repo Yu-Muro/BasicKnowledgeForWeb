@@ -50,7 +50,13 @@ export function logout(c: AppContext) {
 export function me(c: AppContext) {
     const user = c.get('user');
     return c.json(
-        { id: user.id, name: user.name, email: user.email, role: user.role },
+        {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            departmentId: user.departmentId ?? null,
+        },
         200,
     );
 }
