@@ -31,8 +31,9 @@
 ## GET `/api/access-codes/:id`
 
 - 認証: `contentAccessMiddleware`
-- 必須ヘッダー:
-  - `x-event-id: <uuid>`
+- 会期トークン利用時の必須ヘッダー:
+  - `x-event-id: <uuid>`（トークンの `event_id` およびURLの `id` と一致必須）
+  - DB上で管理者と確認できたユーザー認証では、会期ヘッダーなしでも取得できる。
 - Path Param:
   - `id`: access code の UUID
 - 成功:
@@ -53,6 +54,7 @@
 ```
 - 主なエラー:
   - `401` Unauthorized
+  - `403` 会期トークンで別会期のIDを取得しようとした場合
   - `404` not found
 
 ## GET `/api/access-codes`
