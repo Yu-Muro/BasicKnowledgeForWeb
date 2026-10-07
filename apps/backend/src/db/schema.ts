@@ -24,6 +24,7 @@ export const users = cockroachTable('users', {
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
     deletedAt: timestamp('deleted_at'),
+    sessionVersion: int4('session_version').notNull().default(0),
 });
 
 export const accessCodes = cockroachTable('access_codes', {

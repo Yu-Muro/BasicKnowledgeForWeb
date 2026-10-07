@@ -3,6 +3,7 @@ export type SessionUser = {
     name: string;
     email: string;
     role: string;
+    sessionVersion?: number;
     departmentId?: string | null;
 };
 export type SessionResult =

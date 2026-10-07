@@ -37,6 +37,7 @@ export class LoginUseCase implements ILoginUseCase {
                     email: user.email,
                     role: user.role,
                     departmentId: user.departmentId,
+                    sessionVersion: user.sessionVersion,
                     exp,
                 },
                 input.jwtSecret,

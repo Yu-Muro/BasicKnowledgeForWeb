@@ -14,6 +14,12 @@ export class ValidateSessionUseCase implements IValidateSessionUseCase {
             if (error) return { success: false, ...error };
             if (!user)
                 return { success: false, error: 'Unauthorized', status: 401 };
+            if ((claims.sessionVersion ?? 0) !== user.sessionVersion)
+                return {
+                    success: false,
+                    error: '再ログインしてください',
+                    status: 401,
+                };
             return {
                 success: true,
                 data: {

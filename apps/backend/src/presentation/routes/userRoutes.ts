@@ -7,6 +7,7 @@ import {
     createUser,
     deleteUser,
     getUsers,
+    restoreUser,
     updateUserDepartment,
     updateUserRole,
 } from '@backend/src/presentation/controllers/userController';
@@ -15,6 +16,7 @@ import { roleGuard } from '@backend/src/presentation/middleware/roleGuard';
 import { CreateUserUseCase } from '@backend/src/use-cases/user/CreateUserUseCase';
 import { DeleteUserUseCase } from '@backend/src/use-cases/user/DeleteUserUseCase';
 import { GetUsersUseCase } from '@backend/src/use-cases/user/GetUsersUseCase';
+import { RestoreUserUseCase } from '@backend/src/use-cases/user/RestoreUserUseCase';
 import { UpdateUserDepartmentUseCase } from '@backend/src/use-cases/user/UpdateUserDepartmentUseCase';
 import { UpdateUserRoleUseCase } from '@backend/src/use-cases/user/UpdateUserRoleUseCase';
 import { Hono } from 'hono';
@@ -36,6 +38,31 @@ export function createUserRoutes(
                 const useCase = new GetUsersUseCase(repository);
                 return getUsers(c, useCase);
             })
+            .get(
+                '/users/deleted',
+                authMiddleware,
+                roleGuard(['admin']),
+                async (c) =>
+                    getUsers(
+                        c,
+                        new GetUsersUseCase(repositoryFactory(c.env)),
+                        true,
+                    ),
+            )
+            .post(
+                '/users/:id/restore',
+                authMiddleware,
+                roleGuard(['admin']),
+                departmentWriteMiddleware,
+                async (c) =>
+                    restoreUser(
+                        c,
+                        new RestoreUserUseCase(
+                            repositoryFactory(c.env),
+                            departmentFactory(c.env),
+                        ),
+                    ),
+            )
             .delete(
                 '/users/:id',
                 authMiddleware,

@@ -1,4 +1,5 @@
 import {
+    restoreUserSchema,
     updateUserDepartmentSchema,
     updateUserRoleSchema,
 } from '@backend/src/infrastructure/validators/userRoleValidator';
@@ -6,14 +7,19 @@ import { createUserSchema } from '@backend/src/infrastructure/validators/userVal
 import type { ICreateUserUseCase } from '@backend/src/use-cases/user/ICreateUserUseCase';
 import type { IDeleteUserUseCase } from '@backend/src/use-cases/user/IDeleteUserUseCase';
 import type { IGetUsersUseCase } from '@backend/src/use-cases/user/IGetUsersUseCase';
+import type { IRestoreUserUseCase } from '@backend/src/use-cases/user/IRestoreUserUseCase';
 import type { IUpdateUserDepartmentUseCase } from '@backend/src/use-cases/user/IUpdateUserDepartmentUseCase';
 import type { IUpdateUserRoleUseCase } from '@backend/src/use-cases/user/IUpdateUserRoleUseCase';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
-export async function getUsers(c: Context, useCase: IGetUsersUseCase) {
+export async function getUsers(
+    c: Context,
+    useCase: IGetUsersUseCase,
+    deleted = false,
+) {
     try {
-        const result = await useCase.execute();
+        const result = await useCase.execute(deleted);
 
         if (!result.success) {
             return c.json({ error: result.error }, 500);
@@ -112,4 +118,22 @@ export async function updateUserDepartment(
     const result = await useCase.execute(id.data, body.data.departmentId);
     if (!result.success) return c.json({ error: result.error }, result.status);
     return c.json({ message: '所属部署を変更しました' });
+}
+
+export async function restoreUser(c: Context, useCase: IRestoreUserUseCase) {
+    const id = idSchema.safeParse(c.req.param('id'));
+    const body = restoreUserSchema.safeParse(
+        await c.req.json().catch(() => null),
+    );
+    if (!id.success || !body.success)
+        return c.json(
+            { error: '有効なユーザーIDと部署を指定してください' },
+            400,
+        );
+    const result = await useCase.execute(id.data, body.data.departmentId);
+    if (!result.success) return c.json({ error: result.error }, result.status);
+    return c.json({
+        user: result.data,
+        message: 'ユーザーを復元しました。再ログインしてください',
+    });
 }

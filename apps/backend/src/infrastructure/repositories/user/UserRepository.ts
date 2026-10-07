@@ -1,6 +1,6 @@
 import type { createDatabaseClient } from '@backend/src/db/connection';
 import { users } from '@backend/src/db/schema';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { IUserRepository, NewUser, User } from './IUserRepository';
 
 type DatabaseClient = Omit<ReturnType<typeof createDatabaseClient>, '$client'>;
@@ -8,19 +8,26 @@ type DatabaseClient = Omit<ReturnType<typeof createDatabaseClient>, '$client'>;
 export class UserRepository implements IUserRepository {
     constructor(private readonly db: DatabaseClient) {}
 
-    async findAll(): Promise<User[]> {
+    async findAll(deleted = false): Promise<User[]> {
         return this.db
             .select()
             .from(users)
-            .where(isNull(users.deletedAt))
+            .where(
+                deleted ? isNotNull(users.deletedAt) : isNull(users.deletedAt),
+            )
             .orderBy(desc(users.createdAt));
     }
 
-    async findById(id: string): Promise<User | null> {
+    async findById(id: string, includeDeleted = false): Promise<User | null> {
         const [user] = await this.db
             .select()
             .from(users)
-            .where(and(eq(users.id, id), isNull(users.deletedAt)))
+            .where(
+                and(
+                    eq(users.id, id),
+                    includeDeleted ? undefined : isNull(users.deletedAt),
+                ),
+            )
             .limit(1);
         return user ?? null;
     }
@@ -64,6 +71,22 @@ export class UserRepository implements IUserRepository {
             .update(users)
             .set({ departmentId, updatedAt: new Date() })
             .where(and(eq(users.id, id), isNull(users.deletedAt)))
+            .returning();
+        return row ?? null;
+    }
+    async restore(
+        id: string,
+        departmentId: string | null,
+    ): Promise<User | null> {
+        const [row] = await this.db
+            .update(users)
+            .set({
+                deletedAt: null,
+                departmentId,
+                updatedAt: new Date(),
+                sessionVersion: sql`${users.sessionVersion} + 1`,
+            })
+            .where(and(eq(users.id, id), isNotNull(users.deletedAt)))
             .returning();
         return row ?? null;
     }

@@ -12,3 +12,7 @@ export const updateUserDepartmentSchema = z.object({
     departmentId: z.string().uuid(),
 });
 export type UpdateUserRoleBody = z.infer<typeof updateUserRoleSchema>;
+
+export const restoreUserSchema = z.object({
+    departmentId: z.string().uuid().optional(),
+});
