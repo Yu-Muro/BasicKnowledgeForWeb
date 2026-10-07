@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+    MAX_PASSWORD_LENGTH,
+    PASSWORD_TOO_LONG_MESSAGE,
+} from './passwordPolicy';
 
 export const createUserSchema = z.object({
     name: z
@@ -13,7 +17,10 @@ export const createUserSchema = z.object({
         )
         .max(255, 'メールアドレスは255文字以内で入力してください')
         .transform((email) => email.toLowerCase()),
-    password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
+    password: z
+        .string()
+        .min(8, 'パスワードは8文字以上で入力してください')
+        .max(MAX_PASSWORD_LENGTH, PASSWORD_TOO_LONG_MESSAGE),
     departmentId: z.string().uuid('部署を選択してください'),
     role: z.literal('user').optional().default('user'),
 });
@@ -37,6 +44,7 @@ export const updateUserSchema = z.object({
     password: z
         .string()
         .min(8, 'パスワードは8文字以上で入力してください')
+        .max(MAX_PASSWORD_LENGTH, PASSWORD_TOO_LONG_MESSAGE)
         .optional(),
     role: z
         .string()

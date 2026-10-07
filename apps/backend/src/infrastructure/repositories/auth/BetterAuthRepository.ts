@@ -10,6 +10,7 @@ import {
     authVerifications,
     users,
 } from '../../../db/schema';
+import { MAX_PASSWORD_LENGTH } from '../../validators/passwordPolicy';
 import { UserRepository } from '../user/UserRepository';
 import type { IAuthenticationRepository } from './IAuthenticationRepository';
 
@@ -45,6 +46,7 @@ export function createBetterAuth(
         emailAndPassword: {
             enabled: true,
             disableSignUp: true,
+            maxPasswordLength: MAX_PASSWORD_LENGTH,
             password: {
                 hash: (password) => hash(password, 12),
                 verify: ({ password, hash: stored }) =>
