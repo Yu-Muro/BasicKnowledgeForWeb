@@ -185,3 +185,5 @@
   - `apps/backend/src/infrastructure/validators/authValidator.ts`
   - `apps/backend/src/infrastructure/validators/userValidator.ts`
   - `apps/backend/src/infrastructure/validators/userRoleValidator.ts`
+
+登録・パスワード変更で保存するパスワードは8〜128文字。129文字以上は `400` として保存前に拒否し、パスワード変更時もセッションを失効させない。Better Authのログイン上限も128文字に明示設定する。

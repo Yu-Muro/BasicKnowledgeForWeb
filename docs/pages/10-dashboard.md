@@ -30,7 +30,7 @@
   "newPassword": "new-password"
 }
 ```
-- `newPassword` は 8文字以上
+- `newPassword` は 8〜128文字
 - 成功時は全端末のセッションと現在のCookieが失効する。「再ログインしてください」とログイン画面へのリンクを表示し、再送信を無効化する。
 
 ### `GET /api/users`（admin）
