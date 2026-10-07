@@ -214,3 +214,31 @@ async function manageUser(
         return { success: false, error: 'ユーザーの更新に失敗しました' };
     }
 }
+
+export async function restoreUserAction(
+    userId: string,
+    departmentId?: string,
+): Promise<ActionResult> {
+    const authToken = await getAuthToken();
+    if (!authToken) return { success: false, error: '認証が必要です' };
+    try {
+        const res = await fetchFromBackend(`/api/users/${userId}/restore`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: `auth_token=${authToken}`,
+            },
+            body: JSON.stringify({ departmentId }),
+        });
+        if (!res.ok) {
+            const body = (await res.json()) as { error?: string };
+            return {
+                success: false,
+                error: body.error ?? 'ユーザーの復元に失敗しました',
+            };
+        }
+        return { success: true };
+    } catch {
+        return { success: false, error: 'ユーザーの復元に失敗しました' };
+    }
+}
