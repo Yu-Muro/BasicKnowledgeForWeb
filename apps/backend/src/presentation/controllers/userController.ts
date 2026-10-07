@@ -70,7 +70,7 @@ export async function updateUserRole(
 
 export async function createUser(c: Context, useCase: ICreateUserUseCase) {
     try {
-        const body = await c.req.json();
+        const body = await c.req.json().catch(() => null);
         const validation = createUserSchema.safeParse(body);
 
         if (!validation.success) {

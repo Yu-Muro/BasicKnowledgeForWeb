@@ -2,6 +2,7 @@ import type { IDepartmentRepository } from '@backend/src/infrastructure/reposito
 import type { IUserRepository } from '@backend/src/infrastructure/repositories/user/IUserRepository';
 import type { CreateUserInput } from '@backend/src/infrastructure/validators/userValidator';
 import bcrypt from 'bcryptjs';
+import { hasDatabaseError } from '../databaseErrors';
 import type { ICreateUserUseCase } from './ICreateUserUseCase';
 
 export class CreateUserUseCase implements ICreateUserUseCase {
@@ -43,10 +44,11 @@ export class CreateUserUseCase implements ICreateUserUseCase {
         } catch (error) {
             return {
                 success: false as const,
-                error:
-                    error instanceof Error
-                        ? error.message
-                        : 'ユーザーの作成に失敗しました',
+                error: hasDatabaseError(error, '23505')
+                    ? 'このメールアドレスは既に使用されています'
+                    : hasDatabaseError(error, '23503')
+                      ? '有効な部署を指定してください'
+                      : 'ユーザーの作成に失敗しました',
             };
         }
     }

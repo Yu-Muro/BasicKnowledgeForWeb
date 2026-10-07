@@ -1,6 +1,10 @@
 import { departmentRepository } from '../../helpers/departmentRepository';
 import { describe, expect, it } from '@jest/globals';
-import type { IUserRepository, NewUser, User } from '@backend/src/infrastructure/repositories/user/IUserRepository';
+import type {
+    IUserRepository,
+    NewUser,
+    User,
+} from '@backend/src/infrastructure/repositories/user/IUserRepository';
 import { CreateUserUseCase } from '@backend/src/use-cases/user/CreateUserUseCase';
 
 const mockUser: User = {
@@ -24,7 +28,9 @@ const validInput = {
     departmentId: '60000000-0000-4000-8000-000000000001',
 };
 
-function createMockRepo(overrides: Partial<IUserRepository> = {}): IUserRepository {
+function createMockRepo(
+    overrides: Partial<IUserRepository> = {},
+): IUserRepository {
     return {
         findAll: async () => [],
         findById: async () => null,
@@ -106,6 +112,25 @@ describe('CreateUserUseCase', () => {
 
         expect(result.success).toBe(false);
         if (result.success) return;
-        expect(result.error).toBe('INSERT失敗');
+        expect(result.error).toBe('ユーザーの作成に失敗しました');
+    });
+});
+
+describe('登録中に参照データが変わった場合', () => {
+    it.each([
+        ['23505', 'このメールアドレスは既に使用されています'],
+        ['23503', '有効な部署を指定してください'],
+    ])('DB制約 %s を公開用のエラーへ変換する', async (code, message) => {
+        const result = await new CreateUserUseCase(
+            createMockRepo({
+                create: async () => {
+                    throw {
+                        cause: { code, message: 'private SQL parameters' },
+                    };
+                },
+            }),
+            departmentRepository,
+        ).execute(validInput);
+        expect(result).toEqual({ success: false, error: message });
     });
 });
