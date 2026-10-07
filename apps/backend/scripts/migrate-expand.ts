@@ -1,9 +1,10 @@
 import 'dotenv/config';
-import { cp, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { drizzle } from 'drizzle-orm/cockroach';
 import { migrate } from 'drizzle-orm/cockroach/migrator';
+import { readMigrationFiles } from 'drizzle-orm/migrator';
 import { Client } from 'pg';
 
 // Stop at the first pending post-deployment migration. Never run later migrations
@@ -13,22 +14,19 @@ const client = new Client({ connectionString: process.env.DATABASE_URL });
 const temporary = await mkdtemp(join(tmpdir(), 'backend-expand-'));
 try {
     await client.connect();
-    let applied = new Set<string>();
+    let applied = new Set<number>();
     try {
-        const result = await client.query<{ name: string }>(
-            'SELECT name FROM drizzle.__drizzle_migrations',
+        const result = await client.query<{ created_at: string }>(
+            'SELECT created_at FROM drizzle.__drizzle_migrations',
         );
-        applied = new Set(result.rows.map((row) => row.name));
+        applied = new Set(result.rows.map((row) => Number(row.created_at)));
     } catch (error) {
         const code = (error as { code?: string }).code;
-        // Fresh databases and the old journal format are upgraded by Drizzle.
-        if (code !== '42P01' && code !== '42703') throw error;
+        // Both old and current journal formats record created_at.
+        if (code !== '42P01') throw error;
     }
     const source = resolve('drizzle');
-    const entries = (await readdir(source, { withFileTypes: true }))
-        .filter((entry) => entry.isDirectory() && /^\d{14}_/.test(entry.name))
-        .sort((a, b) => a.name.localeCompare(b.name));
-    for (const entry of entries) {
+    for (const entry of readMigrationFiles({ migrationsFolder: source })) {
         let phase: string | undefined;
         try {
             phase = JSON.parse(
@@ -40,7 +38,7 @@ try {
         } catch (error) {
             if ((error as { code?: string }).code !== 'ENOENT') throw error;
         }
-        if (phase === 'contract' && !applied.has(entry.name)) break;
+        if (phase === 'contract' && !applied.has(entry.folderMillis)) break;
         await cp(join(source, entry.name), join(temporary, entry.name), {
             recursive: true,
         });

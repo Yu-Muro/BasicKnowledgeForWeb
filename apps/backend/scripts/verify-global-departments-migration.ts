@@ -1,7 +1,15 @@
 import 'dotenv/config';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { cp, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import {
+    cp,
+    mkdir,
+    mkdtemp,
+    readdir,
+    readFile,
+    rm,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -16,6 +24,7 @@ const exec = promisify(execFile);
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL が必要です');
 const base = process.env.DATABASE_URL;
 const source = resolve('drizzle');
+const futureFixture = await mkdtemp(join(tmpdir(), 'department-future-test-'));
 const oldMigrations = await mkdtemp(
     join(tmpdir(), 'department-migration-test-'),
 );
@@ -190,6 +199,48 @@ try {
         cwd: process.cwd(),
         env: { ...process.env, DATABASE_URL: temporaryUrl.toString() },
     });
+    // Applied contracts must not prevent expansions in a later release.
+    const futureSource = join(futureFixture, 'drizzle');
+    await cp(source, futureSource, { recursive: true });
+    const futureMigration = join(
+        futureSource,
+        '20990101000000_verify_future_expansion',
+    );
+    await mkdir(futureMigration);
+    await writeFile(
+        join(futureMigration, 'migration.sql'),
+        'CREATE TABLE IF NOT EXISTS future_expansion_probe (id int4 PRIMARY KEY);',
+    );
+    const runFutureExpansion = () =>
+        exec(process.execPath, [resolve('scripts/migrate-expand.ts')], {
+            cwd: futureFixture,
+            env: { ...process.env, DATABASE_URL: temporaryUrl.toString() },
+        });
+    await runFutureExpansion();
+    assert.equal(
+        (
+            await client.query(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='future_expansion_probe') AS present",
+            )
+        ).rows[0].present,
+        true,
+    );
+    // A legacy journal without name is also recognized and upgraded by Drizzle.
+    await client.query(
+        'ALTER TABLE drizzle.__drizzle_migrations DROP COLUMN name',
+    );
+    await client.query(
+        'ALTER TABLE drizzle.__drizzle_migrations DROP COLUMN applied_at',
+    );
+    await runFutureExpansion();
+    assert.equal(
+        (
+            await client.query(
+                "SELECT COUNT(*)::int4 AS count FROM drizzle.__drizzle_migrations WHERE name='20990101000000_verify_future_expansion'",
+            )
+        ).rows[0].count,
+        1,
+    );
     const created = await client.query(
         "INSERT INTO departments(name) VALUES ('削除確認') RETURNING id",
     );
@@ -243,4 +294,5 @@ try {
     await root.query(`DROP DATABASE ${dbName} CASCADE`);
     await root.end();
     await rm(oldMigrations, { recursive: true, force: true });
+    await rm(futureFixture, { recursive: true, force: true });
 }
