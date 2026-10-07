@@ -20,7 +20,9 @@ import { RestoreUserUseCase } from '@backend/src/use-cases/user/RestoreUserUseCa
 import { UpdateUserDepartmentUseCase } from '@backend/src/use-cases/user/UpdateUserDepartmentUseCase';
 import { UpdateUserRoleUseCase } from '@backend/src/use-cases/user/UpdateUserRoleUseCase';
 import { Hono } from 'hono';
+import { createMiddleware } from 'hono/factory';
 import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
+import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
 
 type UserRepositoryFactory = (env: Env) => IUserRepository;
 
@@ -89,14 +91,26 @@ export function createUserRoutes(
                     ),
             )
             // POST /api/users - ユーザー作成
-            .post('/users', departmentWriteMiddleware, async (c) => {
-                const repository = repositoryFactory(c.env);
-                const useCase = new CreateUserUseCase(
-                    repository,
-                    departmentFactory(c.env),
-                );
-                return createUser(c, useCase);
-            })
+            .post(
+                '/users',
+                createMiddleware<{ Bindings: Env }>(async (c, next) => {
+                    const limited = await publicAuthRateLimitGuard(
+                        c,
+                        'register',
+                    );
+                    if (limited) return limited;
+                    await next();
+                }),
+                departmentWriteMiddleware,
+                async (c) => {
+                    const repository = repositoryFactory(c.env);
+                    const useCase = new CreateUserUseCase(
+                        repository,
+                        departmentFactory(c.env),
+                    );
+                    return createUser(c, useCase);
+                },
+            )
             // PUT /api/users/:id/role - ロール変更（admin のみ）
             .put(
                 '/users/:id/role',

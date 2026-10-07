@@ -36,6 +36,14 @@
 	"env": {
 		"dev": {
 			"name": "basic-knowledge-for-web-backend-dev",
+            "ratelimits": [
+                {
+                    "name": "PUBLIC_AUTH_RATE_LIMITER",
+                    "namespace_id": "1003",
+                    // period は publicAuthRateLimit.ts の PUBLIC_AUTH_RETRY_AFTER と対応。
+                    "simple": { "limit": 60, "period": 60 }
+                }
+            ],
 			"routes": [
 				{
 					"pattern": "dev.reitaisai.info/api/*",
@@ -43,7 +51,8 @@
 				}
 			],
 			"vars": {
-				"SHOP_ITEM_ASSET_BASE_URL": "https://assets.dev.reitaisai.info"
+				"SHOP_ITEM_ASSET_BASE_URL": "https://assets.dev.reitaisai.info",
+                "PUBLIC_AUTH_RATE_LIMIT_ENABLED": "true"
 			},
 			"services": [
 				{
