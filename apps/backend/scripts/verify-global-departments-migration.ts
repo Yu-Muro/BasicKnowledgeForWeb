@@ -1,13 +1,16 @@
 import 'dotenv/config';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { cp, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { drizzle } from 'drizzle-orm/cockroach';
 import { migrate } from 'drizzle-orm/cockroach/migrator';
 import { Client } from 'pg';
+
+import { MigrationStateRepository } from '../src/infrastructure/repositories/migration/MigrationStateRepository';
+import { UserRepository } from '../src/infrastructure/repositories/user/UserRepository';
 
 const exec = promisify(execFile);
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL が必要です');
@@ -68,6 +71,13 @@ try {
         `INSERT INTO timetable_item_departments(event_id,timetable_item_id,department_id) VALUES ($1,$2,$3),($1,$2,$4)`,
         [e2, t1, d2, d3],
     );
+    // Simulate a crash after DDL statements committed, before the migration journal.
+    const expansion = await readFile(
+        join(source, '20261005225511_expand_departments', 'migration.sql'),
+        'utf8',
+    );
+    for (const statement of expansion.split('--> statement-breakpoint'))
+        if (statement.trim()) await client.query(statement);
     await exec(process.execPath, ['scripts/migrate-expand.ts'], {
         cwd: process.cwd(),
         env: { ...process.env, DATABASE_URL: temporaryUrl.toString() },
@@ -114,7 +124,18 @@ try {
         ).rows.length,
         2,
     );
+    const state = new MigrationStateRepository(db);
+    assert.equal(await state.isDepartmentMigrationPending(), true);
+    // Simulate an interrupted contract, including a leftover map and committed DDL.
+    const contract = await readFile(
+        join(source, '20261005225512_magical_ravenous', 'migration.sql'),
+        'utf8',
+    );
+    const statements = contract.split('--> statement-breakpoint');
+    for (const statement of statements.slice(0, -1))
+        if (statement.trim()) await client.query(statement);
     await migrate(db, { migrationsFolder: source });
+    assert.equal(await state.isDepartmentMigrationPending(), false);
     assert.equal(
         (await client.query("SELECT * FROM departments WHERE name='企画部'"))
             .rows.length,
@@ -165,6 +186,21 @@ try {
         cwd: process.cwd(),
         env: { ...process.env, DATABASE_URL: temporaryUrl.toString() },
     });
+    const created = await client.query(
+        "INSERT INTO departments(name) VALUES ('削除確認') RETURNING id",
+    );
+    const orphanDepartment = created.rows[0].id;
+    const orphanUser = await client.query(
+        "INSERT INTO users(name,email,password,department_id) VALUES ('削除確認','delete@test.com','hash',$1) RETURNING id",
+        [orphanDepartment],
+    );
+    assert.equal(
+        await new UserRepository(db).softDelete(orphanUser.rows[0].id),
+        true,
+    );
+    await client.query('DELETE FROM departments WHERE id=$1', [
+        orphanDepartment,
+    ]);
     console.log(
         'PASS: 互換拡張、旧版・新版の読み書き、段階適用、 既存データ移行、重複タグ統合、部屋参照保持、ユーザー所属、再適用',
     );

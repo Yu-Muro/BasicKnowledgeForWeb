@@ -55,6 +55,14 @@ jobs:
       - name: Setup Bun workspace
         uses: $/.github/actions/setup-bun-project
 
+      - name: Disable stale authentication reads in Hyperdrive
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: hyperdrive update 5a36ae3ca5ed4a4697040c00685f213e --caching-disabled
+          workingDirectory: apps/backend
+
       - name: Run backward-compatible database migrations
         run: |
           cd apps/backend
@@ -77,13 +85,6 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-
-      - name: Finalize database migrations after backend deployment
-        run: |
-          cd apps/backend
-          bun run db:migrate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Notify deployment
         env:
@@ -142,3 +143,23 @@ jobs:
           echo "✅ Frontend deployed to production environment successfully!"
           echo "Worker: basic-knowledge-for-web-frontend"
           echo "Deployment URL: ${DEPLOYMENT_URL}"
+
+  finalize-migrations:
+    needs: deploy-frontend
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun workspace
+        uses: $/.github/actions/setup-bun-project
+
+      - name: Finalize department migration after both applications deploy
+        run: |
+          cd apps/backend
+          bun run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
