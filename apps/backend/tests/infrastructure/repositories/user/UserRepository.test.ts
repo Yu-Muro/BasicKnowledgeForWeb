@@ -1,3 +1,5 @@
+import { CockroachDialect } from 'drizzle-orm/cockroach-core';
+import type { SQL } from 'drizzle-orm';
 import { describe, expect, it, jest } from '@jest/globals';
 import type { createDatabaseClient } from '@backend/src/db/connection';
 import type { User } from '@backend/src/infrastructure/repositories/user/IUserRepository';
@@ -27,7 +29,11 @@ describe('UserRepository', () => {
                 select: jest.fn().mockReturnValue({
                     from: jest
                         .fn()
-                        .mockReturnValue({ where: jest.fn().mockReturnValue({ orderBy: orderByMock }) }),
+                        .mockReturnValue({
+                            where: jest
+                                .fn()
+                                .mockReturnValue({ orderBy: orderByMock }),
+                        }),
                 }),
             } as unknown as DatabaseClient;
             const repository = new UserRepository(db);
@@ -41,11 +47,13 @@ describe('UserRepository', () => {
         it('ユーザーが存在しない場合、空配列を返す', async () => {
             const db = {
                 select: jest.fn().mockReturnValue({
-                    from: jest.fn().mockReturnValue({ where: jest.fn().mockReturnValue({
-                        orderBy: jest
-                            .fn()
-                            .mockImplementation(() => Promise.resolve([])),
-                    }) }),
+                    from: jest.fn().mockReturnValue({
+                        where: jest.fn().mockReturnValue({
+                            orderBy: jest
+                                .fn()
+                                .mockImplementation(() => Promise.resolve([])),
+                        }),
+                    }),
                 }),
             } as unknown as DatabaseClient;
             const repository = new UserRepository(db);
@@ -221,5 +229,66 @@ describe('UserRepository', () => {
 
             expect(whereMock).toHaveBeenCalledTimes(1);
         });
+    });
+});
+
+describe('削除・所属更新のクエリ', () => {
+    function updateChain(rows: User[]) {
+        const returning = jest
+            .fn()
+            .mockImplementation(() => Promise.resolve(rows));
+        const where = jest.fn().mockReturnValue({ returning });
+        const set = jest.fn().mockReturnValue({ where });
+        const db = {
+            update: jest.fn().mockReturnValue({ set }),
+        } as unknown as DatabaseClient;
+        return { db, set, where };
+    }
+    it('論理削除時に所属を解除し、削除済みユーザーは更新対象から除外する', async () => {
+        const { db, set, where } = updateChain([mockUser]);
+        expect(await new UserRepository(db).softDelete(mockUser.id)).toBe(true);
+        expect(set).toHaveBeenCalledWith(
+            expect.objectContaining({
+                departmentId: null,
+                deletedAt: expect.any(Date),
+            }),
+        );
+        const query = new CockroachDialect().sqlToQuery(
+            where.mock.calls[0][0] as SQL,
+        );
+        expect(query.sql).toContain('"deleted_at" is null');
+        expect(query.params).toContain(mockUser.id);
+    });
+    it('削除済み・存在しない対象ではfalseを返す', async () => {
+        expect(
+            await new UserRepository(updateChain([]).db).softDelete(
+                mockUser.id,
+            ),
+        ).toBe(false);
+    });
+    it('所属更新は削除済みユーザーを除外する', async () => {
+        const { db, set, where } = updateChain([mockUser]);
+        expect(
+            await new UserRepository(db).updateDepartment(
+                mockUser.id,
+                mockUser.departmentId!,
+            ),
+        ).toEqual(mockUser);
+        expect(set).toHaveBeenCalledWith(
+            expect.objectContaining({ departmentId: mockUser.departmentId }),
+        );
+        const query = new CockroachDialect().sqlToQuery(
+            where.mock.calls[0][0] as SQL,
+        );
+        expect(query.sql).toContain('"deleted_at" is null');
+        expect(query.params).toContain(mockUser.id);
+    });
+    it('削除済み・存在しない対象の所属更新ではnullを返す', async () => {
+        expect(
+            await new UserRepository(updateChain([]).db).updateDepartment(
+                mockUser.id,
+                mockUser.departmentId!,
+            ),
+        ).toBeNull();
     });
 });

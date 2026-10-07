@@ -21,8 +21,8 @@ describe('共通部署 API', () => {
  it('管理者が会期指定なしで部署を作成できる', async () => {
   const create = jest.fn<typeof departmentRepository.create>().mockResolvedValue(department);
   const app = createTestAppWithDepartments({ ...departmentRepository, create });
-  const res = await app.request('/api/departments', { method: 'POST', headers: { Cookie: await cookie('admin'), 'Content-Type': 'application/json' }, body: JSON.stringify({ name: '企画部' }) }, env);
-  expect(res.status).toBe(201); expect(create).toHaveBeenCalledWith({ name: '企画部' });
+  const res = await app.request('/api/departments', { method: 'POST', headers: { Cookie: await cookie('admin'), 'Content-Type': 'application/json' }, body: JSON.stringify({ name: '新部署' }) }, env);
+  expect(res.status).toBe(201); expect(create).toHaveBeenCalledWith({ name: '新部署' });
  });
  it.each(['POST', 'PUT', 'DELETE'])('一般ユーザーの %s を拒否する', async (method) => {
   const app = createTestAppWithDepartments(departmentRepository);

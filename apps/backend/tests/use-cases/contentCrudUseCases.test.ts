@@ -190,7 +190,7 @@ function mockShopItemRepository(overrides: Partial<IShopItemRepository> = {}) {
 
 function mockDepartmentRepository(overrides: Partial<IDepartmentRepository> = {}) {
     return {
-        findAll: jest.fn(),
+        findAll: jest.fn<IDepartmentRepository['findAll']>().mockResolvedValue([]),
         create: jest
             .fn<IDepartmentRepository['create']>()
             .mockImplementation(() => Promise.resolve(baseDepartment)),

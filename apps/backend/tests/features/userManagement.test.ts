@@ -1,20 +1,22 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { Hono } from 'hono';
-import { sign } from 'hono/jwt';
 import type { Env } from '@backend/src/db/connection';
 import type {
     IUserRepository,
     User,
 } from '@backend/src/infrastructure/repositories/user/IUserRepository';
-import { createUserRoutes } from '@backend/src/presentation/routes/userRoutes';
-import { createSessionValidation } from '@backend/src/presentation/routes/sessionValidation';
-import { createDepartmentRoutes } from '@backend/src/presentation/routes/departmentRoutes';
-import { createAuthRoutes } from '@backend/src/presentation/routes/authRoutes';
 import { contentAccessMiddleware } from '@backend/src/presentation/middleware/contentAccessMiddleware';
+import { createAuthenticationContext } from '@backend/src/presentation/routes/authenticationContext';
+import { createAuthRoutes } from '@backend/src/presentation/routes/authRoutes';
+import { createDepartmentRoutes } from '@backend/src/presentation/routes/departmentRoutes';
+import { createRoomRoutes } from '@backend/src/presentation/routes/roomRoutes';
+import { createUserRoutes } from '@backend/src/presentation/routes/userRoutes';
+import { describe, expect, it, jest } from '@jest/globals';
+import { Hono } from 'hono';
+import { sign } from 'hono/jwt';
 import {
     department,
     departmentRepository,
 } from '../helpers/departmentRepository';
+
 const env = { JWT_SECRET: 'test-secret' } as Env;
 const id = 'abcdefab-0000-4000-8000-000000000001';
 const admin: User = {
@@ -44,15 +46,22 @@ function repository(overrides: Partial<IUserRepository> = {}): IUserRepository {
 async function cookie(role = 'admin') {
     return `auth_token=${await sign({ id, role, exp: Math.floor(Date.now() / 1000) + 3600 }, env.JWT_SECRET)}`;
 }
-function app(repo: IUserRepository) {
+function app(repo: IUserRepository, pending = false) {
     const app = new Hono<{ Bindings: Env }>();
     app.use(
         '/api/*',
-        createSessionValidation(() => repo),
+        createAuthenticationContext(
+            () => repo,
+            () => ({ isDepartmentMigrationPending: async () => pending }),
+        ),
     );
     app.route(
         '/api',
         createAuthRoutes(() => repo),
+    );
+    app.route('/api', createRoomRoutes());
+    app.get('/api/future-content', contentAccessMiddleware, (c) =>
+        c.json({ items: [] }),
     );
     app.get('/api/timetable', contentAccessMiddleware, (c) =>
         c.json({ items: [] }),
@@ -358,4 +367,89 @@ describe('レビュー指摘の回帰', () => {
             expect(res.status).toBe(401);
         },
     );
+});
+
+describe('ルートごとの認証と移行中の書き込み', () => {
+    it.each(['GET', 'HEAD'])(
+        '新しいコンテンツルートの%sも古いauth cookieで妨げない',
+        async (method) => {
+            const access = await sign(
+                { event_id: target, exp: Math.floor(Date.now() / 1000) + 3600 },
+                env.JWT_SECRET,
+            );
+            const findById = jest.fn<IUserRepository['findById']>();
+            const res = await app(repository({ findById })).request(
+                '/api/future-content',
+                {
+                    method,
+                    headers: {
+                        Cookie: `auth_token=invalid; access_token=${access}`,
+                        'x-event-id': target,
+                    },
+                },
+                env,
+            );
+            expect(res.status).toBe(200);
+            expect(findById).not.toHaveBeenCalled();
+        },
+    );
+    it('公開ルートでは壊れたauth cookieでもDBを読まない', async () => {
+        const findById = jest.fn<IUserRepository['findById']>();
+        const res = await app(repository({ findById })).request(
+            '/api/departments',
+            { headers: { Cookie: 'auth_token=invalid' } },
+            env,
+        );
+        expect(res.status).toBe(200);
+        expect(findById).not.toHaveBeenCalled();
+    });
+    it.each(['/api/users', '/api/departments', '/api/rooms'])(
+        '移行中の%sへの書き込みを拒否する',
+        async (path) => {
+            const res = await app(repository(), true).request(
+                path,
+                {
+                    method: 'POST',
+                    headers: {
+                        Cookie: await cookie(),
+                        'x-event-id': target,
+                        'Content-Type': 'application/json',
+                    },
+                    body: '{}',
+                },
+                env,
+            );
+            expect(res.status).toBe(503);
+            expect(res.headers.get('Retry-After')).toBe('30');
+        },
+    );
+    it('移行中もユーザー一覧と会期閲覧は利用できる', async () => {
+        const headers = { Cookie: await cookie(), 'x-event-id': target };
+        expect(
+            (
+                await app(repository(), true).request(
+                    '/api/users',
+                    { headers },
+                    env,
+                )
+            ).status,
+        ).toBe(200);
+        expect(
+            (
+                await app(repository(), true).request(
+                    '/api/timetable',
+                    { headers },
+                    env,
+                )
+            ).status,
+        ).toBe(200);
+    });
+});
+
+it('認証リポジトリの構築失敗もJSONの503にする',async()=>{
+ const application=new Hono<{Bindings:Env}>();
+ application.use('/api/*',createAuthenticationContext(()=>{throw new Error('configuration');}));
+ application.route('/api',createAuthRoutes(()=>repository()));
+ const res=await application.request('/api/auth/me',{headers:{Cookie:await cookie()}},env);
+ expect(res.status).toBe(503);expect(await res.json()).toMatchObject({error:'認証情報の確認に失敗しました'});
 });
