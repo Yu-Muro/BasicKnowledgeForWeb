@@ -4,7 +4,7 @@
 
 ## 対象
 
-- `docs/implementation-plan.md`
+- `docs/development-guide.md`
 - `docs/pages/04-home.md`
 - `docs/pages/05-timetable.md`
 - `docs/pages/06-rooms.md`
@@ -89,4 +89,4 @@ backend と frontend をまたぐため、以下の順序を厳守する。
 - 回答は 5 ドメインを根拠として返り、会期越境が発生しない
 - `apps/backend` の `type-check`, `test`, `lint` が通る
 - `apps/frontend` の `type-check`, `test`, `lint` が通る
-- `docs/implementation-plan.md` と `docs/pages` が Phase 11 仕様に追従している
+- `docs/development-guide.md` と `docs/pages` が Phase 11 仕様に追従している

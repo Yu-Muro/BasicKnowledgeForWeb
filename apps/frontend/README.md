@@ -1,309 +1,48 @@
 # Frontend Application
 
-Next.js 15 App Routerを使用したモダンなフロントエンドアプリケーション。Cloudflare WorkersにデプロイするためにOpenNextで最適化されています。
+Next.js 15 App Router + React 19 + Tailwind CSS v4のスタッフ閲覧・管理画面です。OpenNext経由でCloudflare Workersへ配備します。
 
-## 🏗️ アーキテクチャ
+## ローカル開発
 
-### ディレクトリ構造
-
-```
-app/
-├── layout.tsx           # ルートレイアウト
-├── page.tsx            # ホームページ
-├── globals.css         # グローバルスタイル
-└── utils/              # ユーティリティ
-    └── client.ts       # APIクライアント
-```
-
-### 技術スタック
-
-- **フレームワーク**: Next.js 15 (App Router)
-- **スタイリング**: Tailwind CSS v4
-- **APIクライアント**: Hono Client for type-safe API calls
-- **デプロイ**: Cloudflare Workers (OpenNext)
-- **フォント**: Geist (Google Fonts)
-
-## 🚀 セットアップ
-
-### 前提条件
-
-- [Bun](https://bun.sh/) (最新版)
-- バックエンドAPIサーバーが起動していること
-
-### インストール
-
-1. **依存関係をインストール**
-   ```bash
-   bun install
-   ```
-
-2. **環境変数を設定**
-   ```bash
-   cp .env.example .env
-   ```
-
-   `JWT_SECRET` は frontend / backend で同じ値を使ってください。
-   Cloudflare Workers では `wrangler secret put JWT_SECRET` で設定し、
-   ローカル開発では `.env` または `.dev.vars` に設定します。
-
-3. **開発サーバーを起動**
-   ```bash
-   bun run dev
-   ```
-
-4. **ブラウザでアクセス**
-   ```
-   http://localhost:8771
-   ```
-
-## 📱 ページ構成
-
-### ホームページ (`/`)
-
-シンプルなボタンクリックでAPIを呼び出すデモページです。
-
-```tsx
-'use client';
-
-import { client } from '@/app/utils/client';
-
-export default function Home() {
-  const handleClick = async () => {
-    const res = await client.api.users.$get({});
-    alert(res.json());
-  };
-
-  return (
-    <div>
-      <button type='button' onClick={handleClick}>
-        Click me
-      </button>
-    </div>
-  );
-}
-```
-
-## 🔗 API統合
-
-### Hono Client
-
-型安全なAPI呼び出しのためのHono Clientを使用しています：
-
-```typescript
-import type { AppType } from 'backend/src';
-import { hc } from 'hono/client';
-
-export const client = hc<AppType>(process.env.NEXT_PUBLIC_API_URL!, {
-  init: { credentials: 'include' },
-});
-```
-
-### API呼び出し例
-
-```typescript
-// ユーザー一覧取得
-const users = await client.api.users.$get({});
-
-// ユーザー作成
-const newUser = await client.api.users.$post({
-  json: {
-    name: 'John Doe',
-    email: 'john@example.com',
-    password: 'password123',
-  },
-});
-```
-
-## 🎨 スタイリング
-
-### Tailwind CSS v4
-
-最新のTailwind CSS v4を使用してスタイリングを行います：
-
-```tsx
-<div className="container mx-auto px-4 py-8">
-  <h1 className="text-3xl font-bold text-gray-900">
-    Welcome
-  </h1>
-  <p className="mt-4 text-gray-600">
-    A modern full-stack application
-  </p>
-</div>
-```
-
-### フォント
-
-Geistフォントを使用してモダンなタイポグラフィを実現：
-
-```tsx
-import { Geist, Geist_Mono } from 'next/font/google';
-
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
-```
-
-## 🛠️ 開発スクリプト
+依存関係とDBは[ルートのセットアップ](../../README.md#開発を始める)に従い、Backendを起動しておきます。以下は `apps/frontend` 内で実行します。
 
 ```bash
-# 開発
-bun run dev              # 開発サーバー起動 (ポート8771)
-bun run build            # 本番用ビルド
-bun run build:cloudflare # Cloudflare用ビルド
-bun run lint             # Biomeリンター実行
-bun run type-check       # TypeScript型チェック
-
-# デプロイ
-bun run deploy           # 本番環境にデプロイ
-bun run deploy:dev       # 開発環境にデプロイ
+cp .env.example .env
+bun run dev
 ```
 
-## 🧪 テスト
+既存の `.env` は上書きせず確認します。`NEXT_PUBLIC_API_URL` はローカルで `http://localhost:8080`、`JWT_SECRET` はBackendと同じローカル用の値に設定してください。公開クライアントへsecretを渡す `NEXT_PUBLIC_` 変数は作りません。
 
-### テスト実行
+`dev`はOpenNextビルド後にWranglerを起動します。表示は `http://localhost:8771/access` から確認できます。secretを `.dev.vars` に分ける場合も、Next.jsのビルド・サーバー側で必要な環境値は [.env.example](.env.example) に沿って用意します。
 
-```bash
-bun test
-```
+## 画面と認証
 
-### テスト構造
+- スタッフは `/access` から会期のアクセスコードを入力して閲覧します。
+- 管理者は `/login` からログインし、会期を選んで内容を編集します。
+- コンテンツは `app/(authenticated)/` 配下で共通レイアウトを使います。ルート保護は [middleware.ts](middleware.ts)。
+- ページの現行仕様は[画面仕様一覧](../../docs/README.md#画面仕様)、利用手順は[マニュアル](../../docs/README.md#利用手順)を参照します。
 
-- **ユニットテスト**: 個別のコンポーネント
-- **統合テスト**: ページとAPI統合
-- **E2Eテスト**: 完全なユーザーワークフロー
+| 共通処理 | 実装 |
+|---|---|
+| JWT payloadの解決とコンテンツ取得ヘッダー | [app/lib/serverAuth.ts](app/lib/serverAuth.ts) |
+| Backend Service Binding優先、通常fetchへのフォールバック | [app/lib/backendFetch.ts](app/lib/backendFetch.ts) |
+| `AppType`を使うHono Client | [app/utils/client.ts](app/utils/client.ts) |
+| 共通ヘッダー / 管理者の会期選択 | [components/AuthHeader.tsx](components/AuthHeader.tsx) / [components/EventSelector.tsx](components/EventSelector.tsx) |
 
-## 🚀 デプロイ
+管理者の会期クエリは `event_id`、APIへ渡すヘッダーは `x-event-id`です。閲覧者の会期は `access_token` から解決します。フォームはBackend共有Zod schemaを優先します。
 
-### Cloudflare Workers
+## コマンドとテスト
 
-OpenNextを使用してCloudflare Workersにデプロイ：
+正本は [package.json](package.json)です。
 
-```bash
-# 開発環境
-bun run deploy:dev
+| 作業 | コマンド |
+|---|---|
+| 開発 | `bun run dev` |
+| Next.js / Cloudflare build | `bun run build` / `bun run build:cloudflare` |
+| 必須チェック | `bun run type-check` / `bun run lint` / `bun run test` |
+| テストwatch | `bun run test:watch` |
+| dev / prod配備 | `bun run deploy:dev` / `bun run deploy` |
 
-# 本番環境
-bun run deploy
-```
+テストはJest + Testing Library + MSWです。`bun run test` を使い、必要なpolyfill・Jest設定は維持します。これらのテストと実ブラウザ・実機確認は別に記録します。
 
-### 環境変数
-
-```bash
-# 本番環境変数
-NEXT_PUBLIC_API_URL=your_api_url
-JWT_SECRET=shared_jwt_secret
-```
-
-## 🔧 開発ガイドライン
-
-### コンポーネント設計
-
-```tsx
-import React from 'react';
-
-interface ComponentProps {
-  title: string;
-  description?: string;
-}
-
-export default function ComponentName({ title, description }: ComponentProps) {
-  return (
-    <div className="container">
-      <h1 className="text-2xl font-bold">{title}</h1>
-      {description && <p className="text-gray-600">{description}</p>}
-    </div>
-  );
-}
-```
-
-### ページ設計
-
-```tsx
-import React from 'react';
-
-export default function PageName() {
-  return (
-    <main className="min-h-screen">
-      <div className="container mx-auto px-4 py-8">
-        {/* ページコンテンツ */}
-      </div>
-    </main>
-  );
-}
-```
-
-### コード品質
-
-- **リンター**: Biome for consistent code style
-- **型安全性**: Strict TypeScript configuration
-- **コンポーネント**: Functional components with hooks
-- **スタイリング**: Tailwind CSS with consistent design system
-
-## 📱 レスポンシブデザイン
-
-### ブレークポイント
-
-```css
-/* Tailwind CSS ブレークポイント */
-sm: 640px   /* スマートフォン */
-md: 768px   /* タブレット */
-lg: 1024px  /* デスクトップ */
-xl: 1280px  /* 大画面 */
-2xl: 1536px /* 超大画面 */
-```
-
-### レスポンシブ例
-
-```tsx
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-  <div className="p-4 bg-white rounded-lg shadow">
-    {/* カードコンテンツ */}
-  </div>
-</div>
-```
-
-## 🔑 JWT_SECRET のセットアップ
-
-**frontend と backend の両 Worker に同じ `JWT_SECRET` を設定する必要があります。**  
-`middleware.ts` が JWT を検証する際に使う秘密鍵は、backend が発行するトークンと一致していなければなりません。
-
-### ローカル開発
-
-`.dev.vars`（または `.env`）に設定します。Wrangler は `.dev.vars` を優先的に読み込みます。
-
-```bash
-# apps/frontend/.dev.vars
-JWT_SECRET=your-local-secret-value
-```
-
-### デプロイ前チェック（Cloudflare Workers）
-
-```bash
-# frontend Worker に設定
-wrangler secret put JWT_SECRET --name basic-knowledge-for-web-frontend
-
-# dev 環境の場合
-wrangler secret put JWT_SECRET --name basic-knowledge-for-web-frontend-dev
-
-# 設定済み secrets を確認
-wrangler secret list --name basic-knowledge-for-web-frontend
-```
-
-> **注意**: backend Worker にも同じ値で設定が必要です。  
-> 詳細は `apps/backend/README.md` の「JWT_SECRET のセットアップ」を参照してください。
-
----
-
-## 🔐 セキュリティ
-
-### セキュリティ機能
-
-- **環境変数**: クライアントサイドで安全な設定管理
-- **CORS**: 適切なクロスオリジン設定
-- **入力バリデーション**: フロントエンドとバックエンド両方で検証
+MSW設定、OpenNext/Workersのbinding、共有 `JWT_SECRET`、CI配備の詳細は[開発リファレンス](../../docs/development-guide.md)へ、変更・検証・PR規約は [AGENTS.md](../../AGENTS.md)へ集約しています。

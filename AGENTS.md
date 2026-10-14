@@ -21,6 +21,7 @@ Bunモノレポ。依存追加・スクリプト実行はBunを使う。
 - データモデル: `apps/backend/src/db/schema.ts` と `apps/backend/drizzle/`。
 - Worker名・binding・環境値: 各アプリの `wrangler.jsonc`。
 - CI/CD: `.github/workflows/`。PR形式: [.github/pull_request_template.md](.github/pull_request_template.md)。
+- ドキュメントの入口と資料の役割: [docs/README.md](docs/README.md)。
 - 画面/APIの現行仕様: 実装を確認して `docs/pages/`・`docs/apis/` を同期する。計画は `docs/tasks/`。
 - レイヤー構成、モック、MSW、CI/Renovateの詳細: [開発リファレンス](docs/development-guide.md)。必要な節だけ読む。
 

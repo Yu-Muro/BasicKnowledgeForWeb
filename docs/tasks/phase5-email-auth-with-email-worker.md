@@ -1,5 +1,16 @@
 # Phase 5 タスク: メール検証 + OTPログイン + 信頼デバイス + Email Worker分離
 
+## 状態と関連資料
+
+2026-10-14にコードと [PR #167](https://github.com/Yu-Muro/BasicKnowledgeForWeb/pull/167)を確認しました。PRは2026-10-02（日本時間）にマージ済みです。
+
+- 実装済みの準備: Email Worker、内部送信API、backendのService Binding、生成型・テスト構成。
+- この文書で継続する計画: メール検証、OTPログイン、信頼デバイスと、それらのDB/API/UI。
+- 今回未確認: Cloudflare管理画面・DNS・実配送・実機動作。コードがあることだけで公開準備完了とは扱いません。
+
+現在のログイン契約は [認証API仕様](../apis/auth-users.md)、送信基盤は [Email Worker README](../../apps/email-worker/README.md)を参照します。
+検証項目は [Phase 5チェックリスト](../checklists/phase5-email-auth-checklist.md)、初期設計の経緯は [過去の実装プラン](../archive/phase5-initial-plan.md)に分けています。以下は目標仕様であり、現行仕様ではありません。
+
 ## 目的
 
 - ユーザー作成時にメールアドレスの有効性を確認できるようにする

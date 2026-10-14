@@ -308,6 +308,29 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
 - **Frontend**: `@opennextjs/cloudflare` アダプタを使用。ビルド出力は `.open-next/`。Next.js ISR キャッシュに R2 bucket を使用。
 - **API URL**: `NEXT_PUBLIC_API_URL` で切り替え可能（ローカル `http://localhost:8080`、CI では `https://dev.reitaisai.info` または `https://reitaisai.info`）。
 
+### JWT_SECRET のセットアップ
+
+同じ環境のbackend/frontendで同じ値を使う。devとprodの値は環境ごとに管理する。
+ローカルでは各アプリの `.env` または `.dev.vars` に設定し、FrontendのNext.jsビルドにも必要な環境値を用意する。Wrangler用はどちらかを選ぶ（`.dev.vars` があると `.env` はbindingへ読み込まれない）。値はログ・PR・コマンド引数へ書かない。
+
+CI配備ではGitHub Environment（dev/prod）の `JWT_SECRET` を両Workerに渡し、Frontendビルドにも使う。実際の設定は `deploy-dev.yml` / `deploy-prod.yml` を確認する。
+
+手動で設定・確認する場合は、対象アプリ内で環境を指定する。`secret put` はWorkerの新バージョンを作成して即時に配備する操作なので、対象環境への変更を依頼されたときに実行する。以下は操作例であり、資料整理時には実行していない。
+
+```bash
+# apps/backend 内で実行
+bunx wrangler secret put JWT_SECRET --env dev
+bunx wrangler secret list --env dev
+
+# apps/frontend 内で同じdev用の値を設定
+bunx wrangler secret put JWT_SECRET --env dev
+bunx wrangler secret list --env dev
+```
+
+prodの場合は `--env prod` を指定する。secret名の一覧だけでは値の一致や実際のログイン成功まで確認できないので、変更後は対象環境の認証動作も検証する。
+Wranglerコマンド実行前には `wrangler` Skillを読み、対象設定・アカウント・環境を確認する。
+[Cloudflare公式のSecrets手順](https://developers.cloudflare.com/workers/configuration/secrets/)も参照する。
+
 ## CI/CD — GitHub Actions
 
 ### ワークフロー

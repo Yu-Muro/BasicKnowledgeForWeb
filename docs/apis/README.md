@@ -3,6 +3,8 @@
 このドキュメントは `apps/backend/src/presentation/routes/*.ts` の実装を基準に、
 現行 API のエンドポイント一覧をまとめたものです。
 
+[ドキュメント案内](../README.md)へ戻る。未実装の認証拡張は [Phase 5計画](../tasks/phase5-email-auth-with-email-worker.md)へ分けています。Email Workerの内部APIは [専用README](../../apps/email-worker/README.md)を参照してください。
+
 ## ベースURL
 
 - ローカル: `http://localhost:8080`
