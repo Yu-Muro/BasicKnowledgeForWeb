@@ -68,7 +68,7 @@ Bunモノレポ。依存追加・スクリプト実行はBunを使う。
 - BackendとFrontendにまたがる変更は **Backend実装 → Backendテスト → Frontend実装 → Frontendテスト**。Backendの振る舞いとテストが揃う前にFrontend実装を始めない。
 - Backendの依存は `routes → controllers → use cases → repositories → db`。routeがComposition Root、controllerはuse case interface、use caseはrepository interfaceに依存する。
 - 業務クエリのDrizzle操作はrepository実装に置く。bindingから依存を組み立てるのはroute層。認証middlewareの `c.env.JWT_SECRET` 参照は既存の境界として維持する。
-- `apps/backend/src/index.ts` の `AppType`、Frontendの `resolveAuth` / `buildContentFetchHeaders` / `backendFetch` を再利用し、Cookie・イベントヘッダー処理を分散させない。
+- `apps/backend/src/index.ts` の `AppType`、Frontendの `resolveAuth` / `buildContentFetchHeaders` / `fetchFromBackend`（`app/lib/backendFetch.ts`）を再利用し、Cookie・イベントヘッダー処理を分散させない。
 - コンテンツGETは `contentAccessMiddleware` を適用し、有効な `access_token` の `event_id` と `x-event-id` が一致する場合、または有効な `auth_token` のroleが `admin` の場合だけ許可する。`auth_token(user)` 単独では閲覧できない。編集系の認証・管理者権限も確認する。
 - CockroachDBの複合FKは、参照先のUNIQUE INDEXをmigrationのFK追加より先に作る。部分適用後の再試行を考慮する。
 - Workers用tsconfigに `bun-types` と `@cloudflare/workers-types` を混在させない。テスト環境の設定を分離する。

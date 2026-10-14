@@ -7,7 +7,7 @@ description: 新機能を実装するときの標準フロー。developからの
 
 このリポジトリで新機能を安全に進めるための標準フロー。Backend→Frontend の順序を必ず守ること。
 
-対象アプリに変更がある工程だけを行う。Frontendだけの変更でBackend実装を追加せず、複数アプリにまたがる場合は上記順序を守る。Email Workerの変更は `cloudflare-email-service` と同アプリの必須チェックを併用する。
+対象アプリに変更がある工程だけを行う。Frontendだけの変更でBackend実装を追加せず、BackendとFrontendにまたがる場合は上記順序を守る。Email Workerの変更は `cloudflare-email-service` と同アプリの必須チェックを併用する。
 
 ## 0. ブランチ作成
 作業開始前に `git status` と現在のブランチを確認する。既存の未コミット変更や継続中の作業がある場合は、その内容を保持して作業先を決める。
@@ -59,9 +59,10 @@ gh pr create --base develop --title "<prefix>(<scope>): <日本語タイトル>"
 
 ## 6. 完了チェックリスト
 - [ ] ブランチは `develop` から切ったか
-- [ ] Backend `type-check` / `lint` / `test` ✅
-- [ ] Frontend `type-check` / `lint` / `test` ✅
+- [ ] Backendに変更がある場合、`apps/backend` の `type-check` / `lint` / `test` が通過した
+- [ ] Frontendに変更がある場合、`apps/frontend` の `type-check` / `lint` / `test` が通過した
+- [ ] Email Workerに変更がある場合、`apps/email-worker` の `type-check` / `lint` / `test` が通過した
 - [ ] コミットメッセージ: 日本語 + Conventional Commits
 - [ ] PR タイトル・本文: 日本語 + テンプレ準拠
-- [ ] Backend を終えてから Frontend を実装した
+- [ ] BackendとFrontendの両方に変更がある場合、Backend実装・テストを完了してからFrontendを実装・テストした
 - [ ] `git status` で意図しない差分が混ざっていない

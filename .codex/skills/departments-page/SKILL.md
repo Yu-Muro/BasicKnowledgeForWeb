@@ -27,10 +27,10 @@ description: docs/pages/12-departments.md をもとに `/departments` の UI・A
    - `DepartmentAdminPanel` で追加・編集・削除フォームを提供。
 4. **編集導線 (admin)**
    - `app/actions/departments.ts` からAPIを呼び、成功後は既存panelの一覧更新・snapshot取得の流れを維持する。
-   - `409` は「部屋割りで利用中のため削除できない」旨を表示。
+   - `409` は「部屋割りまたはタイムテーブルで使用されているため削除できない」旨を表示。
 5. **テスト**
    - Backend Feature: access_token 成功、auth_token(admin) 成功、auth_token(user) 拒否、`x-event-id` 不一致拒否。
-   - Frontend: user リダイレクト、会期未選択表示、admin CRUD 導線、409 エラー表示を確認。
+   - Frontend: user リダイレクト、会期未選択表示、admin CRUD 導線を確認。409 エラー表示は部屋割り参照とタイムテーブル部署タグ参照の両方を含む文言か確認。
 6. **完了確認**
    ```bash
    apps/backend: bun run type-check && bun run lint && bun run test
