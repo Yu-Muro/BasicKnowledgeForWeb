@@ -202,7 +202,7 @@ const res = await app.request('/api/users');
 | `tsconfig.test.json` | Jest（`ts-jest`）用。`@types/jest` を使用し、`src/` + `tests/` を含む。 |
 | `tests/tsconfig.json` | `tsconfig.test.json` を継承。VSCode がテストファイル向けに参照。 |
 
-**⚠️ 型衝突に注意:** `@cloudflare/workers-types` と `bun-types` は同じ tsconfig に含めないでください。  
+**⚠️ 型衝突に注意:** `@cloudflare/workers-types` と `bun-types` は同じ tsconfig に含めないでください。
 両者が `Response` / `Body` を定義しており、`Response.json()` が `Promise<undefined>` と解釈されてテスト型が壊れます。必ず別 tsconfig に分離します。
 
 ### フロントエンド — Next.js App Router

@@ -5,10 +5,10 @@ description: バックエンドに新しいドメインやリソースを追加�
 
 # 新ドメイン追加ガイド
 
-/.claude/commands/add-domain.md の内容をプロジェクトローカルで参照できるように再編したもの。新しいコンテンツAPIを作る際は必ず以下の順序を守る。
+このリポジトリに新しいコンテンツAPIを追加する手順。既存リソースの修正では、必要な工程だけを適用する。
 
 ## 前提
-- リポジトリ: `/Users/y_murotani/Documents/RTS-souhon/BasicKnowledgeForWeb`
+- 作業先: このSkillを含むリポジトリ（worktreeではそのルート）
 - 依存関係: ルート `AGENTS.md` と既存 skill 群
 - Clean Architecture: routes → controllers → use cases → repositories → db
 - すべての GET コンテンツ API に `contentAccessMiddleware` を適用すること
@@ -55,10 +55,11 @@ description: バックエンドに新しいドメインやリソースを追加�
    - Composition Root。repository + use case を組み合わせて controller を呼び出す。
    - 例:
      ```typescript
-     app.get('/api/<resource>', contentAccessMiddleware, (c) => controller.handle(c));
+     app.get('/<resource>', contentAccessMiddleware, (c) => controller.handle(c));
      ```
 
 9. **Mount** — `src/index.ts`
+   `/api` はmount側で付ける。route内で重ねて付けない。
    ```typescript
    import { create<Name>Routes } from './presentation/routes/<domain>Routes';
    app.route('/api', create<Name>Routes());

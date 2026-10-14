@@ -7,6 +7,8 @@ description: agent 向けテキスト指示（skill / slash command / task プ�
 
 プロンプトの品質は書いた本人には分からない。書き手が「明瞭だ」と思うものほど、別エージェントが読むと詰まる。**バイアスを排した実行者に実際に動かしてもらい、両面で評価して反復する** のが本 skill の核。改善が頭打ちになるまで止めない。
 
+本文のTask/Agent toolは、その環境で利用可能な委譲ツールを指す。Codexでは `collaboration.spawn_agent` などを使い、白紙の評価には `fork_turns="none"` で対象指示と必要な原資料だけを渡す。実行評価か構造審査かを最初に明示する。ツールが返さないusage指標は「未取得」と記録し、推測で数値を埋めたり、構造審査を実行成功と報告したりしない。
+
 ## いつ使うか
 
 - skill / slash command / タスクプロンプトを新規作成・大幅改訂した直後
@@ -112,12 +114,12 @@ description: agent 向けテキスト指示（skill / slash command / task プ�
 - 再試行: 同じ判断をやり直した回数とその理由
 ```
 
-呼び出し側はレポートから自己申告部分を抽出し、`tool_uses` / `duration_ms` を Agent tool の usage メタから取得して評価軸表を埋める。
+呼び出し側はレポートから自己申告部分を抽出し、取得可能な `tool_uses` / `duration_ms` を委譲ツールのusageメタから取得して評価軸表を埋める。未取得の指標は収束の数値判定から除外し、除外理由と質的な評価結果を残す。
 
 ## 環境制約
 
-新規 subagent を dispatch できない環境（既に subagent として動作している、Task tool が無効化されている等）では、本 skill は **適用しない**。
-- 代替案 1: 親セッションのユーザーに別 Claude Code セッションを起動して依頼してもらう
+新規 subagent をdispatchできない環境、または委譲が許可されていない場合は、実行評価を行ったことにしない。
+- 代替案 1: ユーザーが別の評価セッションを希望する場合は、その環境で依頼するための評価シナリオを用意する
 - 代替案 2: 評価を諦め、ユーザーに「empirical evaluation skipped: dispatch unavailable」と明示報告する
 - **NG**: 自己再読で代替する（バイアスが入るので評価結果を信じてはいけない）
 
@@ -186,6 +188,5 @@ description: agent 向けテキスト指示（skill / slash command / task プ�
 
 ## 関連
 
-- `superpowers:writing-skills` — skill 作成時の TDD アプローチ。本 skill の「subagent で baseline → 修正 → 再実行」と本質的に同じ
-- `retrospective-codify` — タスク後の学び固定化。本 skill はプロンプト開発中、retrospective-codify はタスク終了後、と使い分ける
-- `superpowers:dispatching-parallel-agents` — 複数シナリオを並列で走らせるときの作法
+- `skill-creator` — Skillの適用条件、参照、検証を整える。利用可能な場合に参照する。
+- 作業記録はプロジェクトの文書・PRへ残す。個人memoryの更新はユーザーから依頼された場合だけ行う。

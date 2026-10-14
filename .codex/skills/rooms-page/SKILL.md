@@ -24,7 +24,7 @@ description: docs/pages/06-rooms.md をもとに `/rooms` の UI・API・テス�
 3. **フロントエンド UI**
    - PC: テーブル表示（部屋名/担当/用途）。
    - モバイル: カード表示 (部屋名を見出し、担当・用途を縦積み) で `[⋮]` メニューから編集/削除。
-   - フォーム: `react-hook-form` + `roomSchema` を共有化。
+   - フォーム: `react-hook-form` + backendの `createRoomSchema` / `updateRoomSchema` を共有する。
 4. **編集導線 (admin)**
    - ロール判定で `[+追加]` ボタンや編集 UI を表示。
    - 追加/更新フォームで部署セレクトを提供（pre/day それぞれ）。

@@ -7,17 +7,21 @@ description: 新機能を実装するときの標準フロー。developからの
 
 このリポジトリで新機能を安全に進めるための標準フロー。Backend→Frontend の順序を必ず守ること。
 
+対象アプリに変更がある工程だけを行う。Frontendだけの変更でBackend実装を追加せず、複数アプリにまたがる場合は上記順序を守る。Email Workerの変更は `cloudflare-email-service` と同アプリの必須チェックを併用する。
+
 ## 0. ブランチ作成
+作業開始前に `git status` と現在のブランチを確認する。既存の未コミット変更や継続中の作業がある場合は、その内容を保持して作業先を決める。
+
+新規作業でブランチを作る場合:
 ```bash
 git checkout develop
 git pull origin develop
-git checkout -b feature/<task-name>
+git checkout -b codex/<task-name>
 ```
-Prefix: `feature/`, `fix/`, `docs/`, `chore/`。`develop` へ直 push しない。
-作業開始前に `git status` で既存の未コミット変更を確認し、無関係な差分を混ぜない。
+Codexの既定prefixは `codex/`。ユーザーの明示指定があればそれに従う。`develop` へ直 push せず、無関係な差分を混ぜない。
 
 ## 1. Backend を先に完了
-1. 新しいリソースなら `/add-domain` ワークフローで schema→repo→use case→controller→route→index を実装。
+1. 新しいリソースなら `add-domain` Skillで schema→repo→use case→controller→route→index を実装。
 2. `apps/backend` で以下をすべて PASS させる:
    ```bash
    bun run type-check

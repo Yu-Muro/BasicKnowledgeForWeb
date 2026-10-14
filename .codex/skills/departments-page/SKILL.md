@@ -10,14 +10,14 @@ description: docs/pages/12-departments.md をもとに `/departments` の UI・A
 ## スコープ
 - `/departments` の admin 専用 UI（一覧・追加・更新・削除）
 - `GET/POST/PUT/DELETE /api/departments` の backend 実装
-- 部屋割り参照時の削除制約（409）と会期スコープ制御
+- 部屋割り・タイムテーブル部署タグの参照時の削除制約（409）と会期スコープ制御
 
 ## 手順
 1. **データ要件**
    - `Department` は `event_id` 単位で管理する。
    - 一覧は `name` 昇順で返す。
 2. **バックエンド**
-   - Schema: `departments` と `user_departments` を定義し、`(event_id, id)` に複合ユニークを付ける。
+   - Schema: 既存の `departments` と `(event_id, id)` の複合ユニークを確認する。ユーザーと部署の関連テーブルは、現行モデルに存在せず、別途要件がある場合だけ検討する。
    - Routes: `GET /api/departments` は `contentAccessMiddleware`、`POST/PUT/DELETE` は `contentEditMiddleware` + `roleGuard(['admin'])`。
    - Validator: `event_id` と `x-event-id` の整合、更新フィールド必須、削除時のエラー形を定義。
    - Error handling: 参照中部署の削除失敗は `409` を返す。
@@ -26,7 +26,7 @@ description: docs/pages/12-departments.md をもとに `/departments` の UI・A
    - 会期未選択時は空状態メッセージを表示。
    - `DepartmentAdminPanel` で追加・編集・削除フォームを提供。
 4. **編集導線 (admin)**
-   - `app/actions/departments.ts` から API を呼び、成功後 `revalidatePath('/departments')`。
+   - `app/actions/departments.ts` からAPIを呼び、成功後は既存panelの一覧更新・snapshot取得の流れを維持する。
    - `409` は「部屋割りで利用中のため削除できない」旨を表示。
 5. **テスト**
    - Backend Feature: access_token 成功、auth_token(admin) 成功、auth_token(user) 拒否、`x-event-id` 不一致拒否。
