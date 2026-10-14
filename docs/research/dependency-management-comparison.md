@@ -1,5 +1,11 @@
 # 依存関係更新ツール比較検討（Dependabot / Renovate / その他）
 
+> 区分: 2026-08-16時点の比較・移行提案。本文の「現状」は移行前の状態です。
+> 現在はセルフホストRenovateを使用しています。採用後の設定・運用は
+> [開発リファレンス](../development-guide.md)、[renovate.json](../../renovate.json)、
+> [Renovate workflow](../../.github/workflows/renovate.yml)を参照してください。
+> 比較中の提供状況・料金・不具合の状態は、再検討時に再確認します。
+
 > 対象リポジトリ: `basic-knowledge-for-web`（Bun モノレポ / Cloudflare Workers / GitHub Actions）
 > 作成日: 2026-08-16
 > 結論: **バージョン更新は Renovate（セルフホスト版 GitHub Action）へ移行し、Dependabot はセキュリティアラート専用として残す**ことを推奨。
@@ -103,7 +109,7 @@
 | 削除 | `.github/workflows/dependabot-bun-lock.yml` | **回避策が不要になったため撤去** |
 | 変更 | `.github/workflows/pull-request.yml` | `dependabot-auto-merge` → `renovate-auto-merge` |
 | 変更 | `.github/workflows/auto-assign.yml` | `renovate/` ブランチをレビュアー自動アサインから除外 |
-| 変更 | `CLAUDE.md` / `AGENTS.md` | CI/CD 章と必須シークレット表を更新 |
+| 変更 | `AGENTS.md` / `docs/development-guide.md` | 共通規約とCI/CD・必須シークレット表を更新 |
 
 > `.github/dependabot.yml` の削除で止まるのは **バージョン更新のみ**。Dependabot **alerts**（脆弱性の可視化）はリポジトリ設定側の機能なので有効なまま維持されます。
 
@@ -130,7 +136,7 @@
 - `customManagers` — `renovate.yml` で固定した Renovate 本体（`ghcr.io/renovatebot/renovate`）自身を更新対象に含める
 
 **PR 数の制限について:** 通常更新のブランチ作成が許されるのは `schedule` により週 1 回（毎週月曜 07:00 JST の起動）だけなので、1 回の実行で作れる PR 数がそのまま週あたりの上限になります。移行前 90 日間の Dependabot マージ実績は 100 件（約 7.7 件/週）で、グルーピング後も週 5 件前後は見込まれます。そのため `prHourlyLimit` は `0`（無制限）とし、`prConcurrentLimit: 10` を唯一の制限としています。時間あたりの上限を残すと、その値がそのまま週あたりの上限になり恒常的なバックログが生じます。
-- コミットメッセージ / PR 本文の日本語化（`CLAUDE.md` の規約に準拠）
+- コミットメッセージ / PR 本文の日本語化（`AGENTS.md` の共通規約に準拠）
 
 ### 6.3 マージ前に必要な手動セットアップ ⚠️
 
