@@ -1,0 +1,2784 @@
+openapi: 3.2.1
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: BasicKnowledgeForWeb Backend API
+  summary: スタッフポータルの現行HTTP API
+  version: '2026-10-14'
+  description: 実装済みのAPI契約。info.versionは文書の確認日であり、OpenAPIの規格版はopenapiで指定する。入力はZod、成功レスポンスはcontroller/use
+    case/repository/schemaを照合。予定のメール検証・OTP・信頼デバイスAPIは含めない。認証のroleと会期一致条件はsecurityと各operationの説明を併用する。
+servers:
+- url: https://reitaisai.info
+  description: prod（APIは/api配下）
+- url: https://dev.reitaisai.info
+  description: dev（APIは/api配下）
+- url: http://localhost:8080
+  description: ローカルBackend
+tags:
+- name: Health
+  description: 稼働確認
+- name: Auth
+  description: 認証
+- name: Users
+  description: ユーザー
+- name: AccessCodes
+  description: 会期・アクセスコード
+- name: Timetable
+  description: 時間割
+- name: Room
+  description: 部屋割り
+- name: Program
+  description: 企画
+- name: ShopItem
+  description: 販売物
+- name: Department
+  description: 部署
+- name: OtherItem
+  description: その他情報
+- name: Search
+  description: 横断検索
+- name: Assets
+  description: 画像配信
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      tags:
+      - Health
+      summary: DB疎通を含む稼働状態を取得
+      description: DB疎通を含む稼働状態を取得
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthOK'
+              example:
+                status: ok
+                db: connected
+        '503':
+          description: DB接続失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthUnavailable'
+              example:
+                status: error
+                db: disconnected
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/auth/login:
+    post:
+      operationId: login
+      tags:
+      - Auth
+      summary: ログインしてauth_tokenを発行
+      description: ログインしてauth_tokenを発行
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              example:
+                message: ログインしました
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: auth_token=<JWT>; Max-Age=604800; Path=/; HttpOnly; Secure; SameSite=Lax。JWTの期限も7日。
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+            example:
+              email: admin@example.com
+              password: example-password
+  /api/auth/logout:
+    post:
+      operationId: logout
+      tags:
+      - Auth
+      summary: auth_tokenを削除
+      description: auth_tokenを削除
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              example:
+                message: ログアウトしました
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: auth_tokenをPath=/で失効させる。access_tokenは削除しない。
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/auth/me:
+    get:
+      operationId: getCurrentUser
+      tags:
+      - Auth
+      summary: ログイン中のユーザー情報を取得
+      description: 有効なauth_tokenのpayloadからid/name/email/roleを返す。DBの再読込は行わない。
+      security:
+      - AuthCookie: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/auth/password:
+    put:
+      operationId: changePassword
+      tags:
+      - Auth
+      summary: パスワードを変更
+      description: パスワードを変更
+      security:
+      - AuthCookie: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              example:
+                message: パスワードを変更しました
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordInput'
+            example:
+              currentPassword: old-password
+              newPassword: new-password-123
+  /api/users:
+    get:
+      operationId: getUsers
+      tags:
+      - Users
+      summary: ユーザー一覧を取得
+      description: adminのみ。createdAt降順。passwordは除去するが、deletedAtを含み、一覧の取得自体はsoft delete行を除外しない。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                required:
+                - users
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: createUser
+      tags:
+      - Users
+      summary: ユーザーを登録
+      description: 公開登録API。roleは任意の1〜50文字を受け付ける。現行レスポンスにはpasswordのbcryptハッシュが含まれる。JSON解析失敗は500、検証エラーとuse
+        case失敗は400。
+      security: []
+      responses:
+        '201':
+          description: ユーザー作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/RegisteredUser'
+                required:
+                - user
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserInput'
+            example:
+              name: スタッフ
+              email: user@example.com
+              password: example-password
+  /api/users/{id}/role:
+    put:
+      operationId: updateUserRole
+      tags:
+      - Users
+      summary: ユーザーのロールを変更
+      description: ユーザーのロールを変更
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              example:
+                message: ロールを変更しました
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRoleInput'
+            example:
+              role: admin
+  /api/access-codes/verify:
+    post:
+      operationId: verifyAccessCode
+      tags:
+      - AccessCodes
+      summary: アクセスコードを確認してaccess_tokenを発行
+      description: アクセスコードを確認してaccess_tokenを発行
+      security: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              example:
+                message: アクセスコードを確認しました
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: access_token=<JWT>; Path=/; HttpOnly; Secure; SameSite=Lax。Max-Age/Expiresはなくsession
+                Cookie。JWT expは会期validTo。
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyAccessCodeInput'
+            example:
+              code: EXAMPLE2026
+  /api/access-codes:
+    get:
+      operationId: getAccessCodes
+      tags:
+      - AccessCodes
+      summary: 管理用の会期一覧を取得
+      description: adminのみ。validFrom降順。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  codes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AccessCode'
+                required:
+                - codes
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: createAccessCode
+      tags:
+      - AccessCodes
+      summary: 会期とアクセスコードを作成
+      description: 会期とアクセスコードを作成
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    $ref: '#/components/schemas/AccessCode'
+                required:
+                - code
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccessCodeInput'
+            example:
+              code: EXAMPLE2026
+              eventName: サンプル会期
+              validFrom: '2026-10-01T00:00:00Z'
+              validTo: '2026-11-01T00:00:00Z'
+  /api/access-codes/{id}:
+    get:
+      operationId: getAccessCode
+      tags:
+      - AccessCodes
+      summary: 会期詳細を取得
+      description: 有効なaccess_tokenとx-event-idのevent_id一致、または有効なauth_tokenのrole=adminで許可。auth_token(user)単独では不可。
+        auth_token(admin)ではx-event-idは不要。access_tokenが示す会期とパスidの一致はこのルートでは検証しない。
+      security:
+      - AccessCookie: []
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    $ref: '#/components/schemas/AccessCode'
+                required:
+                - code
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/AccessCodeId'
+      - $ref: '#/components/parameters/AccessCodeEventId'
+    delete:
+      operationId: deleteAccessCode
+      tags:
+      - AccessCodes
+      summary: 会期を削除
+      description: adminのみ。参照中の会期などDB削除が失敗した場合、現行use caseは500を返す。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              example:
+                message: 削除しました
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/AccessCodeId'
+  /api/timetable:
+    get:
+      operationId: getTimetableList
+      tags:
+      - Timetable
+      summary: 時間割一覧を取得
+      description: 有効なaccess_tokenとx-event-idのevent_id一致、または有効なauth_tokenのrole=adminで許可。auth_token(user)単独では不可。
+        startTime昇順。
+      security:
+      - AccessCookie: []
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TimetableItem'
+                required:
+                - items
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store, max-age=0, must-revalidate
+              description: 一覧のキャッシュを禁止。
+            Pragma:
+              schema:
+                const: no-cache
+              description: キャッシュ禁止。
+            Expires:
+              schema:
+                const: '0'
+              description: 即時失効。
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+    post:
+      operationId: createTimetable
+      tags:
+      - Timetable
+      summary: 時間割を作成
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 bodyのevent_idはx-event-idと一致すること。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: '#/components/schemas/TimetableItem'
+                required:
+                - item
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTimetableInput'
+            example:
+              event_id: 11111111-1111-4111-8111-111111111111
+              title: 設営
+              start_time: '2026-10-14T09:00:00Z'
+  /api/timetable/{id}:
+    put:
+      operationId: updateTimetable
+      tags:
+      - Timetable
+      summary: 時間割を部分更新
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 定義済み更新項目を1つ以上指定する。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: '#/components/schemas/TimetableItem'
+                required:
+                - item
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTimetableInput'
+    delete:
+      operationId: deleteTimetable
+      tags:
+      - Timetable
+      summary: 時間割を削除
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+  /api/rooms:
+    get:
+      operationId: getRoomList
+      tags:
+      - Room
+      summary: 部屋割り一覧を取得
+      description: 有効なaccess_tokenとx-event-idのevent_id一致、または有効なauth_tokenのrole=adminで許可。auth_token(user)単独では不可。
+        buildingName→floor→roomName昇順。
+      security:
+      - AccessCookie: []
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rooms:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Room'
+                required:
+                - rooms
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store, max-age=0, must-revalidate
+              description: 一覧のキャッシュを禁止。
+            Pragma:
+              schema:
+                const: no-cache
+              description: キャッシュ禁止。
+            Expires:
+              schema:
+                const: '0'
+              description: 即時失効。
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+    post:
+      operationId: createRoom
+      tags:
+      - Room
+      summary: 部屋割りを作成
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 bodyのevent_idはx-event-idと一致すること。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: '#/components/schemas/Room'
+                required:
+                - room
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoomInput'
+            example:
+              event_id: 11111111-1111-4111-8111-111111111111
+              building_name: 本館
+              floor: 1F
+              room_name: '101'
+              day_manager_id: 22222222-2222-4222-8222-222222222222
+              day_purpose: 待機室
+  /api/rooms/{id}:
+    put:
+      operationId: updateRoom
+      tags:
+      - Room
+      summary: 部屋割りを部分更新
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 定義済み更新項目を1つ以上指定する。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: '#/components/schemas/Room'
+                required:
+                - room
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoomInput'
+    delete:
+      operationId: deleteRoom
+      tags:
+      - Room
+      summary: 部屋割りを削除
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+  /api/programs:
+    get:
+      operationId: getProgramList
+      tags:
+      - Program
+      summary: 企画一覧を取得
+      description: 有効なaccess_tokenとx-event-idのevent_id一致、または有効なauth_tokenのrole=adminで許可。auth_token(user)単独では不可。
+        startTime昇順。
+      security:
+      - AccessCookie: []
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  programs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Program'
+                required:
+                - programs
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store, max-age=0, must-revalidate
+              description: 一覧のキャッシュを禁止。
+            Pragma:
+              schema:
+                const: no-cache
+              description: キャッシュ禁止。
+            Expires:
+              schema:
+                const: '0'
+              description: 即時失効。
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+    post:
+      operationId: createProgram
+      tags:
+      - Program
+      summary: 企画を作成
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 bodyのevent_idはx-event-idと一致すること。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  program:
+                    $ref: '#/components/schemas/Program'
+                required:
+                - program
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProgramInput'
+            example:
+              event_id: 11111111-1111-4111-8111-111111111111
+              name: 企画
+              location: ホール
+              start_time: '2026-10-14T09:00:00Z'
+              end_time: '2026-10-14T10:00:00Z'
+  /api/programs/{id}:
+    put:
+      operationId: updateProgram
+      tags:
+      - Program
+      summary: 企画を部分更新
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 定義済み更新項目を1つ以上指定する。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  program:
+                    $ref: '#/components/schemas/Program'
+                required:
+                - program
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProgramInput'
+    delete:
+      operationId: deleteProgram
+      tags:
+      - Program
+      summary: 企画を削除
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+  /api/programs/upload:
+    post:
+      operationId: uploadProgramImage
+      tags:
+      - Program
+      summary: 企画の画像をアップロード
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 multipartのfileはFile必須。受信バイナリをそのままR2に保存し、MIME型/サイズの独自制限や画像変換は行わない。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadedImage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileUpload'
+            encoding:
+              file:
+                contentType: '*/*'
+  /api/shop-items:
+    get:
+      operationId: getShopItemList
+      tags:
+      - ShopItem
+      summary: 販売物一覧を取得
+      description: 有効なaccess_tokenとx-event-idのevent_id一致、または有効なauth_tokenのrole=adminで許可。auth_token(user)単独では不可。
+        name昇順。
+      security:
+      - AccessCookie: []
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ShopItem'
+                required:
+                - items
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store, max-age=0, must-revalidate
+              description: 一覧のキャッシュを禁止。
+            Pragma:
+              schema:
+                const: no-cache
+              description: キャッシュ禁止。
+            Expires:
+              schema:
+                const: '0'
+              description: 即時失効。
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+    post:
+      operationId: createShopItem
+      tags:
+      - ShopItem
+      summary: 販売物を作成
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 bodyのevent_idはx-event-idと一致すること。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: '#/components/schemas/ShopItem'
+                required:
+                - item
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShopItemInput'
+            example:
+              event_id: 11111111-1111-4111-8111-111111111111
+              name: 販売物
+              price: 1000
+              image_key: shop-items/11111111-1111-4111-8111-111111111111/sample.webp
+  /api/shop-items/{id}:
+    put:
+      operationId: updateShopItem
+      tags:
+      - ShopItem
+      summary: 販売物を部分更新
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 定義済み更新項目を1つ以上指定する。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: '#/components/schemas/ShopItem'
+                required:
+                - item
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateShopItemInput'
+    delete:
+      operationId: deleteShopItem
+      tags:
+      - ShopItem
+      summary: 販売物を削除
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+  /api/shop-items/upload:
+    post:
+      operationId: uploadShopItemImage
+      tags:
+      - ShopItem
+      summary: 販売物の画像をアップロード
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 multipartのfileはFile必須。受信バイナリをそのままR2に保存し、MIME型/サイズの独自制限や画像変換は行わない。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadedImage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileUpload'
+            encoding:
+              file:
+                contentType: '*/*'
+  /api/departments:
+    get:
+      operationId: getDepartmentList
+      tags:
+      - Department
+      summary: 部署一覧を取得
+      description: 有効なaccess_tokenとx-event-idのevent_id一致、または有効なauth_tokenのrole=adminで許可。auth_token(user)単独では不可。
+        name昇順。
+      security:
+      - AccessCookie: []
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  departments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Department'
+                required:
+                - departments
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+    post:
+      operationId: createDepartment
+      tags:
+      - Department
+      summary: 部署を作成
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 bodyのevent_idはx-event-idと一致すること。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  department:
+                    $ref: '#/components/schemas/Department'
+                required:
+                - department
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDepartmentInput'
+            example:
+              event_id: 11111111-1111-4111-8111-111111111111
+              name: 設営部
+  /api/departments/{id}:
+    put:
+      operationId: updateDepartment
+      tags:
+      - Department
+      summary: 部署を部分更新
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 定義済み更新項目を1つ以上指定する。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  department:
+                    $ref: '#/components/schemas/Department'
+                required:
+                - department
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDepartmentInput'
+    delete:
+      operationId: deleteDepartment
+      tags:
+      - Department
+      summary: 部署を削除
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+  /api/others:
+    get:
+      operationId: getOtherItemList
+      tags:
+      - OtherItem
+      summary: その他情報一覧を取得
+      description: 有効なaccess_tokenとx-event-idのevent_id一致、または有効なauth_tokenのrole=adminで許可。auth_token(user)単独では不可。
+        displayOrder昇順。
+      security:
+      - AccessCookie: []
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OtherItem'
+                required:
+                - items
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store, max-age=0, must-revalidate
+              description: 一覧のキャッシュを禁止。
+            Pragma:
+              schema:
+                const: no-cache
+              description: キャッシュ禁止。
+            Expires:
+              schema:
+                const: '0'
+              description: 即時失効。
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+    post:
+      operationId: createOtherItem
+      tags:
+      - OtherItem
+      summary: その他情報を作成
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 bodyのevent_idはx-event-idと一致すること。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '201':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: '#/components/schemas/OtherItem'
+                required:
+                - item
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOtherItemInput'
+            example:
+              event_id: 11111111-1111-4111-8111-111111111111
+              title: お知らせ
+              content: 集合場所を確認してください
+              display_order: 0
+  /api/others/{id}:
+    put:
+      operationId: updateOtherItem
+      tags:
+      - OtherItem
+      summary: その他情報を部分更新
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 定義済み更新項目を1つ以上指定する。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item:
+                    $ref: '#/components/schemas/OtherItem'
+                required:
+                - item
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOtherItemInput'
+    delete:
+      operationId: deleteOtherItem
+      tags:
+      - OtherItem
+      summary: その他情報を削除
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/Id'
+  /api/others/upload:
+    post:
+      operationId: uploadOtherItemImage
+      tags:
+      - OtherItem
+      summary: その他情報の画像をアップロード
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 multipartのfileはFile必須。受信バイナリをそのままR2に保存し、MIME型/サイズの独自制限や画像変換は行わない。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadedImage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileUpload'
+            encoding:
+              file:
+                contentType: '*/*'
+  /api/departments/copy:
+    post:
+      operationId: copyDepartments
+      tags:
+      - Department
+      summary: 別会期の部署名をコピー
+      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 source_event_idからx-event-idへコピー。同名はスキップし、departmentsには新規作成分だけを返す。
+      security:
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopyDepartmentsResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopyDepartmentsInput'
+            example:
+              source_event_id: 22222222-2222-4222-8222-222222222222
+  /api/search:
+    get:
+      operationId: searchContent
+      tags:
+      - Search
+      summary: 会期内のコンテンツを横断検索
+      description: 有効なaccess_tokenとx-event-idのevent_id一致、または有効なauth_tokenのrole=adminで許可。auth_token(user)単独では不可。
+        キーワードをtrimし、空文字は拒否。
+      security:
+      - AccessCookie: []
+      - AuthCookie:
+        - admin
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResult'
+              example:
+                timetable: []
+                rooms: []
+                programs: []
+                shopItems: []
+                otherItems: []
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      parameters:
+      - $ref: '#/components/parameters/EventId'
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          pattern: \S
+        description: 検索語。前後空白を除去し、空白だけの入力を拒否する。
+        example: 設営
+  /assets/{key}:
+    get:
+      operationId: getAsset
+      tags:
+      - Assets
+      summary: ローカルBackendのR2画像配信
+      description: Honoの /assets/* を表現する。keyは階層を含むR2キーで、実装は残りのパス全体を使用する。OpenAPIの単一path parameterだけではcatch-allのルーティングを保証できない。本番画像URLはSHOP_ITEM_ASSET_BASE_URLから構成し、このローカル配信URLとは区別する。
+      x-hono-path: /assets/*
+      servers:
+      - url: http://localhost:8080
+        description: ローカルBackendの配信ルート
+      security: []
+      parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: 'R2キー（例: programs/<eventId>/<file>.webp）。階層パスの扱いはクライアントツール側で確認する。'
+      responses:
+        '200':
+          description: R2オブジェクトをそのまま返す。Content-Typeは保存されたhttpMetadata、未設定ならapplication/octet-stream。
+          headers:
+            Cache-Control:
+              schema:
+                const: public, max-age=31536000, immutable
+              description: 1年の公開キャッシュ。
+          content:
+            '*/*':
+              schema: {}
+        '404':
+          description: キーなし、またはオブジェクトがない。Honoの標準Not Found。
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: 404 Not Found
+        '500':
+          $ref: '#/components/responses/ServerError'
+components:
+  securitySchemes:
+    AuthCookie:
+      type: apiKey
+      in: cookie
+      name: auth_token
+      description: HS256 JWT。role=adminが必要なoperationではsecurity requirementにadminを指定する。BearerヘッダーではなくCookieで送る。
+    AccessCookie:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: 会期閲覧用HS256 JWT。event_idとx-event-idの一致が必要。
+  parameters:
+    EventId:
+      name: x-event-id
+      in: header
+      required: true
+      description: 対象会期UUID。access_token使用時はJWT event_idと一致。編集POSTのevent_idとも一致させる。
+      schema:
+        type: string
+        format: uuid
+    Id:
+      name: id
+      in: path
+      required: true
+      description: 対象レコードのUUID。コントローラーで検証する。
+      schema:
+        type: string
+        format: uuid
+    AccessCodeId:
+      name: id
+      in: path
+      required: true
+      description: 会期ID。通常はUUIDだが、このルートはパスのUUID形式を事前検証しない。
+      schema:
+        type: string
+    AccessCodeEventId:
+      name: x-event-id
+      in: header
+      required: false
+      description: access_tokenではJWTのevent_idと一致する値が必要。auth_token(admin)では省略可能。このAPIではUUID形式やパスidとの一致を検証しない。
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: 入力・ヘッダー・業務条件の検証に失敗。detailsはZod検証の場合に付与。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: 有効なCookieがない、署名/期限不正、イベント不一致、または認証操作の失敗。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: 管理者権限がない。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: 対象レコードまたはコピー元の部署がない。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: 部署を部屋割りまたはタイムテーブルで参照しているため削除できない。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ServerError:
+      description: 処理に失敗。ハンドラーのJSONエラーまたは未処理例外のHono標準text/plainエラー。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+        text/plain:
+          schema:
+            type: string
+          example: Internal Server Error
+  schemas:
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+          maxLength: 255
+          format: email
+          pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+        password:
+          type: string
+          minLength: 1
+      required:
+      - email
+      - password
+    ChangePasswordInput:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          minLength: 8
+      required:
+      - currentPassword
+      - newPassword
+    CreateUserInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          maxLength: 255
+          pattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
+        password:
+          type: string
+          minLength: 8
+        role:
+          default: user
+          type: string
+          minLength: 1
+          maxLength: 50
+      required:
+      - name
+      - email
+      - password
+      description: 現行実装はroleに任意の1〜50文字の文字列を受け付け、未指定時はuser。更新用role APIのenum制約とは異なる。
+    UpdateUserRoleInput:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+          - user
+          - admin
+      required:
+      - role
+    VerifyAccessCodeInput:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 50
+      required:
+      - code
+    CreateAccessCodeInput:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 50
+        eventName:
+          type: string
+          minLength: 1
+          maxLength: 255
+        validFrom:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        validTo:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+      required:
+      - code
+      - eventName
+      - validFrom
+      - validTo
+      description: validToはvalidFromより後。日時文字列はUTC（Z）のZod datetime条件に従う。
+    CreateTimetableInput:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        start_time:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        end_time:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        location:
+          default: ''
+          type: string
+          maxLength: 255
+        description:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+        is_public:
+          default: true
+          type: boolean
+        department_ids:
+          default: []
+          type: array
+          items:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      required:
+      - event_id
+      - title
+      - start_time
+      description: end_time省略時はstart_timeを使用。終了は開始以降。is_public=falseの場合、department_idsが1件以上必要。部署タグは同じ会期に属すること。
+      allOf:
+      - if:
+          properties:
+            is_public:
+              const: false
+          required:
+          - is_public
+        then:
+          properties:
+            department_ids:
+              minItems: 1
+          required:
+          - department_ids
+    UpdateTimetableInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        start_time:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        end_time:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        location:
+          type: string
+          maxLength: 255
+        description:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+        is_public:
+          type: boolean
+        department_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      anyOf:
+      - required:
+        - title
+      - required:
+        - start_time
+      - required:
+        - end_time
+      - required:
+        - location
+      - required:
+        - description
+      - required:
+        - is_public
+      - required:
+        - department_ids
+      description: 定義済み更新項目を1つ以上指定する。未知のキーはZodが除去するため、未知のキーだけでは更新できない。 更新後の終了は開始以降。全体向けか部署タグの少なくとも一方を有効にし、既存値との組合せも検証する。
+      allOf:
+      - if:
+          properties:
+            is_public:
+              const: false
+          required:
+          - is_public
+          - department_ids
+        then:
+          properties:
+            department_ids:
+              minItems: 1
+    CreateRoomInput:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        building_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        floor:
+          type: string
+          minLength: 1
+          maxLength: 50
+        room_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        pre_day_manager_id:
+          anyOf:
+          - type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          - type: 'null'
+        pre_day_purpose:
+          anyOf:
+          - type: string
+            maxLength: 255
+          - type: 'null'
+        day_manager_id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        day_purpose:
+          type: string
+          minLength: 1
+          maxLength: 255
+        notes:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+      required:
+      - event_id
+      - building_name
+      - floor
+      - room_name
+      - day_manager_id
+      - day_purpose
+    UpdateRoomInput:
+      type: object
+      properties:
+        building_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        floor:
+          type: string
+          minLength: 1
+          maxLength: 50
+        room_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        pre_day_manager_id:
+          anyOf:
+          - type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          - type: 'null'
+        pre_day_purpose:
+          anyOf:
+          - type: string
+            maxLength: 255
+          - type: 'null'
+        day_manager_id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        day_purpose:
+          type: string
+          minLength: 1
+          maxLength: 255
+        notes:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+      anyOf:
+      - required:
+        - building_name
+      - required:
+        - floor
+      - required:
+        - room_name
+      - required:
+        - pre_day_manager_id
+      - required:
+        - pre_day_purpose
+      - required:
+        - day_manager_id
+      - required:
+        - day_purpose
+      - required:
+        - notes
+      description: 定義済み更新項目を1つ以上指定する。未知のキーはZodが除去するため、未知のキーだけでは更新できない。
+    CreateProgramInput:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        location:
+          type: string
+          minLength: 1
+          maxLength: 255
+        start_time:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        end_time:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        description:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+        image_key:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 512
+          - type: 'null'
+      required:
+      - event_id
+      - name
+      - location
+      - start_time
+      - end_time
+      description: ' 終了時刻は開始時刻より後。image_keyはnullまたは programs/{x-event-id}/ で始まるキー。更新時は既存時刻と合わせて比較する。'
+    UpdateProgramInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        location:
+          type: string
+          minLength: 1
+          maxLength: 255
+        start_time:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        end_time:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        description:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+        image_key:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 512
+          - type: 'null'
+      anyOf:
+      - required:
+        - name
+      - required:
+        - location
+      - required:
+        - start_time
+      - required:
+        - end_time
+      - required:
+        - description
+      - required:
+        - image_key
+      description: 定義済み更新項目を1つ以上指定する。未知のキーはZodが除去するため、未知のキーだけでは更新できない。 終了時刻は開始時刻より後。image_keyはnullまたは
+        programs/{x-event-id}/ で始まるキー。更新時は既存時刻と合わせて比較する。
+    CreateShopItemInput:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        price:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        description:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+        image_key:
+          type: string
+          minLength: 1
+          maxLength: 512
+      required:
+      - event_id
+      - name
+      - price
+      - image_key
+      description: ' image_keyはshop-items/{x-event-id}/で始まるキー。'
+    UpdateShopItemInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        price:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        description:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+        image_key:
+          type: string
+          minLength: 1
+          maxLength: 512
+      anyOf:
+      - required:
+        - name
+      - required:
+        - price
+      - required:
+        - description
+      - required:
+        - image_key
+      description: 定義済み更新項目を1つ以上指定する。未知のキーはZodが除去するため、未知のキーだけでは更新できない。 image_keyはshop-items/{x-event-id}/で始まるキー。
+    CreateDepartmentInput:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+      required:
+      - event_id
+      - name
+    UpdateDepartmentInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+      anyOf:
+      - required:
+        - name
+      description: 定義済み更新項目を1つ以上指定する。未知のキーはZodが除去するため、未知のキーだけでは更新できない。
+    CopyDepartmentsInput:
+      type: object
+      properties:
+        source_event_id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      required:
+      - source_event_id
+      description: source_event_idはx-event-idのコピー先と異なる会期を指定する。同名部署はスキップし、コピー元の重複名を1件にまとめる。
+    CreateOtherItemInput:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+        image_key:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 512
+          - type: 'null'
+        display_order:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+      - event_id
+      - title
+      - content
+      - display_order
+      description: ' image_keyはothers/{x-event-id}/で始まるキー。'
+    UpdateOtherItemInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+        image_key:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 512
+          - type: 'null'
+        display_order:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      anyOf:
+      - required:
+        - title
+      - required:
+        - content
+      - required:
+        - image_key
+      - required:
+        - display_order
+      description: 定義済み更新項目を1つ以上指定する。未知のキーはZodが除去するため、未知のキーだけでは更新できない。 image_keyはothers/{x-event-id}/で始まるキー。
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        createdAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        updatedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        deletedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - id
+      - name
+      - email
+      - role
+      - createdAt
+      - updatedAt
+      - deletedAt
+    RegisteredUser:
+      allOf:
+      - $ref: '#/components/schemas/User'
+      - type: object
+        properties:
+          password:
+            type: string
+            description: 現行の登録レスポンスにはbcryptハッシュが含まれる。平文ではない。
+        required:
+        - password
+      description: CreateUserUseCaseがrepositoryの挿入結果をそのまま返す現行のレスポンス。ユーザー一覧はこのpasswordフィールドを除去する。
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+      required:
+      - id
+      - name
+      - email
+      - role
+    AccessCode:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        eventName:
+          type: string
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - id
+      - code
+      - eventName
+      - validFrom
+      - validTo
+      - createdBy
+      - createdAt
+    Department:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        createdAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        updatedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - id
+      - eventId
+      - name
+      - createdAt
+      - updatedAt
+    TimetableDepartment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+      - id
+      - name
+    TimetableItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        location:
+          type: string
+        description:
+          type:
+          - string
+          - 'null'
+        isPublic:
+          type: boolean
+        departments:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimetableDepartment'
+        createdAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        updatedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - id
+      - eventId
+      - title
+      - startTime
+      - endTime
+      - location
+      - description
+      - isPublic
+      - departments
+      - createdAt
+      - updatedAt
+    Room:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        buildingName:
+          type: string
+        floor:
+          type: string
+        roomName:
+          type: string
+        preDayManagerId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        preDayManagerName:
+          type:
+          - string
+          - 'null'
+        preDayPurpose:
+          type:
+          - string
+          - 'null'
+        dayManagerId:
+          type: string
+          format: uuid
+        dayManagerName:
+          type: string
+        dayPurpose:
+          type: string
+        notes:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        updatedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - id
+      - eventId
+      - buildingName
+      - floor
+      - roomName
+      - preDayManagerId
+      - preDayManagerName
+      - preDayPurpose
+      - dayManagerId
+      - dayManagerName
+      - dayPurpose
+      - notes
+      - createdAt
+      - updatedAt
+    Program:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        location:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        description:
+          type:
+          - string
+          - 'null'
+        imageKey:
+          type:
+          - string
+          - 'null'
+        imageUrl:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        updatedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - id
+      - eventId
+      - name
+      - location
+      - startTime
+      - endTime
+      - description
+      - imageKey
+      - imageUrl
+      - createdAt
+      - updatedAt
+    ShopItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        price:
+          type: integer
+        description:
+          type:
+          - string
+          - 'null'
+        imageKey:
+          type: string
+        imageUrl:
+          type: string
+        createdAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        updatedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - id
+      - eventId
+      - name
+      - price
+      - description
+      - imageKey
+      - imageUrl
+      - createdAt
+      - updatedAt
+    OtherItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: string
+        imageKey:
+          type:
+          - string
+          - 'null'
+        imageUrl:
+          type:
+          - string
+          - 'null'
+        displayOrder:
+          type: integer
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        updatedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - id
+      - eventId
+      - title
+      - content
+      - imageKey
+      - imageUrl
+      - displayOrder
+      - createdBy
+      - createdAt
+      - updatedAt
+    ValidationIssue:
+      type: object
+      properties:
+        code:
+          type: string
+        path:
+          type: array
+          items:
+            type:
+            - string
+            - integer
+        message:
+          type: string
+      required:
+      - code
+      - path
+      - message
+      additionalProperties: true
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationIssue'
+      required:
+      - error
+    Message:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+      - message
+    DeletedId:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+      required:
+      - id
+    UploadedImage:
+      type: object
+      properties:
+        imageKey:
+          type: string
+          description: アップロードしたR2キー。拡張子は元ファイル名から導出し、画像変換は行わない。
+      required:
+      - imageKey
+    CopyDepartmentsResult:
+      type: object
+      properties:
+        departments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Department'
+        createdCount:
+          type: integer
+          minimum: 0
+        skippedCount:
+          type: integer
+          minimum: 0
+      required:
+      - departments
+      - createdCount
+      - skippedCount
+    SearchResult:
+      type: object
+      properties:
+        timetable:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimetableItem'
+        rooms:
+          type: array
+          items:
+            $ref: '#/components/schemas/Room'
+        programs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Program'
+        shopItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShopItem'
+        otherItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/OtherItem'
+      required:
+      - timetable
+      - rooms
+      - programs
+      - shopItems
+      - otherItems
+    HealthOK:
+      type: object
+      properties:
+        status:
+          const: ok
+        db:
+          const: connected
+      required:
+      - status
+      - db
+    HealthUnavailable:
+      type: object
+      properties:
+        status:
+          const: error
+        db:
+          const: disconnected
+      required:
+      - status
+      - db
+    FileUpload:
+      type: object
+      properties:
+        file:
+          description: multipartのバイナリファイル。Fileとして受け取れるpartが必須。ファイルサイズ/MIMEのアプリ独自制限はない。
+      required:
+      - file
+x-source-revision: 572770dc2c8cc94b86117d0c9c414f67c19ecbee

@@ -22,7 +22,7 @@ Bunモノレポ。依存追加・スクリプト実行はBunを使う。
 - Worker名・binding・環境値: 各アプリの `wrangler.jsonc`。
 - CI/CD: `.github/workflows/`。PR形式: [.github/pull_request_template.md](.github/pull_request_template.md)。
 - ドキュメントの入口と資料の役割: [docs/README.md](docs/README.md)。
-- 画面/APIの現行仕様: 実装を確認して `docs/pages/`・`docs/apis/` を同期する。計画は `docs/tasks/`。
+- 画面/APIの現行仕様: 実装を確認して `docs/pages/`・`docs/apis/` を同期する。HTTP契約は `docs/apis/openapi.yaml` と `email-worker.openapi.yaml`（OpenAPI 3.2.1）へ記述し、Markdownは案内・補足とする。計画は `docs/tasks/`。
 - レイヤー構成、モック、MSW、CI/Renovateの詳細: [開発リファレンス](docs/development-guide.md)。必要な節だけ読む。
 
 ## SkillsとPluginsの使い分け

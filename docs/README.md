@@ -31,7 +31,7 @@
 
 ## API仕様
 
-[API一覧](apis/README.md)から認証条件とエンドポイントを確認し、各詳細へ進みます。[認証・ユーザー](apis/auth-users.md)、[アクセスコード](apis/access-codes.md)、[コンテンツ](apis/content.md)、[検索](apis/search.md)、[ヘルスチェック](apis/health.md)を扱います。
+[API案内](apis/README.md)から [BackendのOpenAPI 3.2.1](apis/openapi.yaml)と [Email Worker内部API](apis/email-worker.openapi.yaml)へ進みます。型・認証・リクエスト/レスポンスはYAML、以下のMarkdownは補足です。[認証・ユーザー](apis/auth-users.md)、[アクセスコード](apis/access-codes.md)、[コンテンツ](apis/content.md)、[検索](apis/search.md)、[ヘルスチェック](apis/health.md)を扱います。
 
 ## 利用手順
 

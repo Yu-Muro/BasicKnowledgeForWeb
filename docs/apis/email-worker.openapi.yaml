@@ -1,0 +1,86 @@
+openapi: 3.2.1
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: BasicKnowledgeForWeb Email Worker Internal API
+  version: '2026-10-14'
+  description: 公開APIではない。workers_dev=false。稼働環境ではbackendのEMAIL_WORKER Service Bindingから呼ぶ。HTTPの認証トークンは実装せず、到達可能性はCloudflareの配備・binding設定で制限する。URLホストを認可には使わない。
+x-internal: true
+x-service-binding: EMAIL_WORKER
+servers:
+- url: http://localhost:8789
+  description: ローカルの検証用。稼働環境に公開URLは定義しない。
+paths:
+  /internal/email/send:
+    post:
+      operationId: sendInternalEmail
+      summary: テンプレートメールを送信
+      description: email_verificationまたはlogin_otpを使い、6桁コードを宛先へ送る。コードの発行/期限/照合はこのWorkerの責務ではない。送信失敗時にこのWorkerは自動再試行しない。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEmailInput'
+            example:
+              to: user@example.com
+              template: email_verification
+              code: '123456'
+      responses:
+        '200':
+          description: メール送信bindingの呼び出し成功。宛先での受信確認ではない。
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    const: true
+                required:
+                - ok
+        '400':
+          description: JSONまたは宛先/テンプレート/コードが不正。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: invalid request body
+        '502':
+          description: Email Sendingで送信に失敗。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: email delivery failed
+components:
+  schemas:
+    SendEmailInput:
+      type: object
+      properties:
+        to:
+          type: string
+          maxLength: 254
+          pattern: ^[^\s@]+@[^\s@]+\.[^\s@]+$
+        template:
+          type: string
+          enum:
+          - email_verification
+          - login_otp
+        code:
+          type: string
+          pattern: ^\d{6}$
+      required:
+      - to
+      - template
+      - code
+      description: 追加プロパティは読み捨てる。
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+      - error
+x-source-revision: 572770dc2c8cc94b86117d0c9c414f67c19ecbee
