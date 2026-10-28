@@ -22,7 +22,7 @@
 
 - [Dependabot設定](../../.github/dependabot.yml)を追加し、BunとGitHub Actionsを毎日確認。PRの宛先は `develop`。
 - React・Cloudflare/OpenNext・テストツールのグループ化、Bunは原則7日・パッチ3日、GitHub Actionsは7日の待機、各エコシステム10件のPR上限を設定。
-- Bunのmajor・固定運用のDrizzle・内部パッケージ `backend` を除外。GitHub Actionsのmajorはグループから分離して手動レビュー。
+- 固定運用のDrizzle・内部パッケージ `backend` を除外。Bun・GitHub Actionsのmajorは個別PRを作成し、グループ更新・自動承認・自動マージから外して手動レビューする。
 - 自動マージをDependabot本人のminor/patchに限定。4ジョブ成功、メタデータ検証、実行時のPR再確認とコミットSHA一致を条件にする。major・空の更新種別・API失敗では承認もマージも行わない。
 - Renovate設定・workflowを撤去。旧 `dependabot-bun-lock.yml` やPATによる後追いコミットは復活させない。
 - 保留中のNext.jsセキュリティ修正15.5.28を適用。OpenNext 1.20.2の期限判定がNext.js 15の継続サポートに追随せずビルドが停止したため、修正版1.20.13も適用してBunで共通ロックを再生成する。サポート判定の無効化は行わない。ロック再生成時にも7日以上経過した版だけを選び、Safe Chainの待機期間検査を維持する。
@@ -40,7 +40,7 @@ Backend・Email Workerのアプリ本体と画面仕様は変更しない。Fron
 
 1. デフォルトブランチ `develop` にこの設定が反映されてからDependabotが有効になる。Issue #465のDashboardは、この移行PRのマージと合わせて閉じる。
 2. 最初のBun更新PRで、対象アプリの `package.json` と共通 `bun.lock` が整合していること、4ジョブとセキュリティチェックが成功することを確認する。lockfileだけを更新するPRではmanifest変更が不要な場合もある。
-3. minor/patchでは自動承認・マージの結果を、GitHub Actionsのmajorでは自動処理されないことを確認する。マージ後のdevデプロイも確認する。
+3. minor/patchでは自動承認・マージの結果を、Bun・GitHub Actionsのmajorでは自動処理されないことを確認する。マージ後のdevデプロイも確認する。
 4. 旧 `renovate/github-actions` / `renovate/npm-next-vulnerability` は、必要な未反映差分がないかを確認してから整理する。今回の変更でブランチは削除しない。
 5. 他の用途がないことを確認したうえで、Renovate専用Appと `RENOVATE_APP_PRIVATE_KEY` / `RENOVATE_APP_CLIENT_ID` / `RENOVATE_ACTOR` を整理できる。今回の変更で外部のsecret・変数・App設定は削除しない。
 6. 脆弱性情報や `bun audit` を確認し、修正は通常更新の待機を待たずに手動適用する。既存Dashboardで保留されていたNext.js更新も、この確認から除外しない。

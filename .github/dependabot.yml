@@ -19,17 +19,19 @@ updates:
       semver-minor-days: 7
       semver-patch-days: 3
     ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
       - dependency-name: "drizzle-orm"
       - dependency-name: "drizzle-kit"
       - dependency-name: "backend"
     groups:
+      # メジャー更新はグループに含めず、個別PRで手動レビューします。
       react:
         patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+        update-types: ["minor", "patch"]
       cloudflare:
         patterns: ["wrangler", "@cloudflare/*", "@opennextjs/*"]
+        update-types: ["minor", "patch"]
       test-tooling:
+        update-types: ["minor", "patch"]
         patterns:
           - "jest"
           - "@types/jest"

@@ -368,14 +368,14 @@ majorや空の更新種別は承認・マージとも実行しません。承認
 - PRは常に `develop` 向けです。現時点のデフォルトブランチも `develop` ですが、将来の変更に備えて `target-branch` を明示します。
 - React・Cloudflare/OpenNext・テストツールをそれぞれグループ化します。PR数の上限は各エコシステム10件です。
 - Bunの安定化待機は原則7日・パッチ3日、GitHub Actionsは7日です。GitHub ActionsはSemVer別の日数指定に対応していません。毎日の確認が、公開直後の即時更新を意味するわけではありません。
-- Bun依存のメジャー更新、`drizzle-orm` / `drizzle-kit`、内部パッケージ `backend` は自動更新対象外です。
-- GitHub Actionsのメジャー更新は個別PRを作り、手動でレビュー・マージします。minor/patchだけをグループ化します。ActionのSHA固定は維持します。
+- 固定運用の `drizzle-orm` / `drizzle-kit`、内部パッケージ `backend` は自動更新対象外です。
+- Bun依存・GitHub Actionsともにメジャー更新は個別PRを作り、手動でレビュー・マージします。minor/patchだけをグループ化・自動マージの対象にします。ActionのSHA固定は維持します。
 - コミット・PRタイトルには日本語のprefixを付けます。Dependabotが付加する定型文・本文は英語です。
 - Renovate本体・専用workflow・Dependency Dashboard・月次ロック再生成は廃止します。専用GitHub Appの管理も通常更新には不要です。
 
 **Bunのセキュリティ修正は手動対応です。** 2026-10-29時点のGitHub公式対応表では、Bunの通常更新は対応、脆弱性を起点とするセキュリティ修正PRは未対応です。ユーザー判断によりこの制約を許容し、通常更新を毎日にしています。Renovateの `osvVulnerabilityAlerts` 相当の即時修正PRは生成されません。
 
-脆弱性情報や `bun audit` の結果を確認し、必要な修正は通常更新の待機期間・メジャー除外・グループ更新を待たずに専用ブランチで適用してください。対象アプリの型検査・lint・テストとルートの `bun install --frozen-lockfile` を確認し、PRから反映します。GitHubのDependabot alerts設定は維持しますが、Bun依存の検知・修正をすべて保証するものとして扱わないでください。
+脆弱性情報や `bun audit` の結果を確認し、必要な修正は通常更新の待機期間・グループ更新を待たずに専用ブランチで適用してください。対象アプリの型検査・lint・テストとルートの `bun install --frozen-lockfile` を確認し、PRから反映します。GitHubのDependabot alerts設定は維持しますが、Bun依存の検知・修正をすべて保証するものとして扱わないでください。
 
 移行の根拠・初回更新の確認項目は [Dependabotへの復帰調査](research/dependabot-return-investigation.md) を参照してください。
 
