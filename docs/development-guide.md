@@ -341,7 +341,7 @@ Wranglerコマンド実行前には `wrangler` Skillを読み、対象設定・�
 | `deploy-dev.yml` | push → `develop` | email-worker deploy → DB migrate・backend deploy。frontend deploy は独立 (env: dev) |
 | `deploy-prod.yml` | push → `main` | email-worker deploy → DB migrate・backend deploy。frontend deploy は独立 (env: prod) |
 | `security-scan.yml` | PR 作成/更新時 | AikidoSec, Betterleaks, anti-trojan-source |
-| `renovate.yml` | 毎日 07:00 JST / 手動実行 | Renovate（セルフホスト）で依存更新 PR を作成。実際に PR を作るかは `renovate.json` の `schedule` が判定 |
+| Dependabot（`.github/dependabot.yml`） | 土日を含む毎日 07:00 JST | BunワークスペースとGitHub Actionsの通常更新PRを`develop`向けに作成 |
 
 ### PR チェック（`pull-request.yml`）— 4 並列ジョブ
 
@@ -350,33 +350,34 @@ Wranglerコマンド実行前には `wrangler` Skillを読み、対象設定・�
 3. **lint-and-test-frontend**: install → `build:cloudflare` → lint → type-check → jest
 4. **lint-and-test-email-worker**: install → build → lint → type-check（生成型チェックを含む）→ jest
 
-**Renovate 自動マージ**: `renovate-auto-merge` ジョブは、以下を **すべて** 満たす PR に限り、上記 4 ジョブの通過後に自動承認・自動マージします。1 つでも欠ければスキップする fail-closed 設計です。
+**Dependabot 自動マージ**: `dependabot-auto-merge` は上記4ジョブの成功後、以下をすべて満たすPRだけを自動承認・自動マージします。
 
-1. ブランチ名が `renovate/` で始まる
-2. PR 作成者が変数 `RENOVATE_ACTOR`（Renovate GitHub App の `<app-slug>[bot]`）と一致する
-3. ベースブランチが `develop`
-4. fork からの PR ではない
-5. `major-update` ラベルが付いていない（ジョブ実行時に API で再確認）
+1. 作成者が `dependabot[bot]`、ブランチ名が `dependabot/` で始まる
+2. 同一リポジトリの `develop` 向けPRである
+3. SHA固定した `dependabot/fetch-metadata` の検証が成功し、更新種別が明示的に `version-update:semver-minor` または `version-update:semver-patch` である
+4. 実行時のAPI再取得でも作成者・宛先・リポジトリ・未クローズ状態・検証対象のhead SHAが一致する
 
-条件 2 が無いと、書き込み権限を持つ利用者が `renovate/*` ブランチから PR を作るだけで通常のレビュー要件を迂回できてしまうため、実行主体の検証を必須にしています。条件 3 は、`main` へリターゲットされた PR が `develop` での検証と dev デプロイを飛ばして本番へ入ることを防ぎます。
+majorや空の更新種別は承認・マージとも実行しません。承認にはコミットSHAを指定し、マージにも `--match-head-commit` を指定して、CI後に差し替わったコミットを対象にしません。API失敗時も自動処理を中断します。必要な承認数・ステータスチェックなど、リポジトリの保護規則は維持します。
 
-条件 5 は `if:` のイベント payload 判定だけでは不十分です。Renovate は PR 作成と `addLabels` を別々の API 呼び出しで行うため、`opened` イベントの payload にはまだ `major-update` が載っていない場合があり、このワークフローは `labeled` では再実行されません。そのため承認・マージの直前に `gh pr view --json labels` で現在のラベルを取得して再判定します。この取得に失敗した場合はジョブごと失敗させ、承認・マージへ進ませません。
+### 依存関係の更新（Dependabot）
 
-### 依存関係の更新（Renovate）
+通常の依存更新は **Dependabot** が行います。設定の正本は [`.github/dependabot.yml`](../.github/dependabot.yml) です。
 
-依存パッケージの更新は **Renovate（セルフホスト）** で行います。設定は `renovate.json`、実行は `.github/workflows/renovate.yml` です。
+- Bunはルート `/` の1設定で `workspaces: ["apps/*"]` を検出し、全アプリの `package.json` と共通の `bun.lock` を扱います。アプリ単位の重複設定や、ロックファイルを後追いpushする回避workflow・PATは使用しません。
+- BunとGitHub Actionsを、土日を含む毎日07:00 JSTに確認します。Dependabotの `daily` は平日のみのため、`interval: cron` / `cronjob: "0 7 * * *"` / `timezone: Asia/Tokyo` を指定しています。実際の開始時刻はGitHub側の処理状況により遅れる場合があります。
+- PRは常に `develop` 向けです。現時点のデフォルトブランチも `develop` ですが、将来の変更に備えて `target-branch` を明示します。
+- React・Cloudflare/OpenNext・テストツールをそれぞれグループ化します。PR数の上限は各エコシステム10件です。
+- Bunの安定化待機は原則7日・パッチ3日、GitHub Actionsは7日です。GitHub ActionsはSemVer別の日数指定に対応していません。毎日の確認が、公開直後の即時更新を意味するわけではありません。
+- 固定運用の `drizzle-orm` / `drizzle-kit`、内部パッケージ `backend` は自動更新対象外です。
+- Bun依存・GitHub Actionsともにメジャー更新は個別PRを作り、手動でレビュー・マージします。minor/patchだけをグループ化・自動マージの対象にします。ActionのSHA固定は維持します。
+- コミット・PRタイトルには日本語のprefixを付けます。Dependabotが付加する定型文・本文は英語です。
+- Renovate本体・専用workflow・Dependency Dashboard・月次ロック再生成は廃止します。専用GitHub Appの管理も通常更新には不要です。
 
-- PR の向き先は `baseBranchPatterns: ["develop"]` により常に `develop`
-- Renovate 自身が `bun install` を実行し、**同一コミット内で `bun.lock` を更新**します（Dependabot 時代に必要だった `bun.lock` 更新用の回避ワークフローは廃止済み）
-- 保留中の更新は Dependency Dashboard Issue から確認できます
-- `drizzle-orm` / `drizzle-kit` は beta 固定運用のため更新対象外です
-- 依存パッケージのメジャー更新は `packageRules`（`matchUpdateTypes: ["major"]` → `enabled: false`）により PR 自体が作成されません
-- **GitHub Actions のメジャー更新のみ例外的に PR を作成します**（旧 `dependabot.yml` でも `github-actions` は major を除外していなかったため）。互換性破壊の可能性があるため別 PR に分離し、`major-update` ラベルを付けて自動マージ対象から外しています
-- ワークフローは毎日起動しますが、通常更新は `schedule: ["before 9am on monday"]` により週次のままです。Renovate の `schedule` は「bot の起動時刻」ではなく「ブランチを作成してよい時間帯」を制限する設定のため、週次起動にすると `lockFileMaintenance` の「毎月1日」の時間帯と交差しない月が生じてしまいます
-- **PR 数の制限は `prConcurrentLimit: 10` のみで、`prHourlyLimit` は `0`（無制限）です。** 通常更新のブランチ作成が許されるのは `schedule` により週 1 回（毎週月曜 07:00 JST の起動）だけなので、1 回の実行で作れる PR 数がそのまま週あたりの上限になります。移行前 90 日間の Dependabot マージ実績は 100 件（約 7.7 件/週）で、グルーピング後も週 5 件前後は見込まれるため、時間あたりの上限を残すと恒常的なバックログになります
-- **Renovate 本体のバージョンは `renovate.yml` の `renovate-version` で固定します。** `uses` の SHA 固定で止まるのは Action のラッパーだけで、本体は `action.yml` の既定値（メジャータグ `'44'`）が指す Docker イメージのため、固定しないと実行のたびに未検証のビルドを取得します。GitHub App は Workflows の書き込み権限を持つため、本体も明示的に固定します。更新は `renovate.json` の `customManagers` が `ghcr.io/renovatebot/renovate` の Docker タグとして PR で提案します（メジャー更新は `major-update` ラベル付きで自動マージ対象外）
-- Renovate は専用 GitHub App のインストールトークンで実行します。トークンはワークフローごとに発行され、PR 作成者は `<app-slug>[bot]` になります
-- `RENOVATE_PLATFORM_COMMIT: "enabled"` により GitHub API 経由でコミットし、GitHub App の署名を付けます
+**Bunのセキュリティ修正は手動対応です。** 2026-10-29時点のGitHub公式対応表では、Bunの通常更新は対応、脆弱性を起点とするセキュリティ修正PRは未対応です。ユーザー判断によりこの制約を許容し、通常更新を毎日にしています。Renovateの `osvVulnerabilityAlerts` 相当の即時修正PRは生成されません。
+
+脆弱性情報や `bun audit` の結果を確認し、必要な修正は通常更新の待機期間・グループ更新を待たずに専用ブランチで適用してください。対象アプリの型検査・lint・テストとルートの `bun install --frozen-lockfile` を確認し、PRから反映します。GitHubのDependabot alerts設定は維持しますが、Bun依存の検知・修正をすべて保証するものとして扱わないでください。
+
+移行の根拠・初回更新の確認項目は [Dependabotへの復帰調査](research/dependabot-return-investigation.md) を参照してください。
 
 ### 必須シークレット
 
@@ -386,17 +387,8 @@ Wranglerコマンド実行前には `wrangler` Skillを読み、対象設定・�
 | `CLOUDFLARE_ACCOUNT_ID` | デプロイワークフロー |
 | `DATABASE_URL` | デプロイワークフロー（db:migrate） |
 | `JWT_SECRET` | backend/frontend共通のJWT署名・検証。Workers secretとして管理 |
-| `RENOVATE_APP_PRIVATE_KEY` | Renovate 専用 GitHub App の秘密鍵（PEM）。リポジトリへコミットせず、Actions Secret に登録します |
 
-### 必須変数（Variables）
-
-| 変数 | 用途 |
-|---|---|
-| `RENOVATE_APP_CLIENT_ID` | Renovate 専用 GitHub App の Client ID。実行時のインストールトークン生成に使用します |
-| `RENOVATE_ACTOR` | Renovate GitHub App の `<app-slug>[bot]`。`pull-request.yml` の `renovate-auto-merge` が PR 作成者の検証に使用します。**未設定の場合、Renovate PR の自動マージは行われません**（fail-closed） |
-
-**⚠️ Renovate GitHub App は `BasicKnowledgeForWeb` のみにインストールしてください。**
-Repository permissions は Administration: Read-only、Checks / Commit statuses / Contents / Issues / Pull requests / Workflows: Read and write、Dependabot alerts: Read-only とします。インストールトークン生成時にも同じ権限を明示し、App に付与された権限を丸ごと継承しません。`RENOVATE_ACTOR` を App の bot アカウントに限定することで、書き込み権限を持つ利用者が `renovate/*` ブランチから PR を作ってレビュー要件を迂回する経路を閉じます。
+Dependabotへの切り替えがデフォルトブランチへ反映された後、Renovate専用の `RENOVATE_APP_PRIVATE_KEY` / `RENOVATE_APP_CLIENT_ID` / `RENOVATE_ACTOR` は不要です。旧GitHub Appの他の利用先を確認してから、不要な登録・権限を整理してください。これらの外部設定は本変更では削除していません。
 
 ## 環境変数
 
