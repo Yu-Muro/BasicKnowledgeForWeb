@@ -1,0 +1,58 @@
+version: 2
+
+updates:
+  # ルートの workspaces から apps/* と共通の bun.lock をまとめて更新します。
+  - package-ecosystem: "bun"
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      # daily は平日のみのため、土日を含む毎日 07:00 JST を cron で指定します。
+      interval: "cron"
+      cronjob: "0 7 * * *"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "chore(deps): 依存関係を更新"
+    cooldown:
+      default-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "drizzle-orm"
+      - dependency-name: "drizzle-kit"
+      - dependency-name: "backend"
+    groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      cloudflare:
+        patterns: ["wrangler", "@cloudflare/*", "@opennextjs/*"]
+      test-tooling:
+        patterns:
+          - "jest"
+          - "@types/jest"
+          - "ts-jest"
+          - "jest-environment-jsdom"
+          - "@testing-library/*"
+          - "msw"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      interval: "cron"
+      cronjob: "0 7 * * *"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "chore(deps): GitHub Actionsを更新"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]
+        # メジャー更新は個別PRにして手動レビューします。
+        update-types: ["minor", "patch"]

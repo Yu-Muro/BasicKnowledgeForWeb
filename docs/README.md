@@ -8,7 +8,7 @@
 |---|---|
 | 初回セットアップ・ローカル起動 | [プロジェクトREADME](../README.md) |
 | 作業規約・Skills・必須チェック・PR | [AGENTS.md](../AGENTS.md) |
-| レイヤー構成・テスト・CI・デプロイ・Renovate | [開発リファレンス](development-guide.md) |
+| レイヤー構成・テスト・CI・デプロイ・Dependabot | [開発リファレンス](development-guide.md) |
 | アプリ固有の設定とコマンド | [Backend](../apps/backend/README.md) / [Frontend](../apps/frontend/README.md) / [Email Worker](../apps/email-worker/README.md) |
 | メール認証を公開するための確認 | [Phase 5チェックリスト](checklists/phase5-email-auth-checklist.md) |
 
@@ -56,7 +56,8 @@
 ## 調査・過去の計画
 
 - [Cloudflare機能の導入検討](research/cloudflare-features-investigation.md): 2026年6月の調査。現在の制限・料金・機能は実行前に確認
-- [依存更新ツールの比較](research/dependency-management-comparison.md): 2026年8月の比較。採用後の運用は開発リファレンスとRenovate設定を参照
+- [Dependabotへの復帰調査](research/dependabot-return-investigation.md): 2026年10月の再調査・移行判断・初回確認手順
+- [依存更新ツールの比較](research/dependency-management-comparison.md): 2026年8月の比較。当時の判断記録。現在の運用は開発リファレンスとDependabot設定を参照
 - [Phase 4-6 部署ページの初期計画](archive/phase4-6-frontend-departments-page.md): 現行仕様は [12-departments](pages/12-departments.md)を参照
 - [Phase 5の初期実装プラン](archive/phase5-initial-plan.md): 設計の経緯を保存した資料。現行計画はPhase 5タスク文書を参照
 
