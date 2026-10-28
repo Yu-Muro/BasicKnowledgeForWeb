@@ -5,7 +5,7 @@
 - `apps/backend/wrangler.jsonc`（`placement` 設定）
 - Hyperdrive 設定（Cloudflare ダッシュボード / `wrangler hyperdrive`）
 - `apps/backend/src/infrastructure/repositories/**`（`NOW()` 等を含む GET クエリの調整）
-- `docs/implementation-plan.md`（キャッシュ方針の追記）
+- `docs/development-guide.md`（キャッシュ方針の追記）
 
 ## 目的
 
