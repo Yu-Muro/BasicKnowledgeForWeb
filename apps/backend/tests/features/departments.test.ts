@@ -1,43 +1,97 @@
-import type { Department, IDepartmentRepository } from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
+import type {
+    Department,
+    IDepartmentRepository,
+} from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
 import { beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { sign } from 'hono/jwt';
 import type { Env } from '@backend/src/db/connection';
 import { createTestAppWithDepartments } from '../helpers/createTestApp';
-import { department, departmentRepository } from '../helpers/departmentRepository';
+import {
+    department,
+    departmentRepository,
+} from '../helpers/departmentRepository';
 const env = { JWT_SECRET: 'test-secret' } as Env;
-async function cookie(role: string) { return `auth_token=${await sign({ id: 'actor', role, exp: Math.floor(Date.now()/1000)+3600 }, env.JWT_SECRET)}`; }
+async function cookie(role: string) {
+    return `auth_token=${await sign({ id: 'actor', role, exp: Math.floor(Date.now() / 1000) + 3600 }, env.JWT_SECRET)}`;
+}
 describe('共通部署 API', () => {
- it('登録前でも会期指定なしで部署一覧を取得できる', async () => {
-  const app = createTestAppWithDepartments(departmentRepository);
-  const res = await app.request('/api/departments', {}, env);
-  expect(res.status).toBe(200); expect(await res.json()).toEqual({ departments: [department] });
- });
- it('会期を切り替えても同じ一覧を返す', async () => {
-  const app = createTestAppWithDepartments(departmentRepository);
-  const first = await app.request('/api/departments', { headers: { 'x-event-id': 'first' } }, env);
-  const second = await app.request('/api/departments', { headers: { 'x-event-id': 'second' } }, env);
-  expect(await first.json()).toEqual(await second.json());
- });
- it('管理者が会期指定なしで部署を作成できる', async () => {
-  const create = jest.fn<typeof departmentRepository.create>().mockResolvedValue(department);
-  const app = createTestAppWithDepartments({ ...departmentRepository, create });
-  const res = await app.request('/api/departments', { method: 'POST', headers: { Cookie: await cookie('admin'), 'Content-Type': 'application/json' }, body: JSON.stringify({ name: '新部署' }) }, env);
-  expect(res.status).toBe(201); expect(create).toHaveBeenCalledWith({ name: '新部署' });
- });
- it.each(['POST', 'PUT', 'DELETE'])('一般ユーザーの %s を拒否する', async (method) => {
-  const app = createTestAppWithDepartments(departmentRepository);
-  const res = await app.request(method === 'POST' ? '/api/departments' : `/api/departments/${department.id}`, { method, headers: { Cookie: await cookie('user') } }, env);
-  expect(res.status).toBe(403);
- });
- it('参照中の部署を削除すると409を返す', async () => {
-  const app = createTestAppWithDepartments({ ...departmentRepository, delete: async () => { throw new Error('foreign key violation'); } });
-  const res = await app.request(`/api/departments/${department.id}`, { method: 'DELETE', headers: { Cookie: await cookie('admin') } }, env);
-  expect(res.status).toBe(409);
- });
- it('過去会期コピーAPIは廃止される', async () => {
-  const res = await createTestAppWithDepartments(departmentRepository).request('/api/departments/copy', { method: 'POST' }, env);
-  expect(res.status).toBe(404);
- });
+    it('登録前でも会期指定なしで部署一覧を取得できる', async () => {
+        const app = createTestAppWithDepartments(departmentRepository);
+        const res = await app.request('/api/departments', {}, env);
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ departments: [department] });
+    });
+    it('会期を切り替えても同じ一覧を返す', async () => {
+        const app = createTestAppWithDepartments(departmentRepository);
+        const first = await app.request(
+            '/api/departments',
+            { headers: { 'x-event-id': 'first' } },
+            env,
+        );
+        const second = await app.request(
+            '/api/departments',
+            { headers: { 'x-event-id': 'second' } },
+            env,
+        );
+        expect(await first.json()).toEqual(await second.json());
+    });
+    it('管理者が会期指定なしで部署を作成できる', async () => {
+        const create = jest
+            .fn<typeof departmentRepository.create>()
+            .mockResolvedValue(department);
+        const app = createTestAppWithDepartments({
+            ...departmentRepository,
+            create,
+        });
+        const res = await app.request(
+            '/api/departments',
+            {
+                method: 'POST',
+                headers: {
+                    Cookie: await cookie('admin'),
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name: '新部署' }),
+            },
+            env,
+        );
+        expect(res.status).toBe(201);
+        expect(create).toHaveBeenCalledWith({ name: '新部署' });
+    });
+    it.each(['POST', 'PUT', 'DELETE'])(
+        '一般ユーザーの %s を拒否する',
+        async (method) => {
+            const app = createTestAppWithDepartments(departmentRepository);
+            const res = await app.request(
+                method === 'POST'
+                    ? '/api/departments'
+                    : `/api/departments/${department.id}`,
+                { method, headers: { Cookie: await cookie('user') } },
+                env,
+            );
+            expect(res.status).toBe(403);
+        },
+    );
+    it('参照中の部署を削除すると409を返す', async () => {
+        const app = createTestAppWithDepartments({
+            ...departmentRepository,
+            delete: async () => {
+                throw new Error('foreign key violation');
+            },
+        });
+        const res = await app.request(
+            `/api/departments/${department.id}`,
+            { method: 'DELETE', headers: { Cookie: await cookie('admin') } },
+            env,
+        );
+        expect(res.status).toBe(409);
+    });
+    it('過去会期コピーAPIは廃止される', async () => {
+        const res = await createTestAppWithDepartments(
+            departmentRepository,
+        ).request('/api/departments/copy', { method: 'POST' }, env);
+        expect(res.status).toBe(404);
+    });
 });
 
 const JWT_SECRET = 'test-secret';
@@ -94,9 +148,7 @@ function createMockDepartmentRepository(
     overrides: Partial<IDepartmentRepository> = {},
 ): IDepartmentRepository {
     return {
-        findAll: jest
-            .fn<() => Promise<Department[]>>()
-            .mockResolvedValue([]),
+        findAll: jest.fn<() => Promise<Department[]>>().mockResolvedValue([]),
         create: jest
             .fn<IDepartmentRepository['create']>()
             .mockImplementation(() => Promise.resolve(dept1)),
@@ -265,7 +317,9 @@ describe('DELETE /api/departments/:id', () => {
             delete: jest
                 .fn<IDepartmentRepository['delete']>()
                 .mockImplementation(() =>
-                    Promise.reject(new Error('foreign key constraint violation')),
+                    Promise.reject(
+                        new Error('foreign key constraint violation'),
+                    ),
                 ),
         });
         const app = createTestAppWithDepartments(repo);
