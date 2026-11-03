@@ -6,7 +6,7 @@ import {
     toRateLimitSubject,
 } from '@backend/src/presentation/middleware/publicAuthRateLimit';
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
-import ts from 'typescript';
+import { type ParseError, parse } from 'jsonc-parser';
 
 afterEach(() => {
     jest.restoreAllMocks();
@@ -66,11 +66,9 @@ it('実設定のDev期間とRetry-Afterが一致し、本番とnamespaceを共�
         resolve(__dirname, '../../../wrangler.jsonc'),
         'utf8',
     );
-    const { config, error } = ts.parseConfigFileTextToJson(
-        'wrangler.jsonc',
-        source,
-    );
-    expect(error).toBeUndefined();
+    const errors: ParseError[] = [];
+    const config = parse(source, errors, { allowTrailingComma: true });
+    expect(errors).toEqual([]);
     const limiter = config.env.dev.ratelimits.find(
         (item: { name: string }) => item.name === 'PUBLIC_AUTH_RATE_LIMITER',
     );
@@ -96,11 +94,9 @@ it('実設定の値や書式に依存せずコメントと末尾カンマ付きJ
             },
         ],
     }`;
-    const { config, error } = ts.parseConfigFileTextToJson(
-        'fixture.jsonc',
-        source,
-    );
-    expect(error).toBeUndefined();
+    const errors: ParseError[] = [];
+    const config = parse(source, errors, { allowTrailingComma: true });
+    expect(errors).toEqual([]);
     expect(config).toEqual({
         ratelimits: [
             { namespace_id: 'test', simple: { limit: 30, period: 60 } },

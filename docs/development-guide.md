@@ -23,7 +23,7 @@
 [ ブラウザ ]
     │
     ├── reitaisai.info          → Cloudflare Workers: basic-knowledge-for-web-frontend
-    │       (OpenNext adapter)       Next.js 15 App Router
+    │       (OpenNext adapter)       Next.js 16 App Router
     │                                R2 bucket: next-cache (ISR cache)
     │
     └── reitaisai.info/api/*    → Cloudflare Workers: basic-knowledge-for-web-backend
@@ -97,8 +97,8 @@ tests/
 │   └── repositories/{domain}/*.test.ts              # repository 単体テスト（DatabaseClient をモック）
 ```
 
-- テストランナー: **Jest**（`ts-jest`）
-- テストコードの import: `@jest/globals`（グローバル依存しない）
+- テストランナー: **Jest**（`@swc/jest`）。型検査はTypeScript 7の `tsc` で別に実行する。
+- テストコードの import: `@jest/globals`。SWCによるmockの巻き上げが必要な `jest.mock` はグローバルの `jest` を使う。
 - パスエイリアス: `@backend/*` はbackendルートを指す（例: `@backend/src/use-cases/...`）。`tsconfig.json` を確認する。
 
 ### Backend — テスト戦略（テストピラミッド）
@@ -199,7 +199,7 @@ const res = await app.request('/api/users');
 | ファイル | 用途 |
 |---|---|
 | `tsconfig.json` | 本番用ソース（`src/`）のみ。`@cloudflare/workers-types` を使用し、`tests/` は除外。 |
-| `tsconfig.test.json` | Jest（`ts-jest`）用。`@types/jest` を使用し、`src/` + `tests/` を含む。 |
+| `tsconfig.test.json` | テストの型検査用。`@types/jest` を使用し、`src/` + `tests/` を含む。実行時の変換は `@swc/jest`。 |
 | `tests/tsconfig.json` | `tsconfig.test.json` を継承。VSCode がテストファイル向けに参照。 |
 
 **⚠️ 型衝突に注意:** `@cloudflare/workers-types` と `bun-types` は同じ tsconfig に含めないでください。
@@ -248,7 +248,7 @@ tests/
 └── authenticated/** / admin/**                   # 各ページ・コンポーネントのUIテスト
 ```
 
-**MSW v2 + Next.js 15 + jsdom の重要設定:**
+**MSW v2 + Next.js 16 + jsdom の重要設定:**
 
 Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です。
 
@@ -272,11 +272,13 @@ Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です�
    ```
 
 **⚠️ ハマりどころ:**
-- MSW v2 パッケージは pure ESM のため、`transformIgnorePatterns` へ追加して `ts-jest` 変換対象にする必要がある
+- MSW v2 パッケージは pure ESM のため、`transformIgnorePatterns` へ追加して `next/jest` のSWC変換対象にする必要がある
 - `customExportConditions` に `browser` を含めると Node 上で MSW の browser バンドルを読んで壊れる
 - `cross-fetch/polyfill` は MSW サーバー起動前に読み込む必要がある
 
 ### Frontend — TypeScript 設定
+
+TypeScript 7は従来のJavaScriptコンパイラAPIを提供しないため、Next.js 16.4.4のCLI型検査を使用する。Next.js 15と `ts-jest` へは戻さない。各アプリの `jest.config.ts` は `esbuild-register` で読み込む。削除された `baseUrl` は指定せず、`paths` の参照先は相対パスで記述する。
 
 | ファイル | 用途 |
 |---|---|

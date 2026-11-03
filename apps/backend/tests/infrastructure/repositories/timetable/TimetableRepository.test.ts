@@ -1,8 +1,8 @@
-import { describe, expect, it, jest } from '@jest/globals';
 import type { createDatabaseClient } from '@backend/src/db/connection';
-import { TimetableRepository } from '@backend/src/infrastructure/repositories/timetable/TimetableRepository';
 import { InvalidTimetableLaneSelectionError } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
+import { TimetableRepository } from '@backend/src/infrastructure/repositories/timetable/TimetableRepository';
 import { createIlikePattern } from '@backend/src/infrastructure/repositories/utils/escapeIlikePattern';
+import { describe, expect, it } from '@jest/globals';
 
 jest.mock(
     '@backend/src/infrastructure/repositories/utils/escapeIlikePattern',
@@ -21,9 +21,7 @@ const mockedCreateIlikePattern = createIlikePattern as jest.MockedFunction<
 
 describe('TimetableRepository', () => {
     it('findByEventId が start_time 昇順で select クエリを実行すること', async () => {
-        const orderBy = jest
-            .fn()
-            .mockImplementation(() => Promise.resolve([]));
+        const orderBy = jest.fn().mockImplementation(() => Promise.resolve([]));
         const where = jest.fn().mockReturnValue({ orderBy });
         const query = {
             leftJoin: jest.fn(),
@@ -47,9 +45,7 @@ describe('TimetableRepository', () => {
 
     it('search が createIlikePattern を経由して ILIKE 検索を組み立てること', async () => {
         mockedCreateIlikePattern.mockClear();
-        const orderBy = jest
-            .fn()
-            .mockImplementation(() => Promise.resolve([]));
+        const orderBy = jest.fn().mockImplementation(() => Promise.resolve([]));
         const where = jest.fn().mockReturnValue({ orderBy });
         const query = {
             leftJoin: jest.fn(),
@@ -105,20 +101,12 @@ describe('TimetableRepository', () => {
         };
         const resultQuery = {
             leftJoin: jest.fn(),
-            where: jest
-                .fn()
-                .mockImplementation(() => Promise.resolve([row])),
+            where: jest.fn().mockImplementation(() => Promise.resolve([row])),
         };
         resultQuery.leftJoin.mockReturnValue(resultQuery);
         const db = {
             transaction: jest
-                .fn<
-                    (
-                        callback: (
-                            executor: typeof tx,
-                        ) => Promise<unknown>,
-                    ) => Promise<unknown>
-                >()
+                .fn()
                 .mockImplementation(
                     (callback: (executor: typeof tx) => Promise<unknown>) =>
                         callback(tx),
@@ -158,13 +146,7 @@ describe('TimetableRepository', () => {
         };
         const db = {
             transaction: jest
-                .fn<
-                    (
-                        callback: (
-                            executor: typeof tx,
-                        ) => Promise<unknown>,
-                    ) => Promise<unknown>
-                >()
+                .fn()
                 .mockImplementation(
                     (callback: (executor: typeof tx) => Promise<unknown>) =>
                         callback(tx),

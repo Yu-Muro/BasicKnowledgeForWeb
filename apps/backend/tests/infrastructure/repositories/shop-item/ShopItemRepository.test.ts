@@ -1,7 +1,7 @@
-import { describe, expect, it, jest } from '@jest/globals';
 import type { createDatabaseClient } from '@backend/src/db/connection';
 import { ShopItemRepository } from '@backend/src/infrastructure/repositories/shop-item/ShopItemRepository';
 import { createIlikePattern } from '@backend/src/infrastructure/repositories/utils/escapeIlikePattern';
+import { describe, expect, it } from '@jest/globals';
 
 jest.mock(
     '@backend/src/infrastructure/repositories/utils/escapeIlikePattern',
@@ -19,9 +19,7 @@ const mockedCreateIlikePattern = createIlikePattern as jest.MockedFunction<
 
 describe('ShopItemRepository', () => {
     it('findByEventId が name 昇順で select クエリを実行すること', async () => {
-        const orderBy = jest
-            .fn()
-            .mockImplementation(() => Promise.resolve([]));
+        const orderBy = jest.fn().mockImplementation(() => Promise.resolve([]));
         const where = jest.fn().mockReturnValue({ orderBy });
         const from = jest.fn().mockReturnValue({ where });
         const db = {
@@ -39,9 +37,7 @@ describe('ShopItemRepository', () => {
 
     it('search が createIlikePattern を使って ILIKE 条件を構築すること', async () => {
         mockedCreateIlikePattern.mockClear();
-        const orderBy = jest
-            .fn()
-            .mockImplementation(() => Promise.resolve([]));
+        const orderBy = jest.fn().mockImplementation(() => Promise.resolve([]));
         const where = jest.fn().mockReturnValue({ orderBy });
         const from = jest.fn().mockReturnValue({ where });
         const db = {

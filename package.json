@@ -3,8 +3,11 @@
     "devDependencies": {
         "@biomejs/biome": "^2.6.3",
         "@cloudflare/workers-types": "^4.20260702.1",
+        "@swc/core": "^1.16.21",
+        "@swc/jest": "^0.2.39",
         "@types/jest": "^30.0.0",
         "@types/node": "^24.13.3",
+        "esbuild-register": "^3.6.0",
         "jest": "^30.5.2",
         "tsx": "^4.23.12",
         "wrangler": "^4.153.0"

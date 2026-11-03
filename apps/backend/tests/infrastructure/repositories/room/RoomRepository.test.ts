@@ -1,7 +1,7 @@
-import { describe, expect, it, jest } from '@jest/globals';
 import type { createDatabaseClient } from '@backend/src/db/connection';
 import { RoomRepository } from '@backend/src/infrastructure/repositories/room/RoomRepository';
 import { createIlikePattern } from '@backend/src/infrastructure/repositories/utils/escapeIlikePattern';
+import { describe, expect, it } from '@jest/globals';
 
 jest.mock(
     '@backend/src/infrastructure/repositories/utils/escapeIlikePattern',
@@ -19,9 +19,7 @@ const mockedCreateIlikePattern = createIlikePattern as jest.MockedFunction<
 
 describe('RoomRepository', () => {
     it('findByEventId が departments を JOIN して building_name/floor/room_name 昇順で select クエリを実行すること', async () => {
-        const orderBy = jest
-            .fn()
-            .mockImplementation(() => Promise.resolve([]));
+        const orderBy = jest.fn().mockImplementation(() => Promise.resolve([]));
         const where = jest.fn().mockReturnValue({ orderBy });
         const innerJoin = jest.fn().mockReturnValue({ where });
         const leftJoin = jest.fn().mockReturnValue({ innerJoin });
@@ -43,9 +41,7 @@ describe('RoomRepository', () => {
 
     it('search が createIlikePattern と JOIN 付きクエリを組み立てること', async () => {
         mockedCreateIlikePattern.mockClear();
-        const orderBy = jest
-            .fn()
-            .mockImplementation(() => Promise.resolve([]));
+        const orderBy = jest.fn().mockImplementation(() => Promise.resolve([]));
         const where = jest.fn().mockReturnValue({ orderBy });
         const innerJoin = jest.fn().mockReturnValue({ where });
         const leftJoin = jest.fn().mockReturnValue({ innerJoin });

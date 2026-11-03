@@ -1,6 +1,6 @@
 # Frontend Application
 
-Next.js 15 App Router + React 19 + Tailwind CSS v4のスタッフ閲覧・管理画面です。OpenNext経由でCloudflare Workersへ配備します。
+Next.js 16 App Router + React 19 + Tailwind CSS v4のスタッフ閲覧・管理画面です。OpenNext経由でCloudflare Workersへ配備します。
 
 ## ローカル開発
 
