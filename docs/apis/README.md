@@ -4,7 +4,7 @@ HTTP APIの型・パラメーター・認証・レスポンスは、以下のOpe
 
 | 文書 | 対象 |
 |---|---|
-| [openapi.yaml](openapi.yaml) | Backendの42 API操作とローカル画像配信1操作 |
+| [openapi.yaml](openapi.yaml) | Backendの45 API操作とローカル画像配信1操作 |
 | [email-worker.openapi.yaml](email-worker.openapi.yaml) | Service Binding経由の内部メール送信1操作 |
 
 規格は [OpenAPI Specification 3.2.1](https://spec.openapis.org/oas/v3.2.1.html)に固定しています。[latest](https://spec.openapis.org/oas/latest.html)の更新で、この文書の規格版を自動変更しません。Schema ObjectはJSON Schema Draft 2020-12を明示しています。
@@ -17,16 +17,16 @@ HTTP APIの型・パラメーター・認証・レスポンスは、以下のOpe
 - `components/schemas`に入力とレスポンスの型、`parameters`に会期ヘッダーとパスID、`responses`に共通エラーを定義しています。
 - Cookieは `apiKey` + `in: cookie`で記述しています。JWTでも送信場所はBearerヘッダーではありません。
 - `security`の複数要素はOR、同じ要素内はANDです。`AuthCookie: [admin]`はアプリの必要ロールを表し、OAuth scopeではありません。
-- 会期一致や日時比較、同一会期の部署、画像キーprefixはSchemaだけで表しきれないため、operation/入力schemaの説明も確認してください。
+- 会期一致や日時比較、部署の存在、画像キーprefixはSchemaだけで表しきれないため、operation/入力schemaの説明も確認してください。
 - 生のファイル/画像は3.2.1のバイナリ記述に沿って扱い、3.0向けの `format: binary` に依存しません。
 - Email Workerには公開prod/dev URLを記載しません。`security: []`はHTTPトークンを検証しない実装を表し、公開アクセスを許可する配備方針ではありません。
 - `/assets/{key}`はHonoの `/assets/*` の表現です。階層キーはcatch-allであり、通常のpath parameterだけではクライアント動作を保証できません。対象はローカルBackendの配信経路です。
 
 ## 現行実装で注意する違い
 
-- `GET /api/access-codes/{id}`はadmin認証なら `x-event-id`省略可。access_token認証ではJWTとのヘッダー一致が必要ですが、パスIDとの一致は検証していません。
-- `POST /api/users`はroleに任意の1〜50文字の文字列を受け付け、登録レスポンスにはpasswordのbcryptハッシュが含まれます。`GET /api/users`はpasswordを除去します。今回は現行仕様の記述のみ行い、これらの挙動は変更していません。
-- 入力不正のHTTPステータスは処理経路で異なります。登録APIのJSON解析失敗は500、他のJSON入力APIの多くは400です。
+- `GET /api/access-codes/{id}`はDBで管理者を確認できれば `x-event-id`省略可。access_token認証ではJWT・ヘッダー・パスIDの一致が必要です。
+- 公開登録はuserのみで部署必須です。passwordは返しません。削除済みメールは再利用できず、管理者による元のアカウントの復元を使います。
+- 認証APIはDB上の現在の状態を照合します。403は所属未設定などの利用条件、503は認証DB障害や部署統合待ちを表します。
 - 画像アップロードはFileとしての入力を要求しますが、独自のMIME/サイズ制限や変換処理はありません。キー拡張子と実データ型の一致を保証する仕様にはしていません。
 
 ## 操作一覧
@@ -43,6 +43,10 @@ HTTP APIの型・パラメーター・認証・レスポンスは、以下のOpe
 | GET | `/api/users` | auth_token(admin) | ユーザー一覧を取得 |
 | POST | `/api/users` | 不要 | ユーザーを登録 |
 | PUT | `/api/users/{id}/role` | auth_token(admin) | ユーザーのロールを変更 |
+| GET | `/api/users/deleted` | auth_token(admin) | 削除済みユーザー一覧 |
+| DELETE | `/api/users/{id}` | auth_token(admin) | ユーザーを論理削除 |
+| PUT | `/api/users/{id}/department` | auth_token(admin) | 所属部署を変更 |
+| POST | `/api/users/{id}/restore` | auth_token(admin) | 削除済みユーザーを復元 |
 | POST | `/api/access-codes/verify` | 不要 | アクセスコードを確認してaccess_tokenを発行 |
 | GET | `/api/access-codes` | auth_token(admin) | 管理用の会期一覧を取得 |
 | POST | `/api/access-codes` | auth_token(admin) | 会期とアクセスコードを作成 |
@@ -66,7 +70,7 @@ HTTP APIの型・パラメーター・認証・レスポンスは、以下のOpe
 | PUT | `/api/shop-items/{id}` | auth_token(admin) | 販売物を部分更新 |
 | DELETE | `/api/shop-items/{id}` | auth_token(admin) | 販売物を削除 |
 | POST | `/api/shop-items/upload` | auth_token(admin) | 販売物の画像をアップロード |
-| GET | `/api/departments` | access_token + 会期一致 または auth_token(admin) | 部署一覧を取得 |
+| GET | `/api/departments` | 不要 | 全会期共通の部署一覧を取得 |
 | POST | `/api/departments` | auth_token(admin) | 部署を作成 |
 | PUT | `/api/departments/{id}` | auth_token(admin) | 部署を部分更新 |
 | DELETE | `/api/departments/{id}` | auth_token(admin) | 部署を削除 |
@@ -75,7 +79,6 @@ HTTP APIの型・パラメーター・認証・レスポンスは、以下のOpe
 | PUT | `/api/others/{id}` | auth_token(admin) | その他情報を部分更新 |
 | DELETE | `/api/others/{id}` | auth_token(admin) | その他情報を削除 |
 | POST | `/api/others/upload` | auth_token(admin) | その他情報の画像をアップロード |
-| POST | `/api/departments/copy` | auth_token(admin) | 別会期の部署名をコピー |
 | GET | `/api/search` | access_token + 会期一致 または auth_token(admin) | 会期内のコンテンツを横断検索 |
 | GET | `/assets/{key}` | 不要 | ローカルBackendのR2画像配信 |
 
