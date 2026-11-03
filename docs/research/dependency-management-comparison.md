@@ -1,10 +1,10 @@
 # 依存関係更新ツール比較検討（Dependabot / Renovate / その他）
 
 > 区分: 2026-08-16時点の比較・移行提案。本文の「現状」は移行前の状態です。
-> 現在はセルフホストRenovateを使用しています。採用後の設定・運用は
-> [開発リファレンス](../development-guide.md)、[renovate.json](../../renovate.json)、
-> [Renovate workflow](../../.github/workflows/renovate.yml)を参照してください。
-> 比較中の提供状況・料金・不具合の状態は、再検討時に再確認します。
+> 現在はDependabotへ戻す方針です。本文の不具合状態・採否は当時の記録であり、現行仕様を示しません。
+> 2026-10-29の[再調査・移行判断](dependabot-return-investigation.md)、
+> [開発リファレンス](../development-guide.md)、[Dependabot設定](../../.github/dependabot.yml)を参照してください。
+> 当時のRenovate設定・workflowはGit履歴に保存されています。
 
 > 対象リポジトリ: `basic-knowledge-for-web`（Bun モノレポ / Cloudflare Workers / GitHub Actions）
 > 作成日: 2026-08-16
