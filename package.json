@@ -10,7 +10,7 @@
         "esbuild-register": "^3.6.0",
         "jest": "^30.5.2",
         "tsx": "^4.23.12",
-        "wrangler": "^4.153.0"
+        "wrangler": "^4.154.0"
     },
     "private": true,
     "workspaces": [
