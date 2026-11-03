@@ -104,6 +104,12 @@ jobs:
           cd apps/frontend
           bun run build:cloudflare
 
+      - name: Validate frontend Worker bundles
+        run: |
+          cd apps/frontend
+          bun run wrangler deploy --dry-run --env dev
+          bun run wrangler deploy --dry-run --env prod
+
       - name: Lint frontend code
         run: |
           cd apps/frontend

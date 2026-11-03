@@ -26,6 +26,7 @@
 - 自動マージをDependabot本人のminor/patchに限定。4ジョブ成功、メタデータ検証、実行時のPR再確認とコミットSHA一致を条件にする。major・空の更新種別・API失敗では承認もマージも行わない。
 - Renovate設定・workflowを撤去。旧 `dependabot-bun-lock.yml` やPATによる後追いコミットは復活させない。
 - 保留中のNext.jsセキュリティ修正15.5.28を適用。OpenNext 1.20.2の期限判定がNext.js 15の継続サポートに追随せずビルドが停止したため、修正版1.20.13も適用してBunで共通ロックを再生成する。サポート判定の無効化は行わない。ロック再生成時にも7日以上経過した版だけを選び、Safe Chainの待機期間検査を維持する。
+- OpenNext 1.20.13のpeer dependencyに合わせ、ルートのWranglerを `^4.148.0` へ更新して共通ロックとEmail Workerの生成型を同期する。FrontendのPRチェックにもdev/prod両環境の `wrangler deploy --dry-run` を追加する。
 - 日本語prefixを設定する。Dependabotの固定文言・本文は英語となる。
 
 ## 検証範囲
