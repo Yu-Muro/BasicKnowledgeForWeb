@@ -57,7 +57,7 @@ const CONTENT_PATHS = [
 const USER_AUTH_PATHS = ['/dashboard'];
 
 // 管理者専用ルート
-const ADMIN_PATHS = ['/admin'];
+const ADMIN_PATHS = ['/admin', '/departments'];
 
 // 公開ページ（認証不要）
 const PUBLIC_PATHS = ['/login', '/register', '/access'];
@@ -162,7 +162,16 @@ async function protectRoute(request: NextRequest) {
             return NextResponse.next();
         // admin はユーザー認証で通過
         if (authToken) {
-            const auth = await verifyAuthToken(authToken);
+            const auth = await verifyAuthToken(authToken).catch(
+                (error: unknown) => {
+                    if (
+                        error instanceof AuthLookupError &&
+                        error.status === 403
+                    )
+                        return null;
+                    throw error;
+                },
+            );
             if (auth?.role === 'admin') {
                 debugLog('allow content with admin token', {
                     pathname,

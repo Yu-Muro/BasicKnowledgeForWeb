@@ -280,6 +280,45 @@ describe('現在のアカウント状態による保護', () => {
 });
 
 describe('認証の一時障害と会期閲覧', () => {
+    it.each(['/', '/rooms', '/timetable'])(
+        '%sで所属未設定なら会期コードの入力へ誘導する',
+        async (path) => {
+            mockVerify.mockResolvedValue(adminPayload);
+            mockBackendFetch.mockResolvedValue(
+                new Response('{}', { status: 403 }),
+            );
+            const response = await middleware(
+                createRequest(path, { auth_token: 'old.token' }),
+            );
+            expect(response.status).toBe(307);
+            expect(response.headers.get('location')).toContain('/access');
+        },
+    );
+    it.each([403, 503])(
+        '/departmentsは認証エラー%sを専用の案内で表示する',
+        async (status) => {
+            mockVerify.mockResolvedValue(adminPayload);
+            mockBackendFetch.mockResolvedValue(new Response('{}', { status }));
+            const response = await middleware(
+                createRequest('/departments', { auth_token: 'old.token' }),
+            );
+            expect(response.status).toBe(status);
+            expect(await response.text()).toContain(
+                status === 403 ? '管理者に' : '再試行',
+            );
+        },
+    );
+    it('/departmentsは一般ユーザーを管理画面へ通さない', async () => {
+        mockVerify.mockResolvedValue({ ...adminPayload, role: 'user' });
+        mockBackendFetch.mockResolvedValue(
+            new Response(JSON.stringify({ ...adminPayload, role: 'user' })),
+        );
+        const response = await middleware(
+            createRequest('/departments', { auth_token: 'user.token' }),
+        );
+        expect(response.status).toBe(307);
+        expect(response.headers.get('location')).toContain('/login');
+    });
     it.each(['/dashboard', '/admin/access-codes', '/rooms'])(
         '%sで503ならログイン画面へ転送せず再試行を案内する',
         async (path) => {
