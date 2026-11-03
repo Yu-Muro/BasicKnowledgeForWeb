@@ -230,7 +230,8 @@ components/
 
 **主要パターン:**
 - `app/lib/serverAuth.ts` の `resolveAuth` / `buildContentFetchHeaders` でトークン・`x-event-id` を一元管理
-- `app/lib/backendFetch.ts` は Cloudflare の `BACKEND` service binding が使える場合に優先利用し、ローカルでは通常の `fetch` にフォールバック
+- `app/lib/backendFetch.ts` は Cloudflare の `BACKEND` service binding がある場合に利用し、bindingがない環境では通常の `fetch` を使う。bindingの通信失敗時はHTTPで再送しない
+- Backend通信先は `NEXT_PUBLIC_API_URL` のoriginに限定し、別origin・URL内の認証情報・リダイレクトを拒否する。ログは固定メッセージと構造化データに分け、URL内の書式指定子を解釈させない
 - `app/utils/client.ts` で `hc<AppType>(NEXT_PUBLIC_API_URL)` を生成し、E2E 型安全を担保
 - フォーム系 UI は `react-hook-form` + `zodResolver` + backend 共有 Zod schema を優先
 
