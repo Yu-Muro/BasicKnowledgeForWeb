@@ -359,6 +359,8 @@ Wranglerコマンド実行前には `wrangler` Skillを読み、対象設定・�
 
 majorや空の更新種別は承認・マージとも実行しません。承認にはコミットSHAを指定し、マージにも `--match-head-commit` を指定して、CI後に差し替わったコミットを対象にしません。API失敗時も自動処理を中断します。必要な承認数・ステータスチェックなど、リポジトリの保護規則は維持します。
 
+複数PRのマージが重なり、GitHubが `Base branch was modified` を返した場合だけ、5秒待って最大3回までマージを試行します。head SHAの固定は維持し、それ以外のエラーや3回目の失敗はジョブを失敗させます。
+
 ### 依存関係の更新（Dependabot）
 
 通常の依存更新は **Dependabot** が行います。設定の正本は [`.github/dependabot.yml`](../.github/dependabot.yml) です。
