@@ -1,7 +1,7 @@
 {
     "name": "basic-knowledge-for-web",
     "devDependencies": {
-        "@biomejs/biome": "^2.5.7",
+        "@biomejs/biome": "^2.6.3",
         "@cloudflare/workers-types": "^4.20260702.1",
         "@types/jest": "^30.0.0",
         "@types/node": "^24.13.3",
