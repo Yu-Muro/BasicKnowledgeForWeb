@@ -9,7 +9,7 @@ Bunモノレポとして、3つのアプリをCloudflare Workersで動かしま�
 | アプリ | 役割 | 主な技術 |
 |---|---|---|
 | [Backend](apps/backend/README.md) | API、認証、会期別データ、画像 | Hono、Drizzle、CockroachDB、Hyperdrive、R2 |
-| [Frontend](apps/frontend/README.md) | スタッフ閲覧・管理画面 | Next.js 15、React 19、Tailwind v4、OpenNext |
+| [Frontend](apps/frontend/README.md) | スタッフ閲覧・管理画面 | Next.js 16、React 19、Tailwind v4、OpenNext |
 | [Email Worker](apps/email-worker/README.md) | Service Binding経由の内部メール送信 | Cloudflare Email Service |
 
 メール送信基盤は実装済みです。メール検証・OTPログイン・信頼デバイスは[Phase 5の計画](docs/tasks/phase5-email-auth-with-email-worker.md)であり、現行のログイン仕様とは区別します。

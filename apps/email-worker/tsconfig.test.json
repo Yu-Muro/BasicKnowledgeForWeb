@@ -8,7 +8,6 @@
         "lib": ["ESNext"],
         "types": ["jest", "node", "./worker-configuration.d.ts"],
         "esModuleInterop": true,
-        "baseUrl": ".",
         "paths": {
             "@email-worker/*": ["./*"]
         }

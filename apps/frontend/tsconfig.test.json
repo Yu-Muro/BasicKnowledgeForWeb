@@ -13,9 +13,8 @@
         "isolatedModules": true,
         "jsx": "preserve",
         "types": ["jest", "@testing-library/jest-dom"],
-        "baseUrl": "./",
         "paths": {
-            "@frontend/*": ["*"],
+            "@frontend/*": ["./*"],
             "@backend/*": ["../backend/*"]
         }
     },
