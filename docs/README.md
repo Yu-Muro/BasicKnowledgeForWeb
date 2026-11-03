@@ -8,6 +8,7 @@
 |---|---|
 | 初回セットアップ・ローカル起動 | [プロジェクトREADME](../README.md) |
 | 作業規約・Skills・必須チェック・PR | [AGENTS.md](../AGENTS.md) |
+| サポート対象・脆弱性の非公開報告 | [セキュリティポリシー](../SECURITY.md) |
 | レイヤー構成・テスト・CI・デプロイ・Dependabot | [開発リファレンス](development-guide.md) |
 | アプリ固有の設定とコマンド | [Backend](../apps/backend/README.md) / [Frontend](../apps/frontend/README.md) / [Email Worker](../apps/email-worker/README.md) |
 | メール認証を公開するための確認 | [Phase 5チェックリスト](checklists/phase5-email-auth-checklist.md) |

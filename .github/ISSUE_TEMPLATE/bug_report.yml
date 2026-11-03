@@ -8,6 +8,7 @@ body:
       attributes:
           value: |
               ご報告ありがとうございます。再現に必要な情報をできるだけ具体的に記載してください。
+              セキュリティ上の問題は、この公開フォームへ書かず、[非公開報告フォーム](https://github.com/Yu-Muro/BasicKnowledgeForWeb/security/advisories/new)を使用してください。
 
     - type: input
       id: summary
