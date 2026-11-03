@@ -217,7 +217,21 @@ jobs:
         if: >-
           steps.metadata.outputs.update-type == 'version-update:semver-minor'
           || steps.metadata.outputs.update-type == 'version-update:semver-patch'
-        run: gh pr merge --auto --merge --match-head-commit "$PR_HEAD_SHA" "$PR_URL"
+        # 複数PRのマージが重なるとbase更新との競合で失敗するため、その場合だけ再試行します。
+        # headの固定は維持し、権限不足やチェック失敗などは再試行しません。
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if output="$(gh pr merge --auto --merge --match-head-commit "$PR_HEAD_SHA" "$PR_URL" 2>&1)"; then
+              printf '%s\n' "$output"
+              exit 0
+            fi
+            printf '%s\n' "$output" >&2
+            if [[ "$output" != *"Base branch was modified"* || "$attempt" == 3 ]]; then
+              exit 1
+            fi
+            sleep 5
+          done
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
