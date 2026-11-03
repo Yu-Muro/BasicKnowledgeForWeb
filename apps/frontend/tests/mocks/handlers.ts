@@ -1,6 +1,35 @@
 import { http, HttpResponse } from 'msw';
 
 export const handlers = [
+    http.get('http://localhost:8080/api/auth/me', ({ request }) => {
+        const token = /auth_token=([^;]+)/.exec(
+            request.headers.get('cookie') ?? '',
+        )?.[1];
+        if (!token)
+            return HttpResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 },
+            );
+        try {
+            return HttpResponse.json(
+                JSON.parse(
+                    Buffer.from(token.split('.')[1], 'base64url').toString(),
+                ),
+            );
+        } catch {
+            return HttpResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 },
+            );
+        }
+    }),
+    http.get('http://localhost:8080/api/departments', () =>
+        HttpResponse.json({
+            departments: [
+                { id: '60000000-0000-4000-8000-000000000001', name: '企画部' },
+            ],
+        }),
+    ),
     http.post('http://localhost:8080/api/users', async ({ request }) => {
         const body = (await request.json()) as {
             name: string;
@@ -46,7 +75,10 @@ export const handlers = [
             body.email === 'admin@example.com' &&
             body.password === 'password123'
         ) {
-            return HttpResponse.json({ message: 'ログインしました' }, { status: 200 });
+            return HttpResponse.json(
+                { message: 'ログインしました' },
+                { status: 200 },
+            );
         }
 
         return HttpResponse.json(

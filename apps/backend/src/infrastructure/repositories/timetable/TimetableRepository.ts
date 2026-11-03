@@ -92,10 +92,7 @@ export class TimetableRepository implements ITimetableRepository {
             )
             .leftJoin(
                 departments,
-                and(
-                    eq(departments.id, timetableItemDepartments.departmentId),
-                    eq(departments.eventId, timetableItems.eventId),
-                ),
+                and(eq(departments.id, timetableItemDepartments.departmentId)),
             )
             .where(eq(timetableItems.eventId, eventId))
             .orderBy(asc(timetableItems.startTime), asc(departments.name));
@@ -134,10 +131,7 @@ export class TimetableRepository implements ITimetableRepository {
             )
             .leftJoin(
                 departments,
-                and(
-                    eq(departments.id, timetableItemDepartments.departmentId),
-                    eq(departments.eventId, timetableItems.eventId),
-                ),
+                and(eq(departments.id, timetableItemDepartments.departmentId)),
             )
             .where(
                 and(
@@ -181,10 +175,7 @@ export class TimetableRepository implements ITimetableRepository {
             )
             .leftJoin(
                 departments,
-                and(
-                    eq(departments.id, timetableItemDepartments.departmentId),
-                    eq(departments.eventId, timetableItems.eventId),
-                ),
+                and(eq(departments.id, timetableItemDepartments.departmentId)),
             )
             .where(
                 and(
@@ -358,7 +349,7 @@ export class TimetableRepository implements ITimetableRepository {
 
     private async assertDepartmentsExist(
         db: DepartmentLookupExecutor,
-        eventId: string,
+        _eventId: string,
         departmentIds: string[],
     ): Promise<void> {
         const uniqueDepartmentIds = Array.from(new Set(departmentIds));
@@ -367,12 +358,7 @@ export class TimetableRepository implements ITimetableRepository {
         const rows = await db
             .select({ id: departments.id })
             .from(departments)
-            .where(
-                and(
-                    eq(departments.eventId, eventId),
-                    inArray(departments.id, uniqueDepartmentIds),
-                ),
-            );
+            .where(and(inArray(departments.id, uniqueDepartmentIds)));
 
         if (rows.length !== uniqueDepartmentIds.length) {
             throw new InvalidDepartmentIdsError();

@@ -11,6 +11,7 @@ describe('createUserSchema', () => {
         name: 'テストユーザー',
         email: 'test@example.com',
         password: 'password123',
+        departmentId: '60000000-0000-4000-8000-000000000001',
     };
 
     it('正常な入力を受け付ける', () => {
@@ -25,11 +26,11 @@ describe('createUserSchema', () => {
         expect(result.data.role).toBe('user');
     });
 
-    it('roleを明示指定できる', () => {
-        const result = createUserSchema.safeParse({ ...validInput, role: 'admin' });
-        expect(result.success).toBe(true);
-        if (!result.success) return;
-        expect(result.data.role).toBe('admin');
+    it('管理者としての自己登録を拒否する', () => {
+        expect(createUserSchema.safeParse({ ...validInput, role: 'admin' }).success).toBe(false);
+    });
+    it('部署未指定での登録を拒否する', () => {
+        expect(createUserSchema.safeParse({ ...validInput, departmentId: undefined }).success).toBe(false);
     });
 
     it('nameが空文字の場合はエラーになる', () => {

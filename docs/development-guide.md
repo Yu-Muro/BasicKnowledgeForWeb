@@ -230,7 +230,8 @@ components/
 
 **主要パターン:**
 - `app/lib/serverAuth.ts` の `resolveAuth` / `buildContentFetchHeaders` でトークン・`x-event-id` を一元管理
-- `app/lib/backendFetch.ts` は Cloudflare の `BACKEND` service binding が使える場合に優先利用し、ローカルでは通常の `fetch` にフォールバック
+- `app/lib/backendFetch.ts` は Cloudflare の `BACKEND` service binding がある場合に利用し、bindingがない環境では通常の `fetch` を使う。bindingの通信失敗時はHTTPで再送しない
+- Backend通信先は `NEXT_PUBLIC_API_URL` のoriginに限定し、別origin・URL内の認証情報・リダイレクトを拒否する。ログは固定メッセージと構造化データに分け、URL内の書式指定子を解釈させない
 - `app/utils/client.ts` で `hc<AppType>(NEXT_PUBLIC_API_URL)` を生成し、E2E 型安全を担保
 - フォーム系 UI は `react-hook-form` + `zodResolver` + backend 共有 Zod schema を優先
 
@@ -449,12 +450,12 @@ JWT ベース認証を採用しており、トークンは 2 種類あります�
 
 ### コンテンツアクセスミドルウェア
 
-`contentAccessMiddleware` (`src/presentation/middleware/contentAccessMiddleware.ts`) は全コンテンツ GET API に適用する。
+`contentAccessMiddleware` (`src/presentation/middleware/contentAccessMiddleware.ts`) は会期コンテンツ GET API に適用する。全会期共通の部署一覧は認証・会期指定不要。
 
 以下のいずれかを満たすリクエストのみ通過させる:
 
 1. **access_token 認証**: `access_token` Cookie の JWT が有効、かつ `payload.event_id === x-event-id` ヘッダーの値
-2. **auth_token 認証**: `auth_token` Cookie の JWT が有効、かつ `payload.role === 'admin'`
+2. **auth_token 認証**: JWTの署名・期限が有効で、DB上の現在のユーザーがadmin。削除状態・部署・セッション世代も確認する。
 
 `role=user` の `auth_token` はコンテンツ API を通過できない。一般ユーザーは `access_token` が必要。
 どちらも満たさない場合は `401 Unauthorized` を返す。
@@ -474,11 +475,17 @@ Feature テストでは `app.request(path, { headers }, mockEnv)` の第3引数�
 `access_token`（event一致）または `auth_token(admin)` のみ通過する。
 より細かい RBAC が必要な場合は use case 層に追加する。
 
-### Soft Delete（今後対応）
+### ユーザーの部署・削除・復元
+
+部署は全会期共通。一般ユーザーの所属は必須で、既存の未所属ユーザーは管理者が指定するまで認証を制限する。部署管理・ユーザー削除・ロール変更・所属変更・復元は管理者専用。削除時に所属を解除し、メールの再利用は禁止する。復元は同じアカウントを使い、セッション世代を進めて古いログイン状態を拒否する。
+
+公開の `/login`・`/access` はアカウント確認の403/503で入力経路を塞がない。会期トークンのないコンテンツ画面では403を `/access` へ誘導し、503は再試行を案内する。管理画面（`/departments`を含む）は403で管理者への確認を案内する。
+
+### Soft Deleteの拡張
 
 現時点で `deleted_at` を持つのは `users` テーブルのみ。
 今後ほかのテーブルへ広げる場合は次を適用する:
-- `findAll` / `findByEmail` などの取得クエリに `.where(isNull(table.deletedAt))` を追加する
+- 通常一覧や認証対象から削除済み行を除外する。ただし、メール再利用の禁止を確認する `findByEmail` と復元用一覧は削除済み行も扱う
 - 削除エンドポイントは `DELETE` ではなく `UPDATE ... SET deleted_at = now()` を使う
 - soft delete 済みレコードを API レスポンスに含めない
 
@@ -520,6 +527,7 @@ use case の返り値は必ず `{ success: true; data: T } | { success: false; e
 ### Cloudflare Workers の制約
 
 - モジュールレベルのグローバル状態は同一 Worker インスタンス内でリクエストをまたいで残るため注意する。DB 接続はリクエストごとに作成する設計（接続プールは Hyperdrive が管理）。
+- リクエスト内のrepositoryは必須のDB providerで同じpg Poolを共有する。最大5接続、接続待ちは5秒とし、検索の5クエリを並列実行できるようにする。終了はWorkersでは `waitUntil` に渡し、テスト等ではawaitする。終了失敗は診断コードをログに残し、接続情報やSQLは記録しない。
 - Workers 用 tsconfig に `bun-types` を含めると `@cloudflare/workers-types` と `Response` / `Body` が競合する。production tsconfig は `@cloudflare/workers-types` のみを使用。
 - `nodejs_compat` フラグを有効化しているため、Node.js 組み込み（`crypto`, `buffer` など）が利用可能。
 

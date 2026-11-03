@@ -87,6 +87,7 @@ jobs:
         run: |
           cd apps/backend
           bun run db:migrate
+          bun run db:test:departments
 
   lint-and-test-frontend:
     runs-on: ubuntu-latest

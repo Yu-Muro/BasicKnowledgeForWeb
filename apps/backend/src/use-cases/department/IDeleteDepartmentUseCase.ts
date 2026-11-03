@@ -1,6 +1,5 @@
 export type DeleteDepartmentInput = {
     id: string;
-    eventId: string;
 };
 
 export type DeleteDepartmentResult =

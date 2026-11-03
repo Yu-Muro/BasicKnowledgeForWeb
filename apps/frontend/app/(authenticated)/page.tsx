@@ -61,8 +61,10 @@ export default async function HomePage({
     searchParams: Promise<{ event_id?: string }>;
 }) {
     const { event_id } = await searchParams;
-    const { eventId, authToken, accessToken, role } =
-        await resolveAuth(event_id);
+    const { eventId, authToken, accessToken, role } = await resolveAuth(
+        event_id,
+        { allowAccessFallback: true },
+    );
 
     const eventName = eventId
         ? await fetchEventName(eventId, authToken, accessToken, role)

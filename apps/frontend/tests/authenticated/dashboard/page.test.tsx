@@ -160,6 +160,7 @@ describe('DashboardPage', () => {
         render(element);
 
         expect(screen.queryByText('ユーザー管理')).not.toBeInTheDocument();
+        expect(screen.queryByText('削除済みユーザー')).not.toBeInTheDocument();
         expect(screen.queryByText('管理メニュー')).not.toBeInTheDocument();
         expect(
             screen.queryByText('アクセスコード管理 →'),
@@ -183,6 +184,7 @@ describe('DashboardPage', () => {
         render(element);
 
         expect(screen.getByText('ユーザー管理')).toBeInTheDocument();
+        expect(screen.getByText('削除済みユーザー')).toBeInTheDocument();
         expect(screen.getByText('管理メニュー')).toBeInTheDocument();
         expect(
             screen.getByText('アクセスコード管理 →'),

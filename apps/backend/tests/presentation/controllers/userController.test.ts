@@ -18,7 +18,9 @@ const mockUser: User = {
     role: 'user',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
+    departmentId: '60000000-0000-4000-8000-000000000001',
     deletedAt: null,
+    sessionVersion: 0,
 };
 
 // ---- getUsers ----
@@ -60,6 +62,7 @@ describe('createUser controller', () => {
         name: 'テストユーザー',
         email: 'test@example.com',
         password: 'password123',
+        departmentId: '60000000-0000-4000-8000-000000000001',
     };
 
     function postJson(app: Hono, body: unknown) {

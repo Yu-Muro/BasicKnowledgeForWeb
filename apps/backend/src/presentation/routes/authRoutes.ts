@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import type { IUserRepository } from '@backend/src/infrastructure/repositories/user/IUserRepository';
 import { UserRepository } from '@backend/src/infrastructure/repositories/user/UserRepository';
 import {
@@ -15,12 +15,11 @@ import {
     authMiddleware,
 } from '../middleware/authMiddleware';
 import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
-
-type UserRepositoryFactory = (env: Env) => IUserRepository;
+import type { RepositoryFactory } from './requestDatabase';
 
 export function createAuthRoutes(
-    repositoryFactory: UserRepositoryFactory = (env) =>
-        new UserRepository(createDatabaseClient(env)),
+    repositoryFactory: RepositoryFactory<IUserRepository> = (_env, database) =>
+        new UserRepository(database()),
 ) {
     return (
         new Hono<{ Bindings: Env; Variables: AuthVariables }>()
@@ -28,7 +27,10 @@ export function createAuthRoutes(
             .post('/auth/login', async (c) => {
                 const limited = await publicAuthRateLimitGuard(c, 'login');
                 if (limited) return limited;
-                const repository = repositoryFactory(c.env);
+                const repository = repositoryFactory(
+                    c.env,
+                    c.get('databaseClient'),
+                );
                 const useCase = new LoginUseCase(repository);
                 return login(c, useCase);
             })
@@ -38,7 +40,10 @@ export function createAuthRoutes(
             .get('/auth/me', authMiddleware, (c) => me(c))
             // PUT /api/auth/password
             .put('/auth/password', authMiddleware, async (c) => {
-                const repository = repositoryFactory(c.env);
+                const repository = repositoryFactory(
+                    c.env,
+                    c.get('databaseClient'),
+                );
                 const useCase = new ChangePasswordUseCase(repository);
                 return changePassword(c, useCase);
             })

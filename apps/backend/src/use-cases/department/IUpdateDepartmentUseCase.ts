@@ -2,7 +2,6 @@ import type { Department } from '@backend/src/infrastructure/repositories/depart
 
 export type UpdateDepartmentInput = {
     id: string;
-    eventId: string;
     payload: { name?: string };
 };
 
