@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import type { IOtherItemRepository } from '@backend/src/infrastructure/repositories/other-item/IOtherItemRepository';
 import { OtherItemRepository } from '@backend/src/infrastructure/repositories/other-item/OtherItemRepository';
 import type { IProgramRepository } from '@backend/src/infrastructure/repositories/program/IProgramRepository';
@@ -13,12 +13,9 @@ import { searchContent } from '@backend/src/presentation/controllers/searchContr
 import { contentAccessMiddleware } from '@backend/src/presentation/middleware/contentAccessMiddleware';
 import { SearchUseCase } from '@backend/src/use-cases/search/SearchUseCase';
 import { Hono } from 'hono';
-import type { DatabaseProvider } from './requestDatabase';
+import type { RepositoryFactory } from './requestDatabase';
 
-type SearchRepositoryFactory = (
-    env: Env,
-    database?: DatabaseProvider,
-) => {
+type SearchRepositories = {
     timetableRepository: ITimetableRepository;
     roomRepository: IRoomRepository;
     programRepository: IProgramRepository;
@@ -27,8 +24,11 @@ type SearchRepositoryFactory = (
 };
 
 export function createSearchRoutes(
-    repositoryFactory: SearchRepositoryFactory = (env, database) => {
-        const db = database?.() ?? createDatabaseClient(env);
+    repositoryFactory: RepositoryFactory<SearchRepositories> = (
+        _env,
+        database,
+    ) => {
+        const db = database();
         return {
             timetableRepository: new TimetableRepository(db),
             roomRepository: new RoomRepository(db),

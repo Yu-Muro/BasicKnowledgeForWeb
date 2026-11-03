@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import { DepartmentRepository } from '@backend/src/infrastructure/repositories/departments/DepartmentRepository';
 import type { IDepartmentRepository } from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
 import {
@@ -16,16 +16,13 @@ import { UpdateDepartmentUseCase } from '@backend/src/use-cases/department/Updat
 import { Hono } from 'hono';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
 import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
-import type { DatabaseProvider } from './requestDatabase';
-
-type DepartmentRepositoryFactory = (
-    env: Env,
-    database?: DatabaseProvider,
-) => IDepartmentRepository;
+import type { RepositoryFactory } from './requestDatabase';
 
 export function createDepartmentRoutes(
-    repositoryFactory: DepartmentRepositoryFactory = (env, database) =>
-        new DepartmentRepository(database?.() ?? createDatabaseClient(env)),
+    repositoryFactory: RepositoryFactory<IDepartmentRepository> = (
+        _env,
+        database,
+    ) => new DepartmentRepository(database()),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];

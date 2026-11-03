@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import type { IProgramRepository } from '@backend/src/infrastructure/repositories/program/IProgramRepository';
 import { ProgramRepository } from '@backend/src/infrastructure/repositories/program/ProgramRepository';
 import {
@@ -19,16 +19,13 @@ import { UploadProgramImageUseCase } from '@backend/src/use-cases/program/Upload
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
-import type { DatabaseProvider } from './requestDatabase';
-
-type ProgramRepositoryFactory = (
-    env: Env,
-    database?: DatabaseProvider,
-) => IProgramRepository;
+import type { RepositoryFactory } from './requestDatabase';
 
 export function createProgramRoutes(
-    repositoryFactory: ProgramRepositoryFactory = (env, database) =>
-        new ProgramRepository(database?.() ?? createDatabaseClient(env)),
+    repositoryFactory: RepositoryFactory<IProgramRepository> = (
+        _env,
+        database,
+    ) => new ProgramRepository(database()),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];

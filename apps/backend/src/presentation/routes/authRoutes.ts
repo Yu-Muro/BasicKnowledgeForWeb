@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import type { IUserRepository } from '@backend/src/infrastructure/repositories/user/IUserRepository';
 import { UserRepository } from '@backend/src/infrastructure/repositories/user/UserRepository';
 import {
@@ -15,16 +15,11 @@ import {
     authMiddleware,
 } from '../middleware/authMiddleware';
 import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
-import type { DatabaseProvider } from './requestDatabase';
-
-type UserRepositoryFactory = (
-    env: Env,
-    database?: DatabaseProvider,
-) => IUserRepository;
+import type { RepositoryFactory } from './requestDatabase';
 
 export function createAuthRoutes(
-    repositoryFactory: UserRepositoryFactory = (env, database) =>
-        new UserRepository(database?.() ?? createDatabaseClient(env)),
+    repositoryFactory: RepositoryFactory<IUserRepository> = (_env, database) =>
+        new UserRepository(database()),
 ) {
     return (
         new Hono<{ Bindings: Env; Variables: AuthVariables }>()

@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import type { IRoomRepository } from '@backend/src/infrastructure/repositories/room/IRoomRepository';
 import { RoomRepository } from '@backend/src/infrastructure/repositories/room/RoomRepository';
 import {
@@ -18,16 +18,11 @@ import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
 import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
-import type { DatabaseProvider } from './requestDatabase';
-
-type RoomRepositoryFactory = (
-    env: Env,
-    database?: DatabaseProvider,
-) => IRoomRepository;
+import type { RepositoryFactory } from './requestDatabase';
 
 export function createRoomRoutes(
-    repositoryFactory: RoomRepositoryFactory = (env, database) =>
-        new RoomRepository(database?.() ?? createDatabaseClient(env)),
+    repositoryFactory: RepositoryFactory<IRoomRepository> = (_env, database) =>
+        new RoomRepository(database()),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];

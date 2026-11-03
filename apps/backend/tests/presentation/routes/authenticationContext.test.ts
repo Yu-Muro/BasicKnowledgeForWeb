@@ -16,6 +16,77 @@ async function cookie() {
     return `auth_token=${await sign({ id: user.id, role: 'admin', exp: Math.floor(Date.now() / 1000) + 3600 }, env.JWT_SECRET)}`;
 }
 describe('リクエスト単位のDB共有', () => {
+    it('Workersでは接続終了をwaitUntilに渡し、終了を待たず応答する', async () => {
+        let finish!: () => void;
+        const closing = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        const end = jest.fn<() => Promise<void>>().mockReturnValue(closing);
+        const waitUntil = jest.fn<(promise: Promise<unknown>) => void>();
+        const api = new Hono<{ Bindings: Env }>();
+        api.use(
+            '*',
+            createAuthenticationContext(
+                () => userRepository(),
+                undefined,
+                () => ({ $client: { end } }) as unknown as DatabaseClient,
+            ),
+        );
+        api.get('/query', (c) => {
+            c.get('databaseClient')();
+            return c.text('ok');
+        });
+        try {
+            const response = await api.fetch(
+                new Request('https://example.com/query'),
+                env,
+                {
+                    waitUntil,
+                    passThroughOnException() {},
+                    props: {},
+                },
+            );
+            expect(response.status).toBe(200);
+            expect(waitUntil).toHaveBeenCalledTimes(1);
+            expect(end).toHaveBeenCalledTimes(1);
+        } finally {
+            finish();
+        }
+        await waitUntil.mock.calls[0][0];
+    });
+    it('終了エラーは診断コードを残し、接続情報やSQLをログに出さない', async () => {
+        const log = jest.spyOn(console, 'error').mockImplementation(() => {});
+        const end = jest
+            .fn<() => Promise<void>>()
+            .mockRejectedValue(
+                Object.assign(new Error('postgres://user:secret@db/private'), {
+                    code: 'ECONNRESET',
+                }),
+            );
+        const api = new Hono<{ Bindings: Env }>();
+        api.use(
+            '*',
+            createAuthenticationContext(
+                () => userRepository(),
+                undefined,
+                () => ({ $client: { end } }) as unknown as DatabaseClient,
+            ),
+        );
+        api.get('/query', (c) => {
+            c.get('databaseClient')();
+            return c.text('ok');
+        });
+        try {
+            expect((await api.request('/query', {}, env)).status).toBe(200);
+            expect(log).toHaveBeenCalledWith('DB接続の解放に失敗しました', {
+                name: 'Error',
+                code: 'ECONNRESET',
+            });
+            expect(JSON.stringify(log.mock.calls)).not.toContain('secret');
+        } finally {
+            log.mockRestore();
+        }
+    });
     it('認証・移行確認・復元・部署検索で1クライアントを共有し、別リクエストでは作り直す', async () => {
         const clients: DatabaseClient[] = [];
         const end = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);

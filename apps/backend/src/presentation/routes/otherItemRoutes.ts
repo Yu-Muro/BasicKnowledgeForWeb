@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import type { IOtherItemRepository } from '@backend/src/infrastructure/repositories/other-item/IOtherItemRepository';
 import { OtherItemRepository } from '@backend/src/infrastructure/repositories/other-item/OtherItemRepository';
 import {
@@ -19,16 +19,13 @@ import { UploadOtherItemImageUseCase } from '@backend/src/use-cases/other-item/U
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
-import type { DatabaseProvider } from './requestDatabase';
-
-type OtherItemRepositoryFactory = (
-    env: Env,
-    database?: DatabaseProvider,
-) => IOtherItemRepository;
+import type { RepositoryFactory } from './requestDatabase';
 
 export function createOtherItemRoutes(
-    repositoryFactory: OtherItemRepositoryFactory = (env, database) =>
-        new OtherItemRepository(database?.() ?? createDatabaseClient(env)),
+    repositoryFactory: RepositoryFactory<IOtherItemRepository> = (
+        _env,
+        database,
+    ) => new OtherItemRepository(database()),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];

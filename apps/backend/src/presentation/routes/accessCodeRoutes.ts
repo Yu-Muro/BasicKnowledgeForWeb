@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import { AccessCodeRepository } from '@backend/src/infrastructure/repositories/access-code/AccessCodeRepository';
 import type { IAccessCodeRepository } from '@backend/src/infrastructure/repositories/access-code/IAccessCodeRepository';
 import {
@@ -21,18 +21,15 @@ import {
 import { contentAccessMiddleware } from '../middleware/contentAccessMiddleware';
 import { roleGuard } from '../middleware/roleGuard';
 import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
-import type { DatabaseProvider } from './requestDatabase';
-
-type AccessCodeRepositoryFactory = (
-    env: Env,
-    database?: DatabaseProvider,
-) => IAccessCodeRepository;
+import type { RepositoryFactory } from './requestDatabase';
 
 const ADMIN_ROLES = ['admin'];
 
 export function createAccessCodeRoutes(
-    repositoryFactory: AccessCodeRepositoryFactory = (env, database) =>
-        new AccessCodeRepository(database?.() ?? createDatabaseClient(env)),
+    repositoryFactory: RepositoryFactory<IAccessCodeRepository> = (
+        _env,
+        database,
+    ) => new AccessCodeRepository(database()),
 ) {
     return (
         new Hono<{ Bindings: Env; Variables: AuthVariables }>()

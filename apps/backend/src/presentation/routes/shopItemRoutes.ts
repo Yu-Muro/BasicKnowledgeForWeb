@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import type { IShopItemRepository } from '@backend/src/infrastructure/repositories/shop-item/IShopItemRepository';
 import { ShopItemRepository } from '@backend/src/infrastructure/repositories/shop-item/ShopItemRepository';
 import {
@@ -19,16 +19,13 @@ import { UploadShopItemImageUseCase } from '@backend/src/use-cases/shop-item/Upl
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
-import type { DatabaseProvider } from './requestDatabase';
-
-type ShopItemRepositoryFactory = (
-    env: Env,
-    database?: DatabaseProvider,
-) => IShopItemRepository;
+import type { RepositoryFactory } from './requestDatabase';
 
 export function createShopItemRoutes(
-    repositoryFactory: ShopItemRepositoryFactory = (env, database) =>
-        new ShopItemRepository(database?.() ?? createDatabaseClient(env)),
+    repositoryFactory: RepositoryFactory<IShopItemRepository> = (
+        _env,
+        database,
+    ) => new ShopItemRepository(database()),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];

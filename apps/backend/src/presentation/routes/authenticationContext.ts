@@ -10,8 +10,8 @@ import type { AuthVariables } from '../middleware/authMiddleware';
 import type { DatabaseClient, RepositoryFactory } from './requestDatabase';
 // Composition root only: public routes never trigger authentication or DB reads.
 export function createAuthenticationContext(
-    users: RepositoryFactory<IUserRepository> = (env, database) =>
-        new UserRepository(database?.() ?? createDatabaseClient(env)),
+    users: RepositoryFactory<IUserRepository> = (_env, database) =>
+        new UserRepository(database()),
     migrations?: RepositoryFactory<IMigrationStateRepository>,
     databaseFactory = createDatabaseClient,
 ) {
@@ -19,11 +19,8 @@ export function createAuthenticationContext(
     const completion = { complete: false };
     const migrationFactory: RepositoryFactory<IMigrationStateRepository> =
         migrations ??
-        ((env, database) =>
-            new MigrationStateRepository(
-                database?.() ?? createDatabaseClient(env),
-                completion,
-            ));
+        ((_env, database) =>
+            new MigrationStateRepository(database(), completion));
     return createMiddleware<{ Bindings: Env; Variables: AuthVariables }>(
         async (c, next) => {
             let client: DatabaseClient | undefined;
@@ -45,12 +42,37 @@ export function createAuthenticationContext(
             try {
                 await next();
             } finally {
-                if (client)
-                    await client.$client
+                if (client) {
+                    const cleanup = client.$client
                         .end()
-                        .catch(() =>
-                            console.error('DB接続の解放に失敗しました'),
-                        );
+                        .catch((error: unknown) => {
+                            // Do not log driver messages: they can contain connection secrets.
+                            console.error('DB接続の解放に失敗しました', {
+                                name:
+                                    error instanceof Error
+                                        ? error.name
+                                        : 'UnknownError',
+                                code:
+                                    error &&
+                                    typeof error === 'object' &&
+                                    'code' in error &&
+                                    typeof error.code === 'string' &&
+                                    /^[A-Z0-9_]{1,40}$/.test(error.code)
+                                        ? error.code
+                                        : undefined,
+                            });
+                        });
+                    let execution:
+                        | Pick<typeof c.executionCtx, 'waitUntil'>
+                        | undefined;
+                    try {
+                        execution = c.executionCtx;
+                    } catch {
+                        // Hono's local/test environment has no execution context.
+                    }
+                    if (execution) execution.waitUntil(cleanup);
+                    else await cleanup;
+                }
             }
         },
     );

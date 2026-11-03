@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import type { ITimetableRepository } from '@backend/src/infrastructure/repositories/timetable/ITimetableRepository';
 import { TimetableRepository } from '@backend/src/infrastructure/repositories/timetable/TimetableRepository';
 import {
@@ -18,16 +18,13 @@ import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
 import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
-import type { DatabaseProvider } from './requestDatabase';
-
-type TimetableRepositoryFactory = (
-    env: Env,
-    database?: DatabaseProvider,
-) => ITimetableRepository;
+import type { RepositoryFactory } from './requestDatabase';
 
 export function createTimetableRoutes(
-    repositoryFactory: TimetableRepositoryFactory = (env, database) =>
-        new TimetableRepository(database?.() ?? createDatabaseClient(env)),
+    repositoryFactory: RepositoryFactory<ITimetableRepository> = (
+        _env,
+        database,
+    ) => new TimetableRepository(database()),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];

@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import { DepartmentRepository } from '@backend/src/infrastructure/repositories/departments/DepartmentRepository';
 import type { IDepartmentRepository } from '@backend/src/infrastructure/repositories/departments/IDepartmentRepository';
 import type { IUserRepository } from '@backend/src/infrastructure/repositories/user/IUserRepository';
@@ -23,21 +23,15 @@ import { Hono } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
 import { publicAuthRateLimitGuard } from './publicAuthRateLimitGuard';
-import type { DatabaseProvider } from './requestDatabase';
-
-type UserRepositoryFactory = (
-    env: Env,
-    database?: DatabaseProvider,
-) => IUserRepository;
+import type { RepositoryFactory } from './requestDatabase';
 
 export function createUserRoutes(
-    repositoryFactory: UserRepositoryFactory = (env, database) =>
-        new UserRepository(database?.() ?? createDatabaseClient(env)),
-    departmentFactory: (
-        env: Env,
-        database?: DatabaseProvider,
-    ) => IDepartmentRepository = (env, database) =>
-        new DepartmentRepository(database?.() ?? createDatabaseClient(env)),
+    repositoryFactory: RepositoryFactory<IUserRepository> = (_env, database) =>
+        new UserRepository(database()),
+    departmentFactory: RepositoryFactory<IDepartmentRepository> = (
+        _env,
+        database,
+    ) => new DepartmentRepository(database()),
 ) {
     return (
         new Hono<{ Bindings: Env }>()
