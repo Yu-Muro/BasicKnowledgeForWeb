@@ -1,1 +1,5 @@
 blank_issues_enabled: false
+contact_links:
+    - name: "セキュリティ上の問題を非公開で報告"
+      url: "https://github.com/Yu-Muro/BasicKnowledgeForWeb/security/advisories/new"
+      about: "脆弱性の詳細は公開Issueへ書かず、非公開報告フォームを使用してください。"
