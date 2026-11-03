@@ -1,51 +1,9 @@
-# Search API 仕様
+# 検索APIの補足
 
-このドキュメントは `/api/search` を対象にします。
+契約の正本は [openapi.yaml](openapi.yaml)の `searchContent`です。[API案内](README.md)へ戻る。
 
-## GET `/api/search`
+`GET /api/search`は `x-event-id`とクエリ `q`を要求します。検索語はtrim後に1文字以上で、空白だけの値は拒否します。access_tokenの会期一致、またはauth_token(admin)で許可します。
 
-- 認証: `contentAccessMiddleware`
-- 必須ヘッダー:
-  - `x-event-id: <uuid>`
-- Query:
-  - `q`（必須、trim後1文字以上）
+レスポンスの5配列は `timetable`・`rooms`・`programs`・`shopItems`・`otherItems`です。各要素は一覧と同じSchemaを使い、時間割は部署タグ情報も含みます。部署そのものの検索配列はありません。
 
-### リクエスト例
-
-`GET /api/search?q=設営`
-
-### 成功レスポンス
-
-- ステータス: `200`
-- Body:
-```json
-{
-  "timetable": [],
-  "rooms": [],
-  "programs": [],
-  "shopItems": [],
-  "otherItems": []
-}
-```
-
-各配列の要素型:
-
-- `timetable`: `TimetableItem[]`
-- `rooms`: `RoomWithDepartments[]`
-- `programs`: `Program[]`
-- `shopItems`: `ShopItem[]`
-- `otherItems`: `OtherItem[]`
-
-### 主なエラー
-
-- `400` バリデーションエラー（`x-event-id` 不正 / `q` 未指定・空文字）
-- `401` Unauthorized
-- `500` サーバーエラー
-
-## 実装参照
-
-- Route: `apps/backend/src/presentation/routes/searchRoutes.ts`
-- Controller: `apps/backend/src/presentation/controllers/searchController.ts`
-- Validator:
-  - `apps/backend/src/infrastructure/validators/searchValidator.ts`
-  - `apps/backend/src/infrastructure/validators/eventIdValidator.ts`
+実装: `searchRoutes.ts` / `searchController.ts` / `searchValidator.ts` / `ISearchUseCase.ts`。

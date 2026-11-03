@@ -1,5 +1,10 @@
 # Cloudflare 機能の導入検討（調査レポート）
 
+> 区分: 2026-06-30時点の調査記録。本文中の「現状」「未実装」「実装中」や料金・制限は当時の前提です。
+> PR #167は2026-10-02（日本時間）にマージ済みですが、メール認証の全機能完了を意味しません。
+> 最新の計画は [ロードマップ](../tasks/roadmap.md)、現行構成は [開発リファレンス](../development-guide.md)を参照してください。
+> 実装する際は、その時点のCloudflare公式仕様を確認します。
+
 作成日: 2026-06-30
 
 本プロダクト（`reitaisai.info` / Bun モノレポ + Cloudflare Workers 2 アプリ）に対して、
@@ -8,7 +13,7 @@
 
 > 本レポートの推奨は **Phase 6（総当たり対策・最優先）** と **Phase 10（性能/UX/運用）** のタスクとして起票済み。
 > （Phase 5 は別途「メール認証基盤」: [PR #167](https://github.com/RTS-souhon/BasicKnowledgeForWeb/pull/167)）
-> 実行順は [タスク優先度ロードマップ](./tasks/roadmap.md) を参照。
+> 実行順は [タスク優先度ロードマップ](../tasks/roadmap.md) を参照。
 
 ---
 
@@ -46,7 +51,7 @@
 #### 3.1 Workers Rate Limiting バインディング（`ratelimit`）
 - **何**: Worker 内でキー単位のレート制限ができる公式バインディング。2025-09 に GA。
 - **なぜ本プロダクトに**: `POST /api/access-codes/verify` は「誰でも可」（`accessCodeRoutes.ts:40`）でアクセスコードの**総当たり**が可能。`POST /api/auth/login` も同様にブルートフォース対象。現状レート制限は皆無。
-- **導入**: `wrangler.jsonc` に `ratelimits`（複数形）バインディング（namespace + `simple: { limit, period }`）を追加し、verify/login コントローラ先頭で **actor 単位のキー**（`CF-Connecting-IP` + ルート識別子）で `limiter.limit({ key })` を評価、超過時 429。**入力コードはキーに含めない**（含めると値を変えるたびカウンタが分散し列挙を素通しする）。単一コード/アカウントへの分散試行には第2リミッタを任意で追加。詳細は [Phase 6](./tasks/phase6-rate-limit-turnstile.md) を正とする。
+- **導入**: `wrangler.jsonc` に `ratelimits`（複数形）バインディング（namespace + `simple: { limit, period }`）を追加し、verify/login コントローラ先頭で **actor 単位のキー**（`CF-Connecting-IP` + ルート識別子）で `limiter.limit({ key })` を評価、超過時 429。**入力コードはキーに含めない**（含めると値を変えるたびカウンタが分散し列挙を素通しする）。単一コード/アカウントへの分散試行には第2リミッタを任意で追加。詳細は [Phase 6](../tasks/phase6-rate-limit-turnstile.md) を正とする。
 - **コスト/工数**: 無料・Workers 標準。実装は小（ミドルウェア 1 つ + テスト）。
 - **注意**: カウンタはデータセンター単位（厳密なグローバル一貫性はない）。総当たり抑止には十分。
 
@@ -119,11 +124,11 @@
 3. **体験改善**: Images 変換(3.5) を shop/others 等の画像配信に適用。
 4. **計画済みの推進**: phase11(AI Search RAG) / phase9(Cloudflare Access)。
 
-> ↑ 上記はタスクに落とし込み済み（セキュリティは最優先で **Phase 6**、性能/UX/運用は **Phase 10**）。最新の優先順位は [tasks/roadmap.md](./tasks/roadmap.md) を正とする。
-> - [Phase 6 総当たり対策（Rate Limiting + Turnstile）](./tasks/phase6-rate-limit-turnstile.md) … 3.1 + 3.4
-> - [Phase 10-1 エッジ最適化（Hyperdrive キャッシュ + Smart Placement）](./tasks/phase10-1-edge-optimization.md) … 3.2 + 3.3
-> - [Phase 10-2 境界防御・計測（WAF + Web Analytics）](./tasks/phase10-2-waf-analytics.md) … 3.7 + 3.6
-> - [Phase 10-3 画像最適化（Cloudflare Images）](./tasks/phase10-3-image-optimization.md) … 3.5
+> ↑ 上記はタスクに落とし込み済み（セキュリティは最優先で **Phase 6**、性能/UX/運用は **Phase 10**）。最新の優先順位は [tasks/roadmap.md](../tasks/roadmap.md) を正とする。
+> - [Phase 6 総当たり対策（Rate Limiting + Turnstile）](../tasks/phase6-rate-limit-turnstile.md) … 3.1 + 3.4
+> - [Phase 10-1 エッジ最適化（Hyperdrive キャッシュ + Smart Placement）](../tasks/phase10-1-edge-optimization.md) … 3.2 + 3.3
+> - [Phase 10-2 境界防御・計測（WAF + Web Analytics）](../tasks/phase10-2-waf-analytics.md) … 3.7 + 3.6
+> - [Phase 10-3 画像最適化（Cloudflare Images）](../tasks/phase10-3-image-optimization.md) … 3.5
 
 ## 6. 対象外・見送り
 

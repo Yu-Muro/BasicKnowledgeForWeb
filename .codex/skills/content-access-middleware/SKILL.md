@@ -1,11 +1,11 @@
 ---
 name: "content-access-middleware"
-description: "`contentAccessMiddleware` の仕様を実装・テストするときに使う。AGENTS.md のミドルウェア説明を手順化する。"
+description: "`contentAccessMiddleware` の認可仕様を実装・テストするときに使う。イベント一致と管理者ロールの境界を確認する。"
 ---
 
 # Content Access Middleware ガイド
 
-参照: `AGENTS.md` の「Content Access Middleware」「Roles & RBAC」節。
+参照: `AGENTS.md` の「実装で守る境界」、`docs/development-guide.md` の「コンテンツアクセスミドルウェア」「ロールと RBAC」、`apps/backend/src/presentation/middleware/contentAccessMiddleware.ts`。
 
 ## 目的
 コンテンツ GET API が以下のみ通過するよう保証する:

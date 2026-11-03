@@ -1,35 +1,7 @@
-# Health API `GET /api/health`
+# ヘルスチェックAPIの補足
 
-## 概要
-- Backend の稼働状態と DB 接続状態を確認するヘルスチェック API。
-- 認証不要で利用できる。
+契約の正本は [openapi.yaml](openapi.yaml)の `getHealth`です。[API案内](README.md)へ戻る。
 
-## エンドポイント
-- `GET /api/health`
+`GET /api/health`は認証不要で、DB接続を確認します。成功は200の `{status: ok, db: connected}`、DB接続失敗は503の `{status: error, db: disconnected}`です。未処理例外の500応答とは区別します。
 
-## レスポンス
-
-### 成功（DB 接続 OK）
-- ステータス: `200`
-- ボディ:
-```json
-{
-  "status": "ok",
-  "db": "connected"
-}
-```
-
-### 失敗（DB 接続 NG）
-- ステータス: `503`
-- ボディ:
-```json
-{
-  "status": "error",
-  "db": "disconnected"
-}
-```
-
-## 実装
-- Route: `apps/backend/src/presentation/routes/healthRoutes.ts`
-- Controller: `apps/backend/src/presentation/controllers/healthController.ts`
-- UseCase: `apps/backend/src/use-cases/health/CheckDatabaseHealthUseCase.ts`
+実装: `healthRoutes.ts` / `healthController.ts` / `CheckDatabaseHealthUseCase.ts`。今回の仕様書作成では実環境のDB疎通を確認していません。

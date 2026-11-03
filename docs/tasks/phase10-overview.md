@@ -4,7 +4,7 @@ Phase 10 は Cloudflare 機能で「性能・UX・運用」を底上げする低
 
 > セキュリティの総当たり対策は緊急度が高いため、[Phase 6（Rate Limiting + Turnstile）](./phase6-rate-limit-turnstile.md) として分離・昇格しています。
 
-優先順位の全体像は [タスク優先度ロードマップ](./roadmap.md)、調査根拠は [Cloudflare 機能の導入検討レポート](../cloudflare-features-investigation.md) を参照してください。
+優先順位の全体像は [タスク優先度ロードマップ](./roadmap.md)、調査根拠は [Cloudflare 機能の導入検討レポート](../research/cloudflare-features-investigation.md) を参照してください。
 
 ## このフェーズで実装するもの
 

@@ -5,7 +5,7 @@ description: Drizzle のスキーマ変更後に CockroachDB 向けマイグレ�
 
 # Drizzle マイグレーション手順
 
-/.claude/commands/db-migrate.md のガイドをプロジェクトローカル化。`apps/backend/src/db/schema.ts` を触ったら即実施する。
+`apps/backend/src/db/schema.ts` の変更に応じてmigrationを生成・検証する。適用先はローカルDBを基本とし、既存の適用履歴と接続先を確認して進める。
 
 ## 1. ローカル CockroachDB を起動
 ```bash
@@ -29,12 +29,12 @@ bun run db:generate
 ```bash
 bun run db:migrate
 ```
-失敗したら SQL を修正し、必要に応じて `db:generate` → `db:migrate` をやり直す。
+失敗時はエラー、DBの実状態、migrationの適用履歴を照合してから再試行する。既に共有環境へ適用したmigrationは書き換えず、修正migrationを追加する。
 
 ## 5. トラブルシューティング
-- `index already exists` → `CREATE INDEX` に `IF NOT EXISTS` を追加。
-- `constraint does not exist`（DROP CONSTRAINT 失敗）→ その行を削除して再実行。
-- 状態がわからない場合 → `bun run db:check` で未適用 migration を確認。
+- `index already exists` → 既存indexの列・順序・一意性が意図と一致するか確認する。未共有migrationの再試行を可能にする場合は `IF NOT EXISTS` を検討する。
+- `constraint does not exist` → 対象constraintとDB状態を確認する。失敗行を一律に削除せず、未適用の変更と既適用の履歴を区別する。
+- `db:check` は `drizzle-kit check`（生成migrationの整合性検査）、`db:up` は `drizzle-kit up`（snapshot形式の更新）。DBの未適用migration確認・適用コマンドではない。DB状態の調査には生成物とDBの適用履歴を照合する。
 
 ## 6. CI との整合
 `pull-request.yml` の `verify-migration-backend` ジョブでは Docker で CockroachDB を立ち上げ、`bun run db:migrate` を実行する。ローカルで通らない migration は CI でも必ず落ちるため、上記手順で安全性を担保してからコミットする。

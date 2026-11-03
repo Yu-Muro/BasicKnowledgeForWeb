@@ -4,7 +4,7 @@
 
 - Cloudflare ダッシュボード（ゾーン `reitaisai.info`）
 - `apps/frontend`（Web Analytics ビーコン。自動注入できない場合のみ）
-- `docs/implementation-plan.md` / `docs/manuals`（運用手順の追記）
+- `docs/development-guide.md` / `docs/manuals`（運用手順の追記）
 
 ## 目的
 

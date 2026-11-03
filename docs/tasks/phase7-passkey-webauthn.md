@@ -2,7 +2,7 @@
 
 ## 対象
 
-- `docs/implementation-plan.md`
+- `docs/development-guide.md`
 - `docs/pages/01-login.md`
 - `docs/pages/10-dashboard.md`
 
@@ -149,4 +149,4 @@ backend と frontend をまたぐため、以下の順序を厳守する。
 - 環境別の RP ID / origin 設定で dev / prod / local それぞれの認証が成立する
 - `apps/backend` の `type-check`, `test`, `lint` が通る
 - `apps/frontend` の `type-check`, `test`, `lint` が通る
-- `docs/implementation-plan.md` と関連 `docs/pages` が Phase 7 仕様に追従している
+- `docs/development-guide.md` と関連 `docs/pages` が Phase 7 仕様に追従している

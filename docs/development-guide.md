@@ -1,0 +1,531 @@
+# 開発リファレンス
+
+共通の作業規約とSkill選択は [AGENTS.md](../AGENTS.md) を参照する。
+この資料は対象の実装・テスト・CIを調べる際に必要な節だけ読む。
+コマンド・構成・環境値は `package.json`、`wrangler.jsonc`、スキーマ、
+`.github/workflows/` を正本とし、この資料と異なる場合は差分を確認して更新する。
+
+## 参照する節
+
+- Backendのレイヤー・DI・テスト: アーキテクチャ内のバックエンド各節。
+- Frontendの認証連携・Jest/MSW: アーキテクチャ内のフロントエンド各節。
+- 配備・依存更新: デプロイ、CI/CD、環境変数の各節。
+- 認可・イベント境界・仕様同期: 実装時の注意の各節。
+- Email Worker: [README](../apps/email-worker/README.md)、
+  [Phase 5設計](tasks/phase5-email-auth-with-email-worker.md)、
+  [確認チェックリスト](checklists/phase5-email-auth-checklist.md)。
+
+## アーキテクチャ
+
+### システム構成
+
+```
+[ ブラウザ ]
+    │
+    ├── reitaisai.info          → Cloudflare Workers: basic-knowledge-for-web-frontend
+    │       (OpenNext adapter)       Next.js 15 App Router
+    │                                R2 bucket: next-cache (ISR cache)
+    │
+    └── reitaisai.info/api/*    → Cloudflare Workers: basic-knowledge-for-web-backend
+            (Hono.js API)            Hyperdrive → CockroachDB (AWS ap-southeast-1)
+
+[ dev.reitaisai.info / dev.reitaisai.info/api/* ] — dev 環境（develop への push で自動デプロイ）
+[ reitaisai.info / reitaisai.info/api/* ]          — prod 環境（main への push で自動デプロイ）
+```
+
+### バックエンド — Clean Architecture
+
+```
+src/
+├── db/                   # Drizzle スキーマ + 接続（prod は Cloudflare Hyperdrive）
+├── use-cases/            # ビジネスロジック層（1 use case 1 クラス）
+│   └── {domain}/
+│       ├── I{Name}UseCase.ts   # Use case interface
+│       └── {Name}UseCase.ts    # 実装
+├── presentation/
+│   ├── controllers/      # リクエスト/レスポンス処理（use case interface を受け取る）
+│   └── routes/           # Composition Root（repository + use case を組み立ててルート登録）
+├── infrastructure/
+│   ├── validators/       # リクエスト検証用 Zod スキーマ
+│   └── repositories/
+│       └── {domain}/
+│           ├── I{Name}Repository.ts  # Repository interface
+│           └── {Name}Repository.ts   # Drizzle 実装
+└── index.ts              # Hono エントリーポイント。ルートを束ねて AppType を export
+```
+
+**依存方向:** routes → controllers → use cases → repositories → db
+
+**ルール:**
+- route は Composition Root として concrete repository / use case を生成し、controller へ注入する
+- controller は use case **interface**（例: `IGetUsersUseCase`）にのみ依存し、concrete class には依存しない
+- use case は repository **interface**（例: `IUserRepository`）にのみ依存し、Drizzle へ直接依存しない
+- Drizzle（`sql`, `eq` など）を import するのは repository 実装クラスのみ
+- route層でWorker bindingから依存を組み立てる。認証middlewareの `c.env.JWT_SECRET` 参照は既存の境界として維持する。
+- `src/index.ts` は frontend と型安全に連携するため `AppType`（Hono アプリ型）を export する
+
+### バックエンド — データベーススキーマ
+
+テーブル・列・制約の正本は `apps/backend/src/db/schema.ts`、適用履歴は
+`apps/backend/drizzle/`。スキーマ一覧はここに複製せず、変更対象を直接確認する。
+
+**⚠️ CockroachDB — 複合外部キーと migration 順序**
+CockroachDB で複合 FK（例: `(event_id, manager_id) → departments(event_id, id)`）を追加するには、
+参照先の列の組み合わせに UNIQUE INDEX が先に存在していなければならない。
+migration ファイルでは `CREATE UNIQUE INDEX IF NOT EXISTS` を `ADD CONSTRAINT ... FOREIGN KEY` より前に記述すること。
+`IF NOT EXISTS` を付けることで migration の部分実行後の再試行でもエラーにならない。
+
+### バックエンド — テスト構成
+
+```
+tests/
+├── tsconfig.json                                    # VSCode IntelliSense 設定（tsconfig.test.json を継承）
+├── helpers/
+│   └── createTestApp.ts                             # Feature テスト用 app factory
+├── features/
+│   ├── health.test.ts                               # /api/health
+│   ├── users.test.ts                                # /api/users
+│   ├── auth.test.ts                                 # /api/auth/*
+│   ├── accessCodes.test.ts                          # /api/access-codes*
+│   ├── timetable.test.ts / rooms.test.ts / programs.test.ts
+│   ├── shopItems.test.ts / otherItems.test.ts
+│   ├── departments.test.ts / search.test.ts
+├── use-cases/{domain}/*.test.ts                     # use case 単体テスト（repository interface をモック）
+├── presentation/controllers/*.test.ts               # controller 単体テスト（use case interface をモック）
+├── infrastructure/
+│   ├── validators/*.test.ts                         # Zod validator 単体テスト
+│   └── repositories/{domain}/*.test.ts              # repository 単体テスト（DatabaseClient をモック）
+```
+
+- テストランナー: **Jest**（`ts-jest`）
+- テストコードの import: `@jest/globals`（グローバル依存しない）
+- パスエイリアス: `@backend/*` はbackendルートを指す（例: `@backend/src/use-cases/...`）。`tsconfig.json` を確認する。
+
+### Backend — テスト戦略（テストピラミッド）
+
+```
+          [Feature テスト]
+    Route → Controller → UseCase(real) → Repository(mock)
+    - HTTP リクエスト/レスポンスを E2E に近い形で検証
+    - Hono の `app.request()` を使用（supertest 不要）
+    - Repository は factory 関数 DI で差し替え
+
+        [Unit Tests — Controller]
+    Controller(real) → IUseCase(mock)
+    - HTTP ステータスとレスポンス形状を検証
+    - モックは interface を満たすプレーンオブジェクト
+
+        [Unit Tests — UseCase]
+    UseCase(real) → IRepository(mock)
+    - ビジネスロジック（メール重複、パスワードハッシュ化など）を検証
+    - モックは interface を満たすプレーンオブジェクト
+
+        [Unit Tests — Repository]
+    Repository(real) → DatabaseClient(mock)
+    - Drizzle クエリ構築が正しいかを検証
+    - モックは Drizzle チェーン形状を再現した `jest.fn()` 連鎖
+
+        [Unit Tests — Validator]
+    Zod schema のみを検証（依存モック不要）
+```
+
+### バックエンド — レイヤー別モックパターン
+
+**Use case / controller のモック: プレーンオブジェクト推奨**
+
+interface を使うことで `as unknown as ConcreteClass` なしでモックできます:
+
+```typescript
+const mockUseCase: IGetUsersUseCase = {
+    execute: jest.fn<() => Promise<...>>().mockResolvedValue({ success: true, data: [] }),
+};
+```
+
+**Repository モック: Drizzle クエリチェーン**
+
+Drizzle はメソッドチェーン前提です。戻り値型が `never` 推論されるのを避けるため、`mockResolvedValue` ではなく `jest.fn().mockImplementation()` を使います:
+
+```typescript
+// findAll: db.select().from(table)
+const db = {
+    select: jest.fn().mockReturnValue({
+        from: jest.fn().mockImplementation(() => Promise.resolve([mockUser])),
+    }),
+} as unknown as DatabaseClient;
+
+// findByEmail: db.select().from(table).where(...).limit(1)
+const db = {
+    select: jest.fn().mockReturnValue({
+        from: jest.fn().mockReturnValue({
+            where: jest.fn().mockReturnValue({
+                limit: jest.fn().mockImplementation(() => Promise.resolve([mockUser])),
+            }),
+        }),
+    }),
+} as unknown as DatabaseClient;
+
+// create: db.insert(table).values(input).returning()
+const db = {
+    insert: jest.fn().mockReturnValue({
+        values: jest.fn().mockReturnValue({
+            returning: jest.fn().mockImplementation(() => Promise.resolve([newUser])),
+        }),
+    }),
+} as unknown as DatabaseClient;
+```
+
+⚠️ `jest.fn().mockResolvedValue(value)` は、`jest.fn()` の型引数が文脈から推論できない場合（`as unknown as DatabaseClient` など）に TS2345（`not assignable to never`）を起こします。チェーン末端のモックには `mockImplementation(() => Promise.resolve(value))` を使ってください。
+
+**Feature テスト: repository factory DI**
+
+route は DI 用の `repositoryFactory` を任意で受け取れる実装にします。デフォルトは実 DB クライアント、テストではモックを注入します:
+
+```typescript
+// Route definition
+type UserRepositoryFactory = (env: Env) => IUserRepository;
+export function createUserRoutes(
+    repositoryFactory: UserRepositoryFactory = (env) =>
+        new UserRepository(createDatabaseClient(env)),
+) { ... }
+
+// Feature test
+const app = new Hono();
+app.route('/api', createUserRoutes(() => mockRepository));
+const res = await app.request('/api/users');
+```
+
+### バックエンド — TypeScript 設定
+
+| ファイル | 用途 |
+|---|---|
+| `tsconfig.json` | 本番用ソース（`src/`）のみ。`@cloudflare/workers-types` を使用し、`tests/` は除外。 |
+| `tsconfig.test.json` | Jest（`ts-jest`）用。`@types/jest` を使用し、`src/` + `tests/` を含む。 |
+| `tests/tsconfig.json` | `tsconfig.test.json` を継承。VSCode がテストファイル向けに参照。 |
+
+**⚠️ 型衝突に注意:** `@cloudflare/workers-types` と `bun-types` は同じ tsconfig に含めないでください。
+両者が `Response` / `Body` を定義しており、`Response.json()` が `Promise<undefined>` と解釈されてテスト型が壊れます。必ず別 tsconfig に分離します。
+
+### フロントエンド — Next.js App Router
+
+```
+app/
+├── layout.tsx                                 # Root layout
+├── globals.css                                # Tailwind v4 global styles
+├── (authenticated)/                           # 認証後の共通レイアウト配下
+│   ├── layout.tsx                             # AuthHeader + AuthProvider
+│   ├── admin/*                                # 管理者専用ページ
+│   ├── dashboard/page.tsx                     # パスワード変更/ロール変更
+│   ├── timetable|rooms|events|shop|others|search/page.tsx
+├── login/page.tsx / register/page.tsx / access/page.tsx
+├── actions/*.ts                               # Server Actions（CRUD/認証）
+├── lib/backendFetch.ts                        # BACKEND service binding経由 fetch
+├── lib/serverAuth.ts                          # JWT payload 解決 + ヘッダー組み立て
+├── utils/client.ts                            # Type-safe Hono API client
+components/
+├── AuthHeader.tsx / EventSelector.tsx
+└── ui/                                       # shadcn/ui コンポーネント
+```
+
+ルート保護は `apps/frontend/middleware.ts`（`app/` の外）。
+
+**主要パターン:**
+- `app/lib/serverAuth.ts` の `resolveAuth` / `buildContentFetchHeaders` でトークン・`x-event-id` を一元管理
+- `app/lib/backendFetch.ts` は Cloudflare の `BACKEND` service binding が使える場合に優先利用し、ローカルでは通常の `fetch` にフォールバック
+- `app/utils/client.ts` で `hc<AppType>(NEXT_PUBLIC_API_URL)` を生成し、E2E 型安全を担保
+- フォーム系 UI は `react-hook-form` + `zodResolver` + backend 共有 Zod schema を優先
+
+### フロントエンド — テスト
+
+```
+tests/
+├── tsconfig.json
+├── config/CustomJestEnvironment.ts            # jest環境（Edge runtime寄り）
+├── mocks/
+│   ├── server.ts                                 # MSW サーバー
+│   └── handlers.ts                               # API ハンドラ
+├── middleware.test.ts                            # ルート保護の分岐
+├── login/page.test.tsx / register/page.test.tsx / access/page.test.tsx
+└── authenticated/** / admin/**                   # 各ページ・コンポーネントのUIテスト
+```
+
+**MSW v2 + Next.js 15 + jsdom の重要設定:**
+
+Jest + jsdom で MSW を動かすには、次の 3 ファイルが必須です。
+
+1. **`jest.polyfills.ts`** — Web API ポリフィル（`setupFiles` で読み込み）:
+   ```typescript
+   // TextEncoder/TextDecoder, ReadableStream, WritableStream, TransformStream,
+   // MessagePort, MessageChannel, BroadcastChannel, fetch（cross-fetch 経由）
+   ```
+
+2. **`jest.setup.ts`** — MSW サーバーのライフサイクル（`setupFilesAfterEnv` で読み込み）:
+   ```typescript
+   beforeAll(() => server.listen())
+   afterEach(() => server.resetHandlers())
+   afterAll(() => server.close())
+   ```
+
+3. **`jest.config.ts`** — MSW の ESM 対応に必要な設定:
+   ```typescript
+   // custom export conditions を無効化して、MSW の browser bundle 読み込みを防ぐ
+   // MSW 関連パッケージを transformIgnorePatterns に追加して Jest 変換対象にする
+   ```
+
+**⚠️ ハマりどころ:**
+- MSW v2 パッケージは pure ESM のため、`transformIgnorePatterns` へ追加して `ts-jest` 変換対象にする必要がある
+- `customExportConditions` に `browser` を含めると Node 上で MSW の browser バンドルを読んで壊れる
+- `cross-fetch/polyfill` は MSW サーバー起動前に読み込む必要がある
+
+### Frontend — TypeScript 設定
+
+| ファイル | 用途 |
+|---|---|
+| `tsconfig.json` | 本番ソース用。jest ファイルと tests を除外。パスエイリアスは `@frontend/*`, `@backend/*`。 |
+| `tsconfig.test.json` | Jest 用。`@types/jest`, `@testing-library/jest-dom` を追加。 |
+| `tests/tsconfig.json` | `tsconfig.test.json` を継承。VSCode がテスト向けに参照。 |
+
+**パスエイリアス:**
+- `@frontend/*` → プロジェクトルート（例: `@frontend/app/utils/client`）
+- `@backend/*` → `../backend/*`（frontend から backend 型を import する用途）
+
+### デプロイ
+
+3アプリとも Cloudflare Workers へデプロイします。`wrangler.jsonc` で worker 名、ルート、binding を設定します。
+
+**Cloudflare リソース binding:**
+
+| リソース | Dev | Prod |
+|---|---|---|
+| バックエンド Worker | `basic-knowledge-for-web-backend-dev` | `basic-knowledge-for-web-backend` |
+| フロントエンド Worker | `basic-knowledge-for-web-frontend-dev` | `basic-knowledge-for-web-frontend` |
+| Email Worker | `basic-knowledge-for-web-email-worker-dev` | `basic-knowledge-for-web-email-worker` |
+| ハイパードライブ ID | `f7f0ede9c7464673ab6f5bdcf0753218` | `5a36ae3ca5ed4a4697040c00685f213e` |
+| バックエンド画像用 R2 | `dev-basicknowledgeforweb` | `basicknowledgeforweb` |
+| Next.js キャッシュ用 R2 | `basic-knowledge-for-web-next-cache-dev` | `basic-knowledge-for-web-next-cache` |
+| DB 名 | `Dev-BasicKnowledgeForWeb` | `BasicKnowledgeForWeb` |
+
+- **Backend**: DB 接続に Cloudflare Hyperdrive を使用。ローカル開発では `wrangler.jsonc` の `localConnectionString` を利用（CockroachDB 単一ノード）。
+- **Frontend**: `@opennextjs/cloudflare` アダプタを使用。ビルド出力は `.open-next/`。Next.js ISR キャッシュに R2 bucket を使用。
+- **API URL**: `NEXT_PUBLIC_API_URL` で切り替え可能（ローカル `http://localhost:8080`、CI では `https://dev.reitaisai.info` または `https://reitaisai.info`）。
+
+### JWT_SECRET のセットアップ
+
+同じ環境のbackend/frontendで同じ値を使う。devとprodの値は環境ごとに管理する。
+ローカルでは各アプリの `.env` または `.dev.vars` に設定し、FrontendのNext.jsビルドにも必要な環境値を用意する。Wrangler用はどちらかを選ぶ（`.dev.vars` があると `.env` はbindingへ読み込まれない）。値はログ・PR・コマンド引数へ書かない。
+
+CI配備ではGitHub Environment（dev/prod）の `JWT_SECRET` を両Workerに渡し、Frontendビルドにも使う。実際の設定は `deploy-dev.yml` / `deploy-prod.yml` を確認する。
+
+手動で設定・確認する場合は、対象アプリ内で環境を指定する。`secret put` はWorkerの新バージョンを作成して即時に配備する操作なので、対象環境への変更を依頼されたときに実行する。以下は操作例であり、資料整理時には実行していない。
+
+```bash
+# apps/backend 内で実行
+bunx wrangler secret put JWT_SECRET --env dev
+bunx wrangler secret list --env dev
+
+# apps/frontend 内で同じdev用の値を設定
+bunx wrangler secret put JWT_SECRET --env dev
+bunx wrangler secret list --env dev
+```
+
+prodの場合は `--env prod` を指定する。secret名の一覧だけでは値の一致や実際のログイン成功まで確認できないので、変更後は対象環境の認証動作も検証する。
+Wranglerコマンド実行前には `wrangler` Skillを読み、対象設定・アカウント・環境を確認する。
+[Cloudflare公式のSecrets手順](https://developers.cloudflare.com/workers/configuration/secrets/)も参照する。
+
+## CI/CD — GitHub Actions
+
+### ワークフロー
+
+| ワークフロー | トリガー | ジョブ |
+|---|---|---|
+| `pull-request.yml` | PR → `main` or `develop` | lint-and-test-backend, verify-migration-backend, lint-and-test-frontend, lint-and-test-email-worker |
+| `deploy-dev.yml` | push → `develop` | email-worker deploy → DB migrate・backend deploy。frontend deploy は独立 (env: dev) |
+| `deploy-prod.yml` | push → `main` | email-worker deploy → DB migrate・backend deploy。frontend deploy は独立 (env: prod) |
+| `security-scan.yml` | PR 作成/更新時 | AikidoSec, Betterleaks, anti-trojan-source |
+| Dependabot（`.github/dependabot.yml`） | 土日を含む毎日 07:00 JST | BunワークスペースとGitHub Actionsの通常更新PRを`develop`向けに作成 |
+
+### PR チェック（`pull-request.yml`）— 4 並列ジョブ
+
+1. **lint-and-test-backend**: install → build → lint → type-check → jest
+2. **verify-migration-backend**: start CockroachDB in Docker → create database → `bun run db:migrate`
+3. **lint-and-test-frontend**: install → `build:cloudflare` → lint → type-check → jest
+4. **lint-and-test-email-worker**: install → build → lint → type-check（生成型チェックを含む）→ jest
+
+**Dependabot 自動マージ**: `dependabot-auto-merge` は上記4ジョブの成功後、以下をすべて満たすPRだけを自動承認・自動マージします。
+
+1. 作成者が `dependabot[bot]`、ブランチ名が `dependabot/` で始まる
+2. 同一リポジトリの `develop` 向けPRである
+3. SHA固定した `dependabot/fetch-metadata` の検証が成功し、更新種別が明示的に `version-update:semver-minor` または `version-update:semver-patch` である
+4. 実行時のAPI再取得でも作成者・宛先・リポジトリ・未クローズ状態・検証対象のhead SHAが一致する
+
+majorや空の更新種別は承認・マージとも実行しません。承認にはコミットSHAを指定し、マージにも `--match-head-commit` を指定して、CI後に差し替わったコミットを対象にしません。API失敗時も自動処理を中断します。必要な承認数・ステータスチェックなど、リポジトリの保護規則は維持します。
+
+### 依存関係の更新（Dependabot）
+
+通常の依存更新は **Dependabot** が行います。設定の正本は [`.github/dependabot.yml`](../.github/dependabot.yml) です。
+
+- Bunはルート `/` の1設定で `workspaces: ["apps/*"]` を検出し、全アプリの `package.json` と共通の `bun.lock` を扱います。アプリ単位の重複設定や、ロックファイルを後追いpushする回避workflow・PATは使用しません。
+- BunとGitHub Actionsを、土日を含む毎日07:00 JSTに確認します。Dependabotの `daily` は平日のみのため、`interval: cron` / `cronjob: "0 7 * * *"` / `timezone: Asia/Tokyo` を指定しています。実際の開始時刻はGitHub側の処理状況により遅れる場合があります。
+- PRは常に `develop` 向けです。現時点のデフォルトブランチも `develop` ですが、将来の変更に備えて `target-branch` を明示します。
+- React・Cloudflare/OpenNext・テストツールをそれぞれグループ化します。PR数の上限は各エコシステム10件です。
+- Bunの安定化待機は原則7日・パッチ3日、GitHub Actionsは7日です。GitHub ActionsはSemVer別の日数指定に対応していません。毎日の確認が、公開直後の即時更新を意味するわけではありません。
+- 固定運用の `drizzle-orm` / `drizzle-kit`、内部パッケージ `backend` は自動更新対象外です。
+- Bun依存・GitHub Actionsともにメジャー更新は個別PRを作り、手動でレビュー・マージします。minor/patchだけをグループ化・自動マージの対象にします。ActionのSHA固定は維持します。
+- コミット・PRタイトルには日本語のprefixを付けます。Dependabotが付加する定型文・本文は英語です。
+- Renovate本体・専用workflow・Dependency Dashboard・月次ロック再生成は廃止します。専用GitHub Appの管理も通常更新には不要です。
+
+**Bunのセキュリティ修正は手動対応です。** 2026-10-29時点のGitHub公式対応表では、Bunの通常更新は対応、脆弱性を起点とするセキュリティ修正PRは未対応です。ユーザー判断によりこの制約を許容し、通常更新を毎日にしています。Renovateの `osvVulnerabilityAlerts` 相当の即時修正PRは生成されません。
+
+脆弱性情報や `bun audit` の結果を確認し、必要な修正は通常更新の待機期間・グループ更新を待たずに専用ブランチで適用してください。対象アプリの型検査・lint・テストとルートの `bun install --frozen-lockfile` を確認し、PRから反映します。GitHubのDependabot alerts設定は維持しますが、Bun依存の検知・修正をすべて保証するものとして扱わないでください。
+
+移行の根拠・初回更新の確認項目は [Dependabotへの復帰調査](research/dependabot-return-investigation.md) を参照してください。
+
+### 必須シークレット
+
+| シークレット | 用途 |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | デプロイワークフロー |
+| `CLOUDFLARE_ACCOUNT_ID` | デプロイワークフロー |
+| `DATABASE_URL` | デプロイワークフロー（db:migrate） |
+| `JWT_SECRET` | backend/frontend共通のJWT署名・検証。Workers secretとして管理 |
+
+Dependabotへの切り替えがデフォルトブランチへ反映された後、Renovate専用の `RENOVATE_APP_PRIVATE_KEY` / `RENOVATE_APP_CLIENT_ID` / `RENOVATE_ACTOR` は不要です。旧GitHub Appの他の利用先を確認してから、不要な登録・権限を整理してください。これらの外部設定は本変更では削除していません。
+
+## 環境変数
+
+### バックエンド（`.env.example`）
+
+```env
+DATABASE_URL=postgresql://root@localhost:26257/basic-knowledge-for-web?sslmode=disable
+NODE_ENV=local
+PORT=8080
+```
+
+### フロントエンド（`.env.example`）
+
+```env
+# ローカル:  http://localhost:8080
+# dev環境:   https://dev.reitaisai.info
+# prod環境:  https://reitaisai.info
+NEXT_PUBLIC_API_URL=http://localhost:8080
+```
+
+## コードスタイル
+
+- **Formatter/Linter**: Biome（ルート `biome.json` で設定）
+- インデント: 4 スペース、行幅: 80、シングルクォート、セミコロン必須
+- `noUnusedImports` と `noUnusedVariables` は warning
+- `noNonNullAssertion` は無効化
+- backend/frontend とも TypeScript strict モード
+- Path aliases: `@backend/*` → backendルート (backend), `@frontend/*` / `@backend/*` (frontend)
+
+## 実装時の注意
+
+### `docs/pages` 運用ルール
+
+- 仕様書の正は **実装コード**（`apps/backend` / `apps/frontend`）とし、`docs/pages/*.md` は必ず実装へ追従させる。
+- API 仕様更新時は `routes` / `controllers` / `validators` / `middleware` を確認し、認証条件・ヘッダー要件（特に `x-event-id`）をドキュメントへ反映する。
+- 画面仕様更新時は `app/(authenticated)/**/page.tsx` と `app/actions/*.ts` を確認し、`admin` / `user` の表示分岐をドキュメントへ反映する。
+- `docs/pages` の並び順は連番で管理し、**`others` は最後**に置く（現行: `13-others.md`）。
+- ファイル名を変更した場合は、`docs/tasks/*.md` などの参照先を必ず同時更新する。
+- `docs/pages` を更新する際は以下の旧仕様文字列を残さないことを確認する:
+  - `Admin/Developer`
+  - `upload-url`
+  - 旧パス（例: `/admin/access-code`）
+
+### 認証
+
+JWT ベース認証を採用しており、トークンは 2 種類あります。
+
+| トークン | Cookie 名 | 発行エンドポイント | Payload | スコープ |
+|---|---|---|---|---|
+| Access token | `access_token` | `POST /api/access-codes/verify` | `{ event_id, exp }` | イベント単位 |
+| Auth token | `auth_token` | `POST /api/auth/login` | `{ id, name, email, role, exp }` | ユーザー単位 |
+
+- JWT secret は Cloudflare Workers secret（`JWT_SECRET`）で管理し、`wrangler.jsonc` には置かない
+- トークン検証は `hono/jwt`（`verify(token, secret, 'HS256')`）を使用
+- 認証ロジックは `src/presentation/middleware/` に集約
+
+### コンテンツアクセスミドルウェア
+
+`contentAccessMiddleware` (`src/presentation/middleware/contentAccessMiddleware.ts`) は全コンテンツ GET API に適用する。
+
+以下のいずれかを満たすリクエストのみ通過させる:
+
+1. **access_token 認証**: `access_token` Cookie の JWT が有効、かつ `payload.event_id === x-event-id` ヘッダーの値
+2. **auth_token 認証**: `auth_token` Cookie の JWT が有効、かつ `payload.role === 'admin'`
+
+`role=user` の `auth_token` はコンテンツ API を通過できない。一般ユーザーは `access_token` が必要。
+どちらも満たさない場合は `401 Unauthorized` を返す。
+
+Feature テストでは `app.request(path, { headers }, mockEnv)` の第3引数で `{ JWT_SECRET }` を渡す。
+
+### ロールと RBAC
+
+`users.role` は現在 2 ロールをサポートします。
+
+| ロール | 説明 |
+|---|---|
+| `user` | 一般ユーザー（デフォルト） |
+| `admin` | 管理者権限 |
+
+コンテンツ GET API では `contentAccessMiddleware` が role チェックを担い、
+`access_token`（event一致）または `auth_token(admin)` のみ通過する。
+より細かい RBAC が必要な場合は use case 層に追加する。
+
+### Soft Delete（今後対応）
+
+現時点で `deleted_at` を持つのは `users` テーブルのみ。
+今後ほかのテーブルへ広げる場合は次を適用する:
+- `findAll` / `findByEmail` などの取得クエリに `.where(isNull(table.deletedAt))` を追加する
+- 削除エンドポイントは `DELETE` ではなく `UPDATE ... SET deleted_at = now()` を使う
+- soft delete 済みレコードを API レスポンスに含めない
+
+### 新規ドメイン追加チェックリスト
+
+backend に新しいリソース（例: `posts`）を追加する手順:
+
+1. **Schema**（`src/db/schema.ts`）— Drizzle テーブル定義を追加
+2. **Migration** — `bun run db:generate` → `bun run db:migrate`
+3. **Repository** — `IPostRepository.ts`（interface）+ `PostRepository.ts`（Drizzle 実装）
+4. **Validator** — `src/infrastructure/validators/postValidator.ts`（Zod スキーマ）
+5. **Use Cases** — `ICreatePostUseCase.ts` + `CreatePostUseCase.ts`, etc.
+6. **Controller** — `src/presentation/controllers/postController.ts`
+7. **Routes** — `src/presentation/routes/postRoutes.ts` (Composition Root)
+8. **Mount** — `src/index.ts` へ `app.route('/api', createPostRoutes())` を追加
+9. **Tests** — 各レイヤー（feature → controller → use-case → repository → validator）のテストを追加
+
+### CORS 設定
+
+CORS は `src/index.ts` で設定します。許可オリジン:
+- `https://reitaisai.info`
+- `https://dev.reitaisai.info`
+- `http://localhost:8771`
+
+新しいオリジンが必要になった場合は `src/index.ts` の CORS 設定を更新してください。
+
+### 共有 Zod スキーマ
+
+バリデーションスキーマ（例: `createUserSchema`）は frontend から `@backend/infrastructure/validators/userValidator` として import できます。重複定義を避けるため backend 側のスキーマを再利用してください。
+
+### パスワードハッシュ化
+
+`bcryptjs`（salt rounds = 12）を使用します。frontend から受け取った平文パスワードは `CreateUserUseCase` 内でハッシュ化し、API レスポンスへは絶対に含めません。
+
+### Result 型（Discriminated Union）
+
+use case の返り値は必ず `{ success: true; data: T } | { success: false; error: string }` の形式に統一し、controller は `success` フラグで HTTP ステータスを分岐します。
+
+### Cloudflare Workers の制約
+
+- モジュールレベルのグローバル状態は同一 Worker インスタンス内でリクエストをまたいで残るため注意する。DB 接続はリクエストごとに作成する設計（接続プールは Hyperdrive が管理）。
+- Workers 用 tsconfig に `bun-types` を含めると `@cloudflare/workers-types` と `Response` / `Body` が競合する。production tsconfig は `@cloudflare/workers-types` のみを使用。
+- `nodejs_compat` フラグを有効化しているため、Node.js 組み込み（`crypto`, `buffer` など）が利用可能。
+
+### セキュリティスキャン
+
+PR 作成時に次のスキャンが自動実行されます。
+- **AikidoSec Safe Chain** — 依存関係の脆弱性スキャン
+- **Betterleaks** — シークレット漏えい検知
+- **anti-trojan-source** — Unicode 制御文字を用いた難読化検知
+
+`.env` や `terraform.tfvars` などの機密ファイルは `.gitignore` で除外されています。コミット前は必ず `git status` を確認し、シークレットが stage されていないことを確認してください。

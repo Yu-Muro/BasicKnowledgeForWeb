@@ -2,7 +2,7 @@
 
 ## 対象
 
-- `docs/implementation-plan.md`
+- `docs/development-guide.md`
 - `docs/pages/10-dashboard.md`
 - `docs/pages/11-admin-access-code.md`
 
@@ -112,4 +112,4 @@ backend と frontend とインフラ設定をまたぐため、以下の順序�
 - 一般ユーザーは従来どおりログイン操作不要で利用できる
 - `apps/backend` の `type-check`, `test`, `lint` が通る
 - `apps/frontend` の `type-check`, `test`, `lint` が通る
-- `docs/implementation-plan.md` と関連 `docs/pages` が Phase9 仕様に追従している
+- `docs/development-guide.md` と関連 `docs/pages` が Phase9 仕様に追従している

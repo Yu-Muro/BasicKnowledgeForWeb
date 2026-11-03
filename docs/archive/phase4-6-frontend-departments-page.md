@@ -1,5 +1,8 @@
 # Phase 4-6 Frontend: `/departments`
 
+> 区分: 部署画面の初期実装計画の記録。現行画面は実装済みで、この資料は現在の実装手順ではありません。
+> 現行仕様は [部署ページ仕様](../pages/12-departments.md)、実装は `apps/frontend/app/(authenticated)/departments/` を確認してください。
+
 ## 対象
 
 - `docs/pages/12-departments.md`

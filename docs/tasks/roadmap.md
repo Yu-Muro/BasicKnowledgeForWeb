@@ -2,12 +2,14 @@
 
 作成日: 2026-06-30
 
+整理・Phase 5状態確認: 2026-10-14（日本時間）
+
 Phase 1〜4（認証基盤・コンテンツ・検索・管理機能）はプロダクト基盤として概ね完了/進行中。
 本書は **残タスクを優先度順に整理した唯一の基準** とする。
 
 > **注意:** 番号変更を最小化したため、ファイル番号は優先度順と完全には一致しない（性能/UX/運用は Phase 10、passkey/OIDC/Access は 7/8/9 のまま据え置き）。**実行順は必ず本書の「推奨実行順」に従うこと。**
 
-調査の根拠は [Cloudflare 機能の導入検討レポート](../cloudflare-features-investigation.md)、全体設計は [implementation-plan.md](../implementation-plan.md) を参照。
+調査の根拠は [Cloudflare 機能の導入検討レポート](../research/cloudflare-features-investigation.md)。現行構成は [開発リファレンス](../development-guide.md)、メール認証計画は [Phase 5](./phase5-email-auth-with-email-worker.md) を参照。
 
 ---
 
@@ -18,15 +20,21 @@ Phase 1〜4（認証基盤・コンテンツ・検索・管理機能）はプロ
 - **工数**: 極小（設定のみ） / 小 / 中 / 大
 - **コスト**: 無料 / 無料枠 / 従量 / プラン依存 / 送信基盤依存
 
-## 進行中
+## Phase 5の状態
 
 | フェーズ | 区分 | 内容 | 状態 |
 |---|---|---|---|
-| [5](https://github.com/RTS-souhon/BasicKnowledgeForWeb/pull/167) | 認証/機能 | メール認証基盤（メール検証 / OTP ログイン / 信頼デバイス、`apps/email-worker` 分離 + Service Binding） | 実装中（PR #167） |
+| [5](./phase5-email-auth-with-email-worker.md) | 認証/機能 | Email Worker分離・内部送信基盤、メール検証 / OTP / 信頼デバイス | 送信基盤の準備はマージ済み。認証機能は計画として継続 |
 
-> Phase 5 は Cloudflare の **Email Workers + Service Bindings** を用いた認証強化。マージ後のタスク doc は `docs/tasks/phase5-email-auth-with-email-worker.md`。
+[PR #167](https://github.com/Yu-Muro/BasicKnowledgeForWeb/pull/167)は2026-10-02にマージ済みです。
+2026-10-14に確認したコードには `apps/email-worker` と内部送信API、backendの `EMAIL_WORKER` bindingがあります。
+一方、現行ログインはpasswordから `auth_token` を発行し、メール検証・OTP・信頼デバイス用のAPI/DBモデルはまだありません。
+Cloudflare管理画面、DNS、実配送は今回の整理では未確認です。
+詳細は [Phase 5タスク](./phase5-email-auth-with-email-worker.md)と [確認項目](../checklists/phase5-email-auth-checklist.md)を参照してください。
 
-## 推奨実行順（未着手分）
+## 推奨実行順（計画）
+
+以下の優先順位は従来の計画を維持しています。Phase 5以外の実装・外部設定の進捗は今回再検証していません。状態・工数・コストは計画時点の記録なので、着手時に確認してください。
 
 | 順 | フェーズ | 区分 | 内容 | 状態 | 工数 | コスト |
 |---|---|---|---|---|---|---|
@@ -41,7 +49,7 @@ Phase 1〜4（認証基盤・コンテンツ・検索・管理機能）はプロ
 
 ## 優先度の考え方
 
-1. **進行中の Phase 5（メール認証）を完遂**: 既に PR #167 が進行中。OTP/メール検証は公開時点から厳密な試行回数制限と専用 rate limit を適用し、下記 Phase 6 で共通の多層防御へ拡張する。
+1. **Phase 5（メール認証）の残りを完遂**: 送信基盤の準備はPR #167でマージ済み。OTP/メール検証は公開時点から厳密な試行回数制限と専用 rate limit を適用し、下記 Phase 6 で共通の多層防御へ拡張する。
 2. **アプリの穴を最優先で塞ぐ**: `POST /api/access-codes/verify` は「誰でも可」かつ回数無制限で総当たりが可能。`POST /api/auth/login` も同様。**総当たり対策を Phase 6（最優先）に昇格**し、まず塞ぐ。ゾーン側 WAF（Phase 10-2）と二重化する。
 3. **設定で効く性能改善を即取り込む**: Hyperdrive キャッシュ調整と Smart Placement（Phase 10-1）はコード変更が極小でレイテンシ改善が見込める。
 4. **運用可視化と来場体験**: 境界防御・計測（10-2）→ 画像最適化（10-3）。
@@ -59,9 +67,9 @@ Phase 1〜4（認証基盤・コンテンツ・検索・管理機能）はプロ
 
 ## 各フェーズ概要
 
-### Phase 5: メール認証基盤（実装中・PR #167）
+### Phase 5: メール認証基盤（送信基盤の準備済み・認証機能は計画）
 
-`apps/email-worker` を分離し、Service Binding（`EMAIL_WORKER`）経由で backend から呼び出す構成。メール検証 / OTP ログイン / 信頼デバイス（30 日）を実装予定。Cloudflare の Email Workers を活用。詳細は [PR #167](https://github.com/RTS-souhon/BasicKnowledgeForWeb/pull/167)。
+`apps/email-worker` とService Binding（`EMAIL_WORKER`）による内部送信基盤を準備済み。メール検証 / OTPログイン / 信頼デバイス（30日）は [Phase 5タスク](./phase5-email-auth-with-email-worker.md)で継続する計画です。
 
 ### Phase 6: アクセスコード/ログインの総当たり対策（新規・最優先）
 

@@ -1,306 +1,74 @@
 # BasicKnowledgeForWeb
 
-Next.js 15、Hono.js、Cloudflare Workersを使用したモダンなフルスタックWebアプリケーション。クリーンアーキテクチャの原則に従って構築されています。
+イベントスタッフ向けに、会期ごとの時間割・部屋割り・企画・販売物・お知らせを提供するポータルです。スタッフはアクセスコードで閲覧し、管理者はアカウントでログインして内容を管理します。
 
-## 🚀 主な機能
+## 構成
 
-- **フルスタックTypeScript**: エンドツーエンドの型安全性
-- **モダンアーキテクチャ**: 関心の分離によるクリーンアーキテクチャ
-- **クラウドネイティブ**: グローバルパフォーマンスのためのCloudflare Workersデプロイ
-- **データベース**: 型安全なデータベース操作のためのCockroachDBとDrizzle ORM
-- **認証**: bcryptjsによる安全なユーザー認証
-- **リアルタイム**: エッジコンピューティングと低遅延に最適化
+Bunモノレポとして、3つのアプリをCloudflare Workersで動かします。
 
-## 🏗️ アーキテクチャ
+| アプリ | 役割 | 主な技術 |
+|---|---|---|
+| [Backend](apps/backend/README.md) | API、認証、会期別データ、画像 | Hono、Drizzle、CockroachDB、Hyperdrive、R2 |
+| [Frontend](apps/frontend/README.md) | スタッフ閲覧・管理画面 | Next.js 15、React 19、Tailwind v4、OpenNext |
+| [Email Worker](apps/email-worker/README.md) | Service Binding経由の内部メール送信 | Cloudflare Email Service |
 
-### プロジェクト構造
+メール送信基盤は実装済みです。メール検証・OTPログイン・信頼デバイスは[Phase 5の計画](docs/tasks/phase5-email-auth-with-email-worker.md)であり、現行のログイン仕様とは区別します。
 
-```
-├── apps/
-│   ├── backend/          # Cloudflare Workers API (Hono.js)
-│   │   ├── src/
-│   │   │   ├── db/       # データベーススキーマと接続
-│   │   │   ├── use-cases/ # ビジネスロジック
-│   │   │   ├── presentation/ # コントローラーとルート
-│   │   │   └── infrastructure/ # バリデーターと外部ツール
-│   │   └── drizzle.config.ts
-│   ├── frontend/         # Next.js 15 App Router
-│       ├── app/          # App Routerページとコンポーネント
-│       └── utils/        # ユーティリティ関数とAPIクライアント
-│   └── email-worker/     # Cloudflare Email Worker (internal send API)
-├── docs/                 # ドキュメント
-└── .github/              # GitHub Actionsワークフロー
+## 開発を始める
+
+Bun、Node.js、Docker、Gitを用意します。CIのランタイム設定は [.github/actions/setup-bun-project/action.yml](.github/actions/setup-bun-project/action.yml) を参照してください。
+
+```bash
+git clone https://github.com/Yu-Muro/BasicKnowledgeForWeb.git
+cd BasicKnowledgeForWeb
+bun install
+cp apps/backend/.env.example apps/backend/.env
+cp apps/frontend/.env.example apps/frontend/.env
 ```
 
-### 技術スタック
+backend/frontendの `JWT_SECRET` は同じローカル用の値へ変更します。既存の `.env` がある場合はコピーで上書きせず、その内容を確認してください。設定の詳細は各アプリのREADMEを参照してください。
 
-#### バックエンド
-- **ランタイム**: Cloudflare Workers
-- **フレームワーク**: Hono.js
-- **データベース**: CockroachDB with Drizzle ORM
-- **認証**: bcryptjs
-- **バリデーション**: Zod
-- **アーキテクチャ**: クリーンアーキテクチャ
+次にローカルDBを用意します。
 
-#### フロントエンド
-- **フレームワーク**: Next.js 15 (App Router)
-- **スタイリング**: Tailwind CSS v4
-- **APIクライアント**: 型安全なAPI呼び出しのためのHono Client
-- **デプロイ**: Cloudflare Workers (OpenNext)
-
-#### メールワーカー
-- **ランタイム**: Cloudflare Workers
-- **責務**: Backend からの内部リクエストを受けて検証メール/OTPメールを送信
-- **テスト**: Jest
-
-#### 開発ツール
-- **パッケージマネージャー**: Bun
-- **リンター/フォーマッター**: Biome
-- **TypeScript**: 厳密モード
-- **CI/CD**: GitHub Actions
-
-## 🛠️ セットアップ
-
-### 前提条件
-
-- [Bun](https://bun.sh/) (最新版)
-- [Docker](https://www.docker.com/) (ローカルCockroachDB用)
-- [Git](https://git-scm.com/)
-
-### インストール
-
-1. **リポジトリをクローン**
-   ```bash
-   gh repo clone RTS-souhon/BasicKnowledgeForWeb
-   cd BasicKnowledgeForWeb
-   ```
-
-2. **依存関係をインストール**
-   ```bash
-   bun install
-   ```
-
-3. **環境変数を設定**
-   ```bash
-   # バックエンド (apps/backend/.env)
-   cp apps/backend/.env.example apps/backend/.env
-
-   # フロントエンド (apps/frontend/.env)
-   cp apps/frontend/.env.example apps/frontend/.env
-   ```
-
-4. **CockroachDBデータベースを起動**
-   ```bash
-   cd apps/backend
-   docker-compose up -d
-   ```
-
-5. **データベースマイグレーションを実行**
-   ```bash
-   cd apps/backend
-   bun run db:generate
-   bun run db:migrate
-   ```
-
-6. **開発サーバーを起動**
-   ```bash
-   # ターミナル1: バックエンド
-   cd apps/backend
-   bun run dev
-
-   # ターミナル2: フロントエンド
-   cd apps/frontend
-   bun run dev
-   ```
-
-### 開発スクリプト
-
-#### バックエンド
 ```bash
 cd apps/backend
-
-# 開発
-bun run dev              # 開発サーバー起動
-bun run build            # 本番用ビルド
-bun run lint             # Biomeリンター実行
-bun run type-check       # TypeScript型チェック
-
-# データベース
-bun run db:generate      # マイグレーション生成
-bun run db:migrate       # マイグレーション実行
-bun run db:studio        # Drizzle Studio起動
+docker compose up -d
+# DB起動後に実行。既存DBがある場合もそのまま利用する。
+docker compose exec db cockroach sql --insecure   -e 'CREATE DATABASE IF NOT EXISTS "basic-knowledge-for-web";'
+bun run db:migrate
 ```
 
-#### フロントエンド
-```bash
-cd apps/frontend
+初回セットアップは既存migrationの適用のみ行います。`db:generate` はスキーマを変更したときに実行します。
 
-# 開発
-bun run dev              # 開発サーバー起動
-bun run build            # 本番用ビルド
-bun run build:cloudflare # Cloudflare用ビルド
-bun run lint             # Biomeリンター実行
-bun run type-check       # TypeScript型チェック
-```
+各ターミナルで、リポジトリルートから対象アプリに移動して起動します。
 
-#### メールワーカー
-```bash
-cd apps/email-worker
+| 対象 | 起動コマンド | ローカルURL |
+|---|---|---|
+| Backend | `cd apps/backend` → `bun run dev` | `http://localhost:8080` |
+| Frontend | `cd apps/frontend` → `bun run dev` | `http://localhost:8771` |
+| Email Workerを検証する場合 | `cd apps/email-worker` → `bun run dev` | `http://localhost:8789` |
 
-# 開発
-bun run dev              # 開発サーバー起動
-bun run build            # Dry-runビルド
-bun run lint             # Biomeリンター実行
-bun run type-check       # TypeScript型チェック
-bun run test             # Jestテスト実行
-```
+Frontendの `dev` はOpenNextビルド後にWranglerを起動します。ローカルの入口は `http://localhost:8771/access` です。Email Workerの実配送には別途Cloudflare側の設定が必要です。
 
-## 🗄️ データベース
+## 検証と変更の提出
 
-### スキーマ
-
-アプリケーションは以下のメインテーブルを持つCockroachDBを使用します：
-
-```sql
--- ユーザーテーブル
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password TEXT NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'user',
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW(),
-    deleted_at TIMESTAMP
-);
-```
-
-### データベース操作
-
-- **ORM**: 型安全なデータベース操作のためのDrizzle ORM
-- **マイグレーション**: スキーマ管理のためのDrizzle Kit
-- **接続**: 本番環境用のCloudflare Hyperdrive
-- **ローカル開発**: CockroachDB付きDocker Compose
-
-## 🔐 認証
-
-### セキュリティ機能
-
-- **パスワードハッシュ化**: ソルトラウンド付きbcryptjs
-- **入力バリデーション**: すべての入力用のZodスキーマ
-- **CORS**: クロスオリジンリクエスト用の適切な設定
-- **環境変数**: 安全な設定管理
-
-### ユーザー管理
-
-- ユーザー登録と認証
-- ロールベースアクセス制御
-- ソフトデリートサポート
-- 安全なパスワード保存
-
-## 🚀 デプロイ
-
-### Cloudflare Workers
-
-アプリケーションはCloudflare Workersデプロイに最適化されています：
-
-- **バックエンド**: Cloudflare Workersへの直接デプロイ
-- **フロントエンド**: Next.js互換性のためのOpenNext
-- **データベース**: CockroachDB接続用のCloudflare Hyperdrive
-- **グローバルCDN**: 自動グローバル配信
-
-### 環境設定
+変更したアプリのディレクトリで実行します。テストランナーはJestなので、`bun run test` を使用します。
 
 ```bash
-# 本番環境変数
-CLOUDFLARE_API_TOKEN=your_api_token
-CLOUDFLARE_ACCOUNT_ID=your_account_id
-DATABASE_URL=your_database_url
-NEXT_PUBLIC_API_URL=your_api_url
+bun run type-check
+bun run lint
+bun run test
 ```
 
-## 🧪 テスト
+必須チェックとBackend→Frontendの実装順序、ブランチ・日本語コミット・`develop`向けPRの規約は [AGENTS.md](AGENTS.md) にまとめています。
 
-### テスト構造
+## ドキュメント
 
-- **ユニットテスト**: 個別の関数とコンポーネント
-- **統合テスト**: APIエンドポイントとデータベース操作
-- **E2Eテスト**: 完全なユーザーワークフロー
-- **型チェック**: TypeScript厳密モード
+[ドキュメント案内](docs/README.md)から、目的に合う資料を選べます。
 
-### テスト実行
+- [開発リファレンス](docs/development-guide.md): レイヤー構成、テスト、CI、デプロイ、依存更新
+- [API一覧](docs/apis/README.md): 現行エンドポイントと認証条件
+- [スタッフ向けマニュアル](docs/manuals/user-manual.md) / [管理者向けマニュアル](docs/manuals/admin-manual.md): 利用手順
+- [ロードマップ](docs/tasks/roadmap.md): 今後の実装計画と優先順位
 
-```bash
-# バックエンドテスト
-cd apps/backend
-bun test
-
-# フロントエンドテスト
-cd apps/frontend
-bun test
-
-# メールワーカーテスト
-cd apps/email-worker
-bun test
-```
-
-## 📚 API ドキュメント
-
-### エンドポイント
-
-#### ユーザー
-- `GET /api/users` - 全ユーザー取得
-- `POST /api/users` - 新規ユーザー作成
-
-### レスポンス形式
-
-```typescript
-// 成功レスポンス
-{
-  users: User[] | user: User
-}
-
-// エラーレスポンス
-{
-  error: string;
-  details?: ValidationError[];
-}
-```
-
-## 🔧 開発ガイドライン
-
-### コード品質
-
-- **リンター**: 一貫したコードスタイルのためのBiome
-- **型安全性**: 厳密なTypeScript設定
-- **アーキテクチャ**: クリーンアーキテクチャの原則
-- **テスト**: 包括的なテストカバレッジ
-
-### Gitワークフロー
-
-- **ブランチ命名**: `type/description` (例: `feature/user-auth`)
-- **コミットメッセージ**: コンベンショナルコミット形式
-- **コードレビュー**: すべての変更に必要
-- **CI/CD**: 自動テストとデプロイ
-
-### アーキテクチャ原則
-
-1. **関心の分離**: レイヤー間の明確な境界
-2. **依存関係逆転**: 高レベルモジュールは低レベルモジュールに依存しない
-3. **単一責任**: 各クラスは変更する理由が一つ
-4. **開放/閉鎖原則**: 拡張には開いており、修正には閉じている
-
-## 🤝 コントリビューション
-
-1. リポジトリをフォーク
-2. 機能ブランチを作成 (`git switch -c feature/amazing-feature`)
-3. 変更をコミット (`git commit -m 'feat: add amazing feature'`)
-4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
-5. プルリクエストを作成
-
-### 開発セットアップ
-
-1. 上記のインストール手順に従う
-2. 開発環境をセットアップ
-3. すべてが動作することを確認するためにテストを実行
-4. コーディングガイドラインに従う
+`develop`へのpushでdev、`main`へのpushでprodへ配備します。実際の順序・環境設定は [.github/workflows](.github/workflows) と各アプリの `wrangler.jsonc` が正本です。
