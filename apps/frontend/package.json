@@ -17,7 +17,7 @@
         "test:watch": "jest --watch --forceExit"
     },
     "dependencies": {
-        "@base-ui/react": "^1.7.0",
+        "@base-ui/react": "^1.9.0",
         "@hookform/resolvers": "^5.7.1",
         "@opennextjs/cloudflare": "^1.20.13",
         "backend": "^0.0.0",
