@@ -24,11 +24,11 @@
         "dotenv": "^17.4.2",
         "drizzle-orm": "1.0.0-beta.21",
         "hono": "^4.13.14",
-        "pg": "^8.22.0",
+        "pg": "^8.23.1",
         "zod": "^4.4.2"
     },
     "devDependencies": {
-        "@types/pg": "^8.21.0",
+        "@types/pg": "^8.23.1",
         "bun-types": "^1.4.4",
         "drizzle-kit": "1.0.0-beta.23",
         "jsonc-parser": "^3.3.1",
