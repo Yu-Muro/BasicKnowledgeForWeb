@@ -25,13 +25,22 @@ const getCloudflareContext = (): CloudflareContext | undefined => {
         | undefined;
 };
 
-const isAbsoluteUrl = (target: string) => /^https?:\/\//.test(target);
-
 const buildAbsoluteUrl = (target: string) => {
-    if (isAbsoluteUrl(target)) {
-        return target;
+    const baseUrl = new URL(FALLBACK_API_BASE_URL);
+    const url = new URL(target, baseUrl);
+    if (
+        !['http:', 'https:'].includes(url.protocol) ||
+        url.origin !== baseUrl.origin ||
+        url.username ||
+        url.password
+    ) {
+        throw new Error('Backend URL must use the configured API origin');
     }
-    return `${FALLBACK_API_BASE_URL}${target.startsWith('/') ? '' : '/'}${target}`;
+    // 接続先は設定値から構築し、呼び出し元にはパスとクエリだけを許可する。
+    baseUrl.pathname = url.pathname;
+    baseUrl.search = url.search;
+    baseUrl.hash = '';
+    return baseUrl.toString();
 };
 
 export const getPublicApiBaseUrl = () => FALLBACK_API_BASE_URL;
@@ -52,6 +61,8 @@ export function withNoStoreRequestInit(init?: RequestInit): RequestInit {
     return {
         ...init,
         cache: 'no-store',
+        // Backendのリダイレクト先へ認証情報を送信しない。
+        redirect: 'error',
         headers,
     };
 }
@@ -199,7 +210,10 @@ async function logBackendFetch(
     const responseHeaders = serializeHeaders(response.headers);
     const responseBody = await serializeResponseBody(response);
 
-    console.log(`[backendFetch] ${method} ${url} -> ${response.status}`, {
+    console.log('[backendFetch]', {
+        method,
+        url,
+        status: response.status,
         request: {
             headers: requestHeaders,
             body: requestBody,
@@ -218,7 +232,9 @@ function logBackendFetchError(
     error: unknown,
 ): void {
     if (!isVerboseBackendFetchLogEnabled()) return;
-    console.error(`[backendFetch] ${method} ${url} -> ERROR`, {
+    console.error('[backendFetch] ERROR', {
+        method,
+        url,
         request: {
             headers: serializeHeaders(init?.headers),
             body: serializeRequestBody(init?.body),
@@ -237,20 +253,16 @@ export async function fetchFromBackend(
 
     try {
         if (typeof window === 'undefined') {
-            try {
-                const context = getCloudflareContext();
-                const backend = context?.env?.BACKEND;
-                if (backend) {
-                    const request = new Request(url, requestInit);
-                    const backendFetch = backend.fetch.bind(
-                        backend,
-                    ) as unknown as typeof fetch;
-                    const response = await backendFetch(request);
-                    await logBackendFetch(method, url, requestInit, response);
-                    return response;
-                }
-            } catch {
-                // Cloudflare 環境以外（ローカルなど）は通常の fetch にフォールバック
+            const context = getCloudflareContext();
+            const backend = context?.env?.BACKEND;
+            if (backend) {
+                const request = new Request(url, requestInit);
+                const backendFetch = backend.fetch.bind(
+                    backend,
+                ) as unknown as typeof fetch;
+                const response = await backendFetch(request);
+                await logBackendFetch(method, url, requestInit, response);
+                return response;
             }
         }
 
