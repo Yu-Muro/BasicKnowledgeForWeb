@@ -9,7 +9,7 @@ export function logAction(
     url: string,
     status: number,
 ): void {
-    console.log(`[action] ${method} ${url} → ${status}`, { action });
+    console.log('[action]', { action, method, url, status });
 }
 
 export function logActionError(
@@ -18,8 +18,10 @@ export function logActionError(
     url: string,
     error: unknown,
 ): void {
-    console.error(`[action] ${method} ${url} → ERROR`, {
+    console.error('[action] ERROR', {
         action,
+        method,
+        url,
         error: error instanceof Error ? error.message : String(error),
     });
 }
