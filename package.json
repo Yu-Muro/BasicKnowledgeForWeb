@@ -9,7 +9,7 @@
         "@types/node": "^24.13.3",
         "esbuild-register": "^3.6.0",
         "jest": "^30.5.2",
-        "tsx": "^4.23.12",
+        "tsx": "^4.23.15",
         "wrangler": "^4.156.0"
     },
     "private": true,
