@@ -18,7 +18,7 @@
     },
     "dependencies": {
         "@base-ui/react": "^1.9.0",
-        "@hookform/resolvers": "^5.7.1",
+        "@hookform/resolvers": "^7.0.2",
         "@opennextjs/cloudflare": "^1.20.16",
         "backend": "^0.0.0",
         "class-variance-authority": "^0.7.1",
