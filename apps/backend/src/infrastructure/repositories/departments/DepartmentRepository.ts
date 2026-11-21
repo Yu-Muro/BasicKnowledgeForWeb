@@ -1,6 +1,6 @@
 import type { createDatabaseClient } from '@backend/src/db/connection';
 import { departments } from '@backend/src/db/schema';
-import { and, asc, eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import type {
     CreateDepartmentInput,
     Department,
@@ -13,11 +13,10 @@ type DatabaseClient = ReturnType<typeof createDatabaseClient>;
 export class DepartmentRepository implements IDepartmentRepository {
     constructor(private readonly db: DatabaseClient) {}
 
-    async findByEventId(eventId: string): Promise<Department[]> {
+    async findAll(): Promise<Department[]> {
         return this.db
             .select()
             .from(departments)
-            .where(eq(departments.eventId, eventId))
             .orderBy(asc(departments.name));
     }
 
@@ -29,34 +28,31 @@ export class DepartmentRepository implements IDepartmentRepository {
         return created;
     }
 
-    async createBulk(inputs: CreateDepartmentInput[]): Promise<Department[]> {
-        if (inputs.length === 0) {
-            return [];
-        }
-        return this.db.insert(departments).values(inputs).returning();
+    async findById(id: string): Promise<Department | null> {
+        const [row] = await this.db
+            .select()
+            .from(departments)
+            .where(eq(departments.id, id))
+            .limit(1);
+        return row ?? null;
     }
 
     async update(
         id: string,
-        eventId: string,
         input: UpdateDepartmentInput,
     ): Promise<Department | null> {
         const [updated] = await this.db
             .update(departments)
             .set({ ...input, updatedAt: new Date() })
-            .where(
-                and(eq(departments.id, id), eq(departments.eventId, eventId)),
-            )
+            .where(eq(departments.id, id))
             .returning();
         return updated ?? null;
     }
 
-    async delete(id: string, eventId: string): Promise<boolean> {
+    async delete(id: string): Promise<boolean> {
         const deleted = await this.db
             .delete(departments)
-            .where(
-                and(eq(departments.id, id), eq(departments.eventId, eventId)),
-            )
+            .where(eq(departments.id, id))
             .returning({ id: departments.id });
         return deleted.length > 0;
     }

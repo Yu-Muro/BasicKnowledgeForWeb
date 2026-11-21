@@ -13,13 +13,11 @@ export const createUserSchema = z.object({
         )
         .max(255, 'メールアドレスは255文字以内で入力してください'),
     password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
-    role: z
-        .string()
-        .min(1, '権限は必須です')
-        .max(50, '権限は50文字以内で入力してください')
-        .optional()
-        .default('user'),
+    departmentId: z.string().uuid('部署を選択してください'),
+    role: z.literal('user').optional().default('user'),
 });
+
+export type CreateUserInput = z.infer<typeof createUserSchema>;
 
 export const updateUserSchema = z.object({
     name: z
@@ -46,5 +44,4 @@ export const updateUserSchema = z.object({
         .optional(),
 });
 
-export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;

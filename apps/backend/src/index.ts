@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { Env } from './db/connection';
 import { createAccessCodeRoutes } from './presentation/routes/accessCodeRoutes';
+import { createAuthenticationContext } from './presentation/routes/authenticationContext';
 import { createAuthRoutes } from './presentation/routes/authRoutes';
 import { createDepartmentRoutes } from './presentation/routes/departmentRoutes';
 import { createHealthRoutes } from './presentation/routes/healthRoutes';
@@ -46,6 +47,8 @@ app.get('/assets/*', async (c) => {
         },
     });
 });
+
+app.use('/api/*', createAuthenticationContext());
 
 const appWithRoutes = app
     .route('/api', createHealthRoutes())

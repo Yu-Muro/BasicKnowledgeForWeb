@@ -70,6 +70,8 @@ Bunモノレポ。依存追加・スクリプト実行はBunを使う。
 - 業務クエリのDrizzle操作はrepository実装に置く。bindingから依存を組み立てるのはroute層。認証middlewareの `c.env.JWT_SECRET` 参照は既存の境界として維持する。
 - `apps/backend/src/index.ts` の `AppType`、Frontendの `resolveAuth` / `buildContentFetchHeaders` / `fetchFromBackend`（`app/lib/backendFetch.ts`）を再利用し、Cookie・イベントヘッダー処理を分散させない。
 - コンテンツGETは `contentAccessMiddleware` を適用し、有効な `access_token` の `event_id` と `x-event-id` が一致する場合、または有効な `auth_token` のroleが `admin` の場合だけ許可する。`auth_token(user)` 単独では閲覧できない。編集系の認証・管理者権限も確認する。
+- ユーザー認証はDBの現在のロール・部署・削除状態・セッション世代で判定する。公開の `/login`・`/access` は照合の403/503でも入力可能にする。会期トークンのないコンテンツ画面は403なら `/access` へ誘導し、503なら再試行を案内する。管理画面（`/departments`を含む）は403で管理者への確認を案内する。
+- DB providerとrepository factoryはリクエスト内で共有し、別Poolを作るフォールバックを置かない。pg Poolは最大5接続・接続待ち5秒とし、検索の並列実行を維持する。接続終了はWorkersでは `waitUntil`、実行コンテキストのないテストではawaitする。終了エラーのログに接続先やsecretを含めない。
 - CockroachDBの複合FKは、参照先のUNIQUE INDEXをmigrationのFK追加より先に作る。部分適用後の再試行を考慮する。
 - Workers用tsconfigに `bun-types` と `@cloudflare/workers-types` を混在させない。テスト環境の設定を分離する。
 - フォームは共有Zod schemaを優先。Biome設定と既存コードの流儀を守る。secret・平文パスワード・メール認証コードをコミットやログへ出さない。

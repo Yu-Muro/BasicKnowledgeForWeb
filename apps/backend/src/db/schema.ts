@@ -18,9 +18,13 @@ export const users = cockroachTable('users', {
     email: varchar('email', { length: 255 }).notNull().unique(),
     password: text('password').notNull(),
     role: varchar('role', { length: 50 }).notNull().default('user'),
+    departmentId: uuid('department_id').references(() => departments.id, {
+        onDelete: 'restrict',
+    }),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
     deletedAt: timestamp('deleted_at'),
+    sessionVersion: int4('session_version').notNull().default(0),
 });
 
 export const accessCodes = cockroachTable('access_codes', {
@@ -37,16 +41,11 @@ export const departments = cockroachTable(
     'departments',
     {
         id: uuid('id').primaryKey().defaultRandom(),
-        eventId: uuid('event_id')
-            .notNull()
-            .references(() => accessCodes.id, { onDelete: 'restrict' }),
         name: varchar('name', { length: 255 }).notNull(),
         createdAt: timestamp('created_at').defaultNow(),
         updatedAt: timestamp('updated_at').defaultNow(),
     },
-    (table) => [
-        uniqueIndex('departments_event_id_id_idx').on(table.eventId, table.id),
-    ],
+    (table) => [uniqueIndex('departments_name_idx').on(table.name)],
 );
 
 export const timetableItems = cockroachTable(
@@ -89,8 +88,8 @@ export const timetableItemDepartments = cockroachTable(
             foreignColumns: [timetableItems.eventId, timetableItems.id],
         }).onDelete('cascade'),
         foreignKey({
-            columns: [table.eventId, table.departmentId],
-            foreignColumns: [departments.eventId, departments.id],
+            columns: [table.departmentId],
+            foreignColumns: [departments.id],
         }).onDelete('restrict'),
     ],
 );
@@ -115,12 +114,12 @@ export const rooms = cockroachTable(
     },
     (table) => [
         foreignKey({
-            columns: [table.eventId, table.preDayManagerId],
-            foreignColumns: [departments.eventId, departments.id],
+            columns: [table.preDayManagerId],
+            foreignColumns: [departments.id],
         }).onDelete('restrict'),
         foreignKey({
-            columns: [table.eventId, table.dayManagerId],
-            foreignColumns: [departments.eventId, departments.id],
+            columns: [table.dayManagerId],
+            foreignColumns: [departments.id],
         }).onDelete('restrict'),
     ],
 );

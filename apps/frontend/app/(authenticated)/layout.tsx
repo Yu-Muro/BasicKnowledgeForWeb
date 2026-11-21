@@ -54,7 +54,10 @@ export default async function AuthenticatedLayout({
 }: {
     children: ReactNode;
 }) {
-    const { authToken, accessToken, role } = await resolveAuth();
+    const { authToken, accessToken, role, user } = await resolveAuth(
+        undefined,
+        { allowAccessFallback: true },
+    );
 
     const authPayload = authToken
         ? decodeJwtPayload<AuthPayload>(authToken)
@@ -63,7 +66,7 @@ export default async function AuthenticatedLayout({
         ? decodeJwtPayload<AccessPayload>(accessToken)
         : null;
 
-    const userName = authPayload?.name ?? null;
+    const userName = user?.name ?? authPayload?.name ?? null;
     const userEventId = accessPayload?.event_id ?? null;
 
     const isPrivileged = role === 'admin';
