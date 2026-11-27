@@ -1,4 +1,4 @@
-import { createDatabaseClient, type Env } from '@backend/src/db/connection';
+import type { Env } from '@backend/src/db/connection';
 import type { IRoomRepository } from '@backend/src/infrastructure/repositories/room/IRoomRepository';
 import { RoomRepository } from '@backend/src/infrastructure/repositories/room/RoomRepository';
 import {
@@ -15,29 +15,35 @@ import { DeleteRoomUseCase } from '@backend/src/use-cases/room/DeleteRoomUseCase
 import { GetRoomsUseCase } from '@backend/src/use-cases/room/GetRoomsUseCase';
 import { UpdateRoomUseCase } from '@backend/src/use-cases/room/UpdateRoomUseCase';
 import { Hono } from 'hono';
+import { authMiddleware } from '../middleware/authMiddleware';
 import type { ContentEditVariables } from '../middleware/contentEditMiddleware';
-
-type RoomRepositoryFactory = (env: Env) => IRoomRepository;
+import { departmentWriteMiddleware } from '../middleware/departmentWriteMiddleware';
+import type { RepositoryFactory } from './requestDatabase';
 
 export function createRoomRoutes(
-    repositoryFactory: RoomRepositoryFactory = (env) =>
-        new RoomRepository(createDatabaseClient(env)),
+    repositoryFactory: RepositoryFactory<IRoomRepository> = (_env, database) =>
+        new RoomRepository(database()),
 ) {
     const app = new Hono<{ Bindings: Env; Variables: ContentEditVariables }>();
     const ADMIN_ROLES = ['admin'];
 
     app.get('/rooms', contentAccessMiddleware, async (c) => {
-        const repository = repositoryFactory(c.env);
+        const repository = repositoryFactory(c.env, c.get('databaseClient'));
         const useCase = new GetRoomsUseCase(repository);
         return getRooms(c, useCase);
     });
 
     app.post(
         '/rooms',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new CreateRoomUseCase(repository);
             return createRoom(c, useCase);
         },
@@ -45,10 +51,15 @@ export function createRoomRoutes(
 
     app.put(
         '/rooms/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new UpdateRoomUseCase(repository);
             return updateRoom(c, useCase);
         },
@@ -56,10 +67,15 @@ export function createRoomRoutes(
 
     app.delete(
         '/rooms/:id',
+        authMiddleware,
         contentEditMiddleware,
         roleGuard(ADMIN_ROLES),
+        departmentWriteMiddleware,
         async (c) => {
-            const repository = repositoryFactory(c.env);
+            const repository = repositoryFactory(
+                c.env,
+                c.get('databaseClient'),
+            );
             const useCase = new DeleteRoomUseCase(repository);
             return deleteRoom(c, useCase);
         },

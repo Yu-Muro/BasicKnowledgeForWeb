@@ -6,6 +6,7 @@ import {
 } from '@frontend/app/lib/serverAuth';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import DeletedUserPanel, { type DeletedUser } from './DeletedUserPanel';
 import PasswordChangeForm from './PasswordChangeForm';
 import UserRolePanel from './UserRolePanel';
 
@@ -14,6 +15,7 @@ type UserEntry = {
     name: string;
     email: string;
     role: 'user' | 'admin';
+    departmentId?: string | null;
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -40,6 +42,41 @@ async function fetchUsers(authToken: string): Promise<UserEntry[]> {
     }
 }
 
+async function fetchDeletedUsers(
+    authToken: string,
+): Promise<{ users: DeletedUser[]; error?: string }> {
+    try {
+        const res = await fetchFromBackend('/api/users/deleted', {
+            headers: { Cookie: `auth_token=${authToken}` },
+            cache: 'no-store',
+        });
+        if (!res.ok) throw new Error('fetch');
+        const body = (await res.json()) as { users?: DeletedUser[] };
+        if (!Array.isArray(body.users)) throw new Error('body');
+        return { users: body.users };
+    } catch {
+        return {
+            users: [],
+            error: '削除済みユーザー一覧を取得できませんでした',
+        };
+    }
+}
+
+async function fetchDepartments(): Promise<{ id: string; name: string }[]> {
+    try {
+        const res = await fetchFromBackend('/api/departments', {
+            cache: 'no-store',
+        });
+        if (!res.ok) return [];
+        const body = (await res.json()) as {
+            departments?: { id: string; name: string }[];
+        };
+        return body.departments ?? [];
+    } catch {
+        return [];
+    }
+}
+
 export default async function DashboardPage({
     searchParams,
 }: {
@@ -54,19 +91,29 @@ export default async function DashboardPage({
     const buildHref = (href: string) =>
         queryString ? `${href}?${queryString}` : href;
 
-    const { authToken, role } = await resolveAuth(resolvedParams.event_id);
+    const {
+        authToken,
+        role,
+        user: currentUser,
+    } = await resolveAuth(resolvedParams.event_id);
 
     if (!authToken) {
         redirect('/login');
     }
 
-    const me = decodeJwtPayload<AuthPayload>(authToken!);
+    const me = currentUser ?? decodeJwtPayload<AuthPayload>(authToken!);
     if (!me) {
         redirect('/login');
     }
 
     const isAdmin = role === 'admin';
-    const users = isAdmin ? await fetchUsers(authToken!) : [];
+    const [users, departments, deletedUsers] = await Promise.all([
+        isAdmin ? fetchUsers(authToken!) : Promise.resolve([]),
+        fetchDepartments(),
+        isAdmin
+            ? fetchDeletedUsers(authToken!)
+            : Promise.resolve({ users: [] }),
+    ]);
 
     return (
         <div className='space-y-8'>
@@ -100,6 +147,22 @@ export default async function DashboardPage({
                         </div>
                         <div className='flex flex-col gap-1 sm:flex-row sm:gap-4'>
                             <dt className='w-24 font-medium text-muted-foreground'>
+                                所属部署
+                            </dt>
+                            <dd className='text-foreground'>
+                                {departments.find(
+                                    (department) =>
+                                        department.id === me.departmentId,
+                                )?.name ??
+                                    (me.departmentId
+                                        ? '不明な部署'
+                                        : isAdmin
+                                          ? '所属任意'
+                                          : '所属未設定')}
+                            </dd>
+                        </div>
+                        <div className='flex flex-col gap-1 sm:flex-row sm:gap-4'>
+                            <dt className='w-24 font-medium text-muted-foreground'>
                                 ロール
                             </dt>
                             <dd className='text-foreground'>
@@ -114,7 +177,23 @@ export default async function DashboardPage({
             <PasswordChangeForm />
 
             {/* ユーザー管理（admin のみ） */}
-            {isAdmin && <UserRolePanel initialUsers={users} />}
+            {isAdmin && (
+                <UserRolePanel
+                    initialUsers={users}
+                    departments={departments}
+                    currentUserId={me.id}
+                />
+            )}
+
+            {isAdmin && (
+                <DeletedUserPanel
+                    initialUsers={deletedUsers.users}
+                    departments={departments}
+                    loadError={
+                        'error' in deletedUsers ? deletedUsers.error : undefined
+                    }
+                />
+            )}
 
             {/* 管理メニュー（admin のみ） */}
             {isAdmin && (
@@ -134,7 +213,7 @@ export default async function DashboardPage({
                                 アクセスコード管理 →
                             </Link>
                             <Link
-                                href={buildHref('/departments')}
+                                href='/departments'
                                 className='inline-flex items-center gap-2 font-medium text-primary text-sm hover:underline'
                             >
                                 部署管理 →

@@ -1,3 +1,5 @@
+import { CockroachDialect } from 'drizzle-orm/cockroach-core';
+import type { SQL } from 'drizzle-orm';
 import { describe, expect, it, jest } from '@jest/globals';
 import type { createDatabaseClient } from '@backend/src/db/connection';
 import type { User } from '@backend/src/infrastructure/repositories/user/IUserRepository';
@@ -13,7 +15,9 @@ const mockUser: User = {
     role: 'user',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
+    departmentId: '60000000-0000-4000-8000-000000000001',
     deletedAt: null,
+    sessionVersion: 0,
 };
 
 describe('UserRepository', () => {
@@ -24,9 +28,11 @@ describe('UserRepository', () => {
                 .mockImplementation(() => Promise.resolve([mockUser]));
             const db = {
                 select: jest.fn().mockReturnValue({
-                    from: jest
-                        .fn()
-                        .mockReturnValue({ orderBy: orderByMock }),
+                    from: jest.fn().mockReturnValue({
+                        where: jest
+                            .fn()
+                            .mockReturnValue({ orderBy: orderByMock }),
+                    }),
                 }),
             } as unknown as DatabaseClient;
             const repository = new UserRepository(db);
@@ -41,9 +47,11 @@ describe('UserRepository', () => {
             const db = {
                 select: jest.fn().mockReturnValue({
                     from: jest.fn().mockReturnValue({
-                        orderBy: jest
-                            .fn()
-                            .mockImplementation(() => Promise.resolve([])),
+                        where: jest.fn().mockReturnValue({
+                            orderBy: jest
+                                .fn()
+                                .mockImplementation(() => Promise.resolve([])),
+                        }),
                     }),
                 }),
             } as unknown as DatabaseClient;
@@ -152,6 +160,7 @@ describe('UserRepository', () => {
                 email: 'test@example.com',
                 password: 'hashedPassword',
                 role: 'user',
+                departmentId: '60000000-0000-4000-8000-000000000001',
             };
             const result = await repository.create(input);
 
@@ -219,5 +228,100 @@ describe('UserRepository', () => {
 
             expect(whereMock).toHaveBeenCalledTimes(1);
         });
+    });
+});
+
+describe('削除・所属更新のクエリ', () => {
+    function updateChain(rows: User[]) {
+        const returning = jest
+            .fn()
+            .mockImplementation(() => Promise.resolve(rows));
+        const where = jest.fn().mockReturnValue({ returning });
+        const set = jest.fn().mockReturnValue({ where });
+        const db = {
+            update: jest.fn().mockReturnValue({ set }),
+        } as unknown as DatabaseClient;
+        return { db, set, where };
+    }
+    it('論理削除時に所属を解除し、削除済みユーザーは更新対象から除外する', async () => {
+        const { db, set, where } = updateChain([mockUser]);
+        expect(await new UserRepository(db).softDelete(mockUser.id)).toBe(true);
+        expect(set).toHaveBeenCalledWith(
+            expect.objectContaining({
+                departmentId: null,
+                deletedAt: expect.any(Date),
+            }),
+        );
+        const query = new CockroachDialect().sqlToQuery(
+            where.mock.calls[0][0] as SQL,
+        );
+        expect(query.sql).toContain('"deleted_at" is null');
+        expect(query.params).toContain(mockUser.id);
+    });
+    it('削除済み・存在しない対象ではfalseを返す', async () => {
+        expect(
+            await new UserRepository(updateChain([]).db).softDelete(
+                mockUser.id,
+            ),
+        ).toBe(false);
+    });
+    it('所属更新は削除済みユーザーを除外する', async () => {
+        const { db, set, where } = updateChain([mockUser]);
+        expect(
+            await new UserRepository(db).updateDepartment(
+                mockUser.id,
+                mockUser.departmentId!,
+            ),
+        ).toEqual(mockUser);
+        expect(set).toHaveBeenCalledWith(
+            expect.objectContaining({ departmentId: mockUser.departmentId }),
+        );
+        const query = new CockroachDialect().sqlToQuery(
+            where.mock.calls[0][0] as SQL,
+        );
+        expect(query.sql).toContain('"deleted_at" is null');
+        expect(query.params).toContain(mockUser.id);
+    });
+    it('削除済み・存在しない対象の所属更新ではnullを返す', async () => {
+        expect(
+            await new UserRepository(updateChain([]).db).updateDepartment(
+                mockUser.id,
+                mockUser.departmentId!,
+            ),
+        ).toBeNull();
+    });
+    it('復元は削除済み行だけを更新しセッション世代を進める', async () => {
+        const { db, set, where } = updateChain([mockUser]);
+        expect(
+            await new UserRepository(db).restore(
+                mockUser.id,
+                mockUser.departmentId,
+                0,
+            ),
+        ).toEqual(mockUser);
+        expect(set).toHaveBeenCalledWith(
+            expect.objectContaining({
+                deletedAt: null,
+                departmentId: mockUser.departmentId,
+            }),
+        );
+        const condition = new CockroachDialect().sqlToQuery(
+            where.mock.calls[0][0] as SQL,
+        );
+        expect(condition.sql).toContain('"deleted_at" is not null');
+        expect(condition.sql).toContain('"session_version" =');
+        expect(condition.params).toContain(0);
+        expect(condition.params).toContain(mockUser.id);
+        const values = set.mock.calls[0][0] as { sessionVersion: SQL };
+        expect(
+            new CockroachDialect().sqlToQuery(values.sessionVersion).sql,
+        ).toContain('"session_version" + 1');
+        expect(
+            await new UserRepository(updateChain([]).db).restore(
+                mockUser.id,
+                null,
+                0,
+            ),
+        ).toBeNull();
     });
 });

@@ -3,9 +3,11 @@ jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: BasicKnowledgeForWeb Backend API
   summary: スタッフポータルの現行HTTP API
-  version: '2026-10-14'
+  version: '2026-11-04'
   description: 実装済みのAPI契約。info.versionは文書の確認日であり、OpenAPIの規格版はopenapiで指定する。入力はZod、成功レスポンスはcontroller/use
     case/repository/schemaを照合。予定のメール検証・OTP・信頼デバイスAPIは含めない。認証のroleと会期一致条件はsecurityと各operationの説明を併用する。
+    全ユーザー認証APIではDBの現在の状態を照合し、削除済み・旧世代は401、一般ユーザーの所属未設定は403、認証DBの確認失敗は503。
+    部署統合中はユーザー・部署・部屋・時間割の変更操作を503とRetry-After=30で拒否する。
 servers:
 - url: https://reitaisai.info
   description: prod（APIは/api配下）
@@ -135,7 +137,7 @@ paths:
       tags:
       - Auth
       summary: ログイン中のユーザー情報を取得
-      description: 有効なauth_tokenのpayloadからid/name/email/roleを返す。DBの再読込は行わない。
+      description: DB上の現在のロール・部署・削除状態とセッション世代を確認し、id/name/email/role/departmentIdを返す。削除済み・旧世代は401、所属未設定は403、DB確認失敗は503。
       security:
       - AuthCookie: []
       responses:
@@ -147,6 +149,10 @@ paths:
                 $ref: '#/components/schemas/AuthUser'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/ServerError'
   /api/auth/password:
@@ -190,7 +196,7 @@ paths:
       tags:
       - Users
       summary: ユーザー一覧を取得
-      description: adminのみ。createdAt降順。passwordは除去するが、deletedAtを含み、一覧の取得自体はsoft delete行を除外しない。
+      description: adminのみ。createdAt降順。削除済みを除外し、passwordとsessionVersionを返さない。
       security:
       - AuthCookie:
         - admin
@@ -212,6 +218,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/ServerError'
     post:
@@ -219,8 +227,7 @@ paths:
       tags:
       - Users
       summary: ユーザーを登録
-      description: 公開登録API。roleは任意の1〜50文字を受け付ける。現行レスポンスにはpasswordのbcryptハッシュが含まれる。JSON解析失敗は500、検証エラーとuse
-        case失敗は400。
+      description: 公開登録API。存在する部署が必須でroleはuserのみ。削除済みを含むメールの再利用は禁止。passwordを返さない。不正JSON・検証エラーは400。部署統合中は503。
       security: []
       responses:
         '201':
@@ -236,6 +243,8 @@ paths:
                 - user
         '400':
           $ref: '#/components/responses/BadRequest'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/ServerError'
       requestBody:
@@ -248,13 +257,14 @@ paths:
               name: スタッフ
               email: user@example.com
               password: example-password
+              departmentId: 11111111-1111-4111-8111-111111111111
   /api/users/{id}/role:
     put:
       operationId: updateUserRole
       tags:
       - Users
       summary: ユーザーのロールを変更
-      description: ユーザーのロールを変更
+      description: adminのみ。userへの変更は有効なdepartmentIdが必須。userからadminへの昇格時は部署未指定なら所属解除。adminの再保存は所属を維持。統合中は503。
       security:
       - AuthCookie:
         - admin
@@ -275,6 +285,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/ServerError'
       parameters:
@@ -287,6 +299,150 @@ paths:
               $ref: '#/components/schemas/UpdateUserRoleInput'
             example:
               role: admin
+  /api/users/deleted:
+    get:
+      operationId: getDeletedUsers
+      tags: [Users]
+      summary: 削除済みユーザー一覧を取得
+      description: adminのみ。passwordとsessionVersionを除外し、createdAt降順で返す。
+      security:
+      - AuthCookie: [admin]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [users]
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/users/{id}:
+    delete:
+      operationId: deleteUser
+      tags: [Users]
+      summary: ユーザーを論理削除
+      description: adminのみ。所属を解除し、既存セッションを無効扱いにする。メールは再利用不可。自分自身の削除は400。
+      security:
+      - AuthCookie: [admin]
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/users/{id}/department:
+    put:
+      operationId: updateUserDepartment
+      tags: [Users]
+      summary: ユーザーの部署を変更
+      description: adminのみ。有効な部署への変更のみ許可し、削除済みユーザーは404。
+      security:
+      - AuthCookie: [admin]
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepartmentAssignmentInput'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/users/{id}/restore:
+    post:
+      operationId: restoreUser
+      tags: [Users]
+      summary: 削除済みユーザーを復元
+      description: adminのみ。ID・名前・メール・ロール・パスワードを保持する。一般ユーザーは有効な部署必須、管理者は任意。確認時の世代が一致する削除済み行だけを復元し、世代を加算する。削除前のセッションは復活せず再ログインが必要。
+      security:
+      - AuthCookie: [admin]
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                departmentId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, message]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 未削除または他の復元操作と競合した。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /api/access-codes/verify:
     post:
       operationId: verifyAccessCode
@@ -401,7 +557,7 @@ paths:
       - AccessCodes
       summary: 会期詳細を取得
       description: 有効なaccess_tokenとx-event-idのevent_id一致、または有効なauth_tokenのrole=adminで許可。auth_token(user)単独では不可。
-        auth_token(admin)ではx-event-idは不要。access_tokenが示す会期とパスidの一致はこのルートでは検証しない。
+        auth_token(admin)ではx-event-idは不要。会期トークンの場合はパスidとの一致も必須で、不一致は403。
       security:
       - AccessCookie: []
       - AuthCookie:
@@ -420,6 +576,8 @@ paths:
                 - code
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -529,6 +687,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/ServerError'
       parameters:
@@ -571,6 +731,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -606,6 +768,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -687,6 +851,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/ServerError'
       parameters:
@@ -732,6 +898,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -767,6 +935,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -976,12 +1146,8 @@ paths:
       tags:
       - ShopItem
       summary: 販売物一覧を取得
-      description: 有効なaccess_tokenとx-event-idのevent_id一致、または有効なauth_tokenのrole=adminで許可。auth_token(user)単独では不可。
-        name昇順。
-      security:
-      - AccessCookie: []
-      - AuthCookie:
-        - admin
+      description: 全会期共通の部署をname昇順で返す。登録時にも使うため認証と会期指定は不要。
+      security: []
       responses:
         '200':
           description: 成功
@@ -1191,20 +1357,14 @@ paths:
                       $ref: '#/components/schemas/Department'
                 required:
                 - departments
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/ServerError'
-      parameters:
-      - $ref: '#/components/parameters/EventId'
     post:
       operationId: createDepartment
       tags:
       - Department
       summary: 部署を作成
-      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 bodyのevent_idはx-event-idと一致すること。
+      description: adminのみ。会期指定不要。部署名は全体で一意。重複は409、統合中は503。
       security:
       - AuthCookie:
         - admin
@@ -1226,10 +1386,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/ServerError'
-      parameters:
-      - $ref: '#/components/parameters/EventId'
       requestBody:
         required: true
         content:
@@ -1237,7 +1399,6 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateDepartmentInput'
             example:
-              event_id: 11111111-1111-4111-8111-111111111111
               name: 設営部
   /api/departments/{id}:
     put:
@@ -1245,7 +1406,7 @@ paths:
       tags:
       - Department
       summary: 部署を部分更新
-      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 定義済み更新項目を1つ以上指定する。
+      description: adminのみ。会期指定不要。定義済み更新項目を1つ以上指定する。重複名は409、統合中は503。
       security:
       - AuthCookie:
         - admin
@@ -1269,10 +1430,13 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/ServerError'
       parameters:
-      - $ref: '#/components/parameters/EventId'
       - $ref: '#/components/parameters/Id'
       requestBody:
         required: true
@@ -1285,7 +1449,7 @@ paths:
       tags:
       - Department
       summary: 部署を削除
-      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。
+      description: adminのみ。会期指定不要。ユーザー・部屋・タイムテーブルから参照中は409。統合中は503。
       security:
       - AuthCookie:
         - admin
@@ -1306,10 +1470,11 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '500':
           $ref: '#/components/responses/ServerError'
       parameters:
-      - $ref: '#/components/parameters/EventId'
       - $ref: '#/components/parameters/Id'
   /api/others:
     get:
@@ -1506,43 +1671,6 @@ paths:
             encoding:
               file:
                 contentType: '*/*'
-  /api/departments/copy:
-    post:
-      operationId: copyDepartments
-      tags:
-      - Department
-      summary: 別会期の部署名をコピー
-      description: 有効なauth_tokenのrole=adminとx-event-idが必要。ヘッダーのUUID検証をCookie認証より先に行う。 source_event_idからx-event-idへコピー。同名はスキップし、departmentsには新規作成分だけを返す。
-      security:
-      - AuthCookie:
-        - admin
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CopyDepartmentsResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
-      parameters:
-      - $ref: '#/components/parameters/EventId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CopyDepartmentsInput'
-            example:
-              source_event_id: 22222222-2222-4222-8222-222222222222
   /api/search:
     get:
       operationId: searchContent
@@ -1665,10 +1793,21 @@ components:
       name: x-event-id
       in: header
       required: false
-      description: access_tokenではJWTのevent_idと一致する値が必要。auth_token(admin)では省略可能。このAPIではUUID形式やパスidとの一致を検証しない。
+      description: access_tokenではJWTのevent_idとパスidにも一致する値が必要。auth_token(admin)では省略可能。UUID形式は事前検証しない。
       schema:
         type: string
   responses:
+    ServiceUnavailable:
+      description: 認証DBの確認失敗、または部署統合待ち。統合待ちの場合はRetry-After=30。
+      headers:
+        Retry-After:
+          schema:
+            type: string
+            const: '30'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     BadRequest:
       description: 入力・ヘッダー・業務条件の検証に失敗。detailsはZod検証の場合に付与。
       content:
@@ -1688,13 +1827,13 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     NotFound:
-      description: 対象レコードまたはコピー元の部署がない。
+      description: 対象レコードがない。
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
     Conflict:
-      description: 部署を部屋割りまたはタイムテーブルで参照しているため削除できない。
+      description: 部署名が重複している、または部署をユーザー・部屋割り・タイムテーブルで参照しているため削除できない。
       content:
         application/json:
           schema:
@@ -1753,13 +1892,16 @@ components:
         role:
           default: user
           type: string
-          minLength: 1
-          maxLength: 50
+          const: user
+        departmentId:
+          type: string
+          format: uuid
       required:
       - name
       - email
       - password
-      description: 現行実装はroleに任意の1〜50文字の文字列を受け付け、未指定時はuser。更新用role APIのenum制約とは異なる。
+      - departmentId
+      description: 公開登録で管理者を指定できない。部署の存在はDBで検証する。
     UpdateUserRoleInput:
       type: object
       properties:
@@ -1768,8 +1910,19 @@ components:
           enum:
           - user
           - admin
+        departmentId:
+          type: string
+          format: uuid
       required:
       - role
+      allOf:
+      - if:
+          properties:
+            role:
+              const: user
+        then:
+          required:
+          - departmentId
     VerifyAccessCodeInput:
       type: object
       properties:
@@ -1846,7 +1999,7 @@ components:
       - event_id
       - title
       - start_time
-      description: end_time省略時はstart_timeを使用。終了は開始以降。is_public=falseの場合、department_idsが1件以上必要。部署タグは同じ会期に属すること。
+      description: end_time省略時はstart_timeを使用。終了は開始以降。is_public=falseの場合、department_idsが1件以上必要。部署タグは全会期共通の部署から指定する。
       allOf:
       - if:
           properties:
@@ -2175,17 +2328,19 @@ components:
     CreateDepartmentInput:
       type: object
       properties:
-        event_id:
-          type: string
-          format: uuid
-          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
         name:
           type: string
           minLength: 1
           maxLength: 255
       required:
-      - event_id
       - name
+    DepartmentAssignmentInput:
+      type: object
+      required: [departmentId]
+      properties:
+        departmentId:
+          type: string
+          format: uuid
     UpdateDepartmentInput:
       type: object
       properties:
@@ -2197,16 +2352,6 @@ components:
       - required:
         - name
       description: 定義済み更新項目を1つ以上指定する。未知のキーはZodが除去するため、未知のキーだけでは更新できない。
-    CopyDepartmentsInput:
-      type: object
-      properties:
-        source_event_id:
-          type: string
-          format: uuid
-          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-      required:
-      - source_event_id
-      description: source_event_idはx-event-idのコピー先と異なる会期を指定する。同名部署はスキップし、コピー元の重複名を1件にまとめる。
     CreateOtherItemInput:
       type: object
       properties:
@@ -2279,6 +2424,9 @@ components:
           type: string
         role:
           type: string
+        departmentId:
+          type: [string, 'null']
+          format: uuid
         createdAt:
           type:
           - string
@@ -2299,6 +2447,7 @@ components:
       - name
       - email
       - role
+      - departmentId
       - createdAt
       - updatedAt
       - deletedAt
@@ -2307,12 +2456,11 @@ components:
       - $ref: '#/components/schemas/User'
       - type: object
         properties:
-          password:
-            type: string
-            description: 現行の登録レスポンスにはbcryptハッシュが含まれる。平文ではない。
+          sessionVersion:
+            type: integer
         required:
-        - password
-      description: CreateUserUseCaseがrepositoryの挿入結果をそのまま返す現行のレスポンス。ユーザー一覧はこのpasswordフィールドを除去する。
+        - sessionVersion
+      description: 登録結果からpasswordを除去する。sessionVersionは登録時のセッション世代。
     AuthUser:
       type: object
       properties:
@@ -2325,11 +2473,15 @@ components:
           type: string
         role:
           type: string
+        departmentId:
+          type: [string, 'null']
+          format: uuid
       required:
       - id
       - name
       - email
       - role
+      - departmentId
     AccessCode:
       type: object
       properties:
@@ -2368,9 +2520,6 @@ components:
         id:
           type: string
           format: uuid
-        eventId:
-          type: string
-          format: uuid
         name:
           type: string
         createdAt:
@@ -2385,7 +2534,6 @@ components:
           format: date-time
       required:
       - id
-      - eventId
       - name
       - createdAt
       - updatedAt
@@ -2708,23 +2856,6 @@ components:
           description: アップロードしたR2キー。拡張子は元ファイル名から導出し、画像変換は行わない。
       required:
       - imageKey
-    CopyDepartmentsResult:
-      type: object
-      properties:
-        departments:
-          type: array
-          items:
-            $ref: '#/components/schemas/Department'
-        createdCount:
-          type: integer
-          minimum: 0
-        skippedCount:
-          type: integer
-          minimum: 0
-      required:
-      - departments
-      - createdCount
-      - skippedCount
     SearchResult:
       type: object
       properties:
@@ -2781,4 +2912,4 @@ components:
           description: multipartのバイナリファイル。Fileとして受け取れるpartが必須。ファイルサイズ/MIMEのアプリ独自制限はない。
       required:
       - file
-x-source-revision: 572770dc2c8cc94b86117d0c9c414f67c19ecbee
+x-source-revision: 009d4a7e69606014a329129ef4374d871f13b1bc

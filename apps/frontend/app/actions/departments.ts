@@ -10,7 +10,7 @@ import { cookies } from 'next/headers';
 type Department = { id: string; name: string };
 
 type ActionResult =
-    | { success: true; data: Department[] }
+    | { success: true; data?: Department[]; warning?: string }
     | { success: false; error: string };
 
 async function getAuthToken(): Promise<string | null> {
@@ -18,10 +18,9 @@ async function getAuthToken(): Promise<string | null> {
     return store.get('auth_token')?.value ?? null;
 }
 
-export async function createDepartmentAction(
-    eventId: string,
-    data: { name: string },
-): Promise<ActionResult> {
+export async function createDepartmentAction(data: {
+    name: string;
+}): Promise<ActionResult> {
     const authToken = await getAuthToken();
     if (!authToken) return { success: false, error: '認証が必要です' };
 
@@ -32,9 +31,8 @@ export async function createDepartmentAction(
             headers: {
                 'Content-Type': 'application/json',
                 Cookie: `auth_token=${authToken}`,
-                'x-event-id': eventId,
             },
-            body: JSON.stringify({ event_id: eventId, ...data }),
+            body: JSON.stringify(data),
         });
         logAction(
             'createDepartmentAction',
@@ -49,11 +47,7 @@ export async function createDepartmentAction(
                 error: body.error ?? '登録に失敗しました',
             };
         }
-        const snapshot = await fetchDepartmentsSnapshot(eventId, authToken);
-        if (!snapshot.success) {
-            return snapshot;
-        }
-        return snapshot;
+        return successfulDepartmentMutation(authToken);
     } catch (err) {
         logActionError(
             'createDepartmentAction',
@@ -66,7 +60,6 @@ export async function createDepartmentAction(
 }
 
 export async function updateDepartmentAction(
-    eventId: string,
     id: string,
     data: { name?: string },
 ): Promise<ActionResult> {
@@ -80,7 +73,6 @@ export async function updateDepartmentAction(
             headers: {
                 'Content-Type': 'application/json',
                 Cookie: `auth_token=${authToken}`,
-                'x-event-id': eventId,
             },
             body: JSON.stringify(data),
         });
@@ -97,11 +89,7 @@ export async function updateDepartmentAction(
                 error: body.error ?? '更新に失敗しました',
             };
         }
-        const snapshot = await fetchDepartmentsSnapshot(eventId, authToken);
-        if (!snapshot.success) {
-            return snapshot;
-        }
-        return snapshot;
+        return successfulDepartmentMutation(authToken);
     } catch (err) {
         logActionError(
             'updateDepartmentAction',
@@ -114,7 +102,6 @@ export async function updateDepartmentAction(
 }
 
 export async function deleteDepartmentAction(
-    eventId: string,
     id: string,
 ): Promise<ActionResult> {
     const authToken = await getAuthToken();
@@ -126,7 +113,6 @@ export async function deleteDepartmentAction(
             method: 'DELETE',
             headers: {
                 Cookie: `auth_token=${authToken}`,
-                'x-event-id': eventId,
             },
         });
         logAction(
@@ -142,11 +128,7 @@ export async function deleteDepartmentAction(
                 error: body.error ?? '削除に失敗しました',
             };
         }
-        const snapshot = await fetchDepartmentsSnapshot(eventId, authToken);
-        if (!snapshot.success) {
-            return snapshot;
-        }
-        return snapshot;
+        return successfulDepartmentMutation(authToken);
     } catch (err) {
         logActionError(
             'deleteDepartmentAction',
@@ -158,55 +140,20 @@ export async function deleteDepartmentAction(
     }
 }
 
-export async function copyDepartmentsFromEventAction(
-    eventId: string,
-    sourceEventId: string,
+async function successfulDepartmentMutation(
+    authToken: string,
 ): Promise<ActionResult> {
-    const authToken = await getAuthToken();
-    if (!authToken) return { success: false, error: '認証が必要です' };
-
-    const endpoint = '/api/departments/copy';
-    try {
-        const res = await fetchFromBackend(endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Cookie: `auth_token=${authToken}`,
-                'x-event-id': eventId,
-            },
-            body: JSON.stringify({ source_event_id: sourceEventId }),
-        });
-        logAction(
-            'copyDepartmentsFromEventAction',
-            'POST',
-            buildBackendUrl(endpoint),
-            res.status,
-        );
-        if (!res.ok) {
-            const body = (await res.json()) as { error?: string };
-            return {
-                success: false,
-                error: body.error ?? '部署のコピーに失敗しました',
-            };
-        }
-        const snapshot = await fetchDepartmentsSnapshot(eventId, authToken);
-        if (!snapshot.success) {
-            return snapshot;
-        }
-        return snapshot;
-    } catch (err) {
-        logActionError(
-            'copyDepartmentsFromEventAction',
-            'POST',
-            buildBackendUrl(endpoint),
-            err,
-        );
-        return { success: false, error: '部署のコピーに失敗しました' };
-    }
+    const snapshot = await fetchDepartmentsSnapshot(authToken);
+    return snapshot.success
+        ? snapshot
+        : {
+              success: true,
+              warning:
+                  '変更は完了しましたが、最新の部署一覧を取得できませんでした。一覧を再取得してください。',
+          };
 }
 
 async function fetchDepartmentsSnapshot(
-    eventId: string,
     authToken: string,
 ): Promise<ActionResult> {
     const endpoint = '/api/departments';
@@ -214,8 +161,8 @@ async function fetchDepartmentsSnapshot(
         const res = await fetchFromBackend(endpoint, {
             headers: {
                 Cookie: `auth_token=${authToken}`,
-                'x-event-id': eventId,
             },
+            cache: 'no-store',
         });
         logAction(
             'fetchDepartmentsSnapshot',
